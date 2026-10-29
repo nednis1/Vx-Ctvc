@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VOSCTV NVR Remote Console</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Slim VOSCTV Header with Session Tabs Only -->
+  <header class="vosctv-bar">
+    <div class="bar-left">
+      <div class="vosctv-brand">
+        <svg class="vosctv-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="40" height="40" rx="8" fill="#EF4444"/>
+          <path d="M12 28L28 12M12 12L28 28" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="20" cy="20" r="4.5" fill="#FFFFFF"/>
+        </svg>
+        <span class="vosctv-title">VOSCTV <span class="accent">NVR</span></span>
+      </div>
+
+      <nav class="session-tabs">
+        <button class="session-tab active" id="tab-nvr1" onclick="switchTab('nvr1')">
+          <span class="dot online"></span>
+          <span>NVR 1 (192.168.1.200)</span>
+        </button>
+
+        <button class="session-tab" id="tab-nvr2" onclick="switchTab('nvr2')">
+          <span class="dot online"></span>
+          <span>NVR 2 (192.168.1.181)</span>
+        </button>
+
+        <button class="session-tab" id="tab-split" onclick="switchTab('split')">
+          <span class="split-icon">⬚⬚</span>
+          <span>Split View</span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="bar-right">
+      <button class="tool-btn" onclick="openDirectTab()" title="Open active NVR in direct browser tab">↗ Direct Tab</button>
+      <button class="tool-btn" onclick="reloadActive()" title="Reload active session">↻ Reload</button>
+      <button class="tool-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶ Fullscreen</button>
+    </div>
+  </header>
+
+  <!-- Main Viewports (100% Screen Dedicated to NVR Views) -->
+  <main class="viewport-area">
+    <!-- NVR 1 Viewport -->
+    <div class="viewport-pane active" id="pane-nvr1">
+      <iframe id="frame-nvr1" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
+    </div>
+
+    <!-- NVR 2 Viewport -->
+    <div class="viewport-pane" id="pane-nvr2">
+      <iframe id="frame-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
+    </div>
+
+    <!-- Dual Split View -->
+    <div class="viewport-pane" id="pane-split">
+      <div class="split-container">
+        <div class="split-half">
+          <div class="split-title">NVR 1 (192.168.1.200)</div>
+          <iframe id="frame-split-nvr1" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe>
+        </div>
+        <div class="split-half">
+          <div class="split-title">NVR 2 (192.168.1.181)</div>
+          <iframe id="frame-split-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
