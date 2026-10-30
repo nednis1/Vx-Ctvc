@@ -74,7 +74,7 @@ function reloadActive() {
 }
 
 function openDirectTab() {
-  const directUrl = currentTab === 'nvr2' ? 'http://192.168.1.181/' : 'http://192.168.1.200/';
+  const directUrl = currentTab === 'nvr2' ? NVR2_URL : NVR1_URL;
   window.open(directUrl, '_blank');
 }
 

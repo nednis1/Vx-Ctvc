@@ -61,9 +61,6 @@ function createNvrProxy(nvr) {
     delete proxyRes.headers['content-security-policy'];
     delete proxyRes.headers['content-security-policy-report-only'];
     delete proxyRes.headers['strict-transport-security'];
-    
-    // Block local Windows OCX WebSocketServer (127.0.0.1:23420/23440/23510) so Dahua stays in pure HTML5 player mode
-    proxyRes.headers['content-security-policy'] = "connect-src 'self' http: https: ws://localhost:* wss://localhost:* ws://192.168.1.200:* ws://192.168.1.181:*;";
 
     // Inject CORS and embedding headers
     proxyRes.headers['access-control-allow-origin'] = '*';
@@ -101,9 +98,16 @@ function createNvrProxy(nvr) {
         'connectRealVideo:function(e,t,n){return e>1&&e<6&&(e-=1),this.ocx.callOcx("connectRealTimeVideo",{stream:e,channel:t,viewIndex:n})}',
         'connectRealTimeVideoByChannelList:function(e,t){var n=this,a=Math.min(e.length,this.visibleViews||4),r=void 0===t?2:t;for(var i=0;i<a;i++)n.connectRealVideo(r,e[i],i)},connectRealVideo:function(e,t,n){return e>1&&e<6&&(e-=1),this.ocx.callOcx("connectRealTimeVideo",{stream:e,channel:t,viewIndex:n})}'
       )
-      // 4. Enable 1/4/6/8/9/13/16 split views in HTML5 mode on both NVRs
-      .replace(/H5:\[1,2,4(?:,6,8,9)?\]/g, 'H5:[1,2,4,6,8,9,13,16]')
-      .replace(/H5:\[4(?:,8,9)?\]/g, 'H5:[4,8,9,16]');
+      // 4. Enable 1/4/6/8/9/13/16/20/25/36 multi-column split views in HTML5 mode on both NVRs
+      .replace(/="yyyyMMddhhmmss",(\w+)=null,(\w+)=null,(\w+)=16/g, '="yyyyMMddhhmmss",$1=null,$2=null,$3=36')
+      .replace(/curViewIndex:0,totalViews:(\w+),splitViews:\1,visibleViews:\1/g, 'curViewIndex:0,totalViews:$1,splitViews:4,visibleViews:4')
+      .replace(
+        'case 4:h=2,f=2;break;case 9:h=3,f=3;break;case 16:h=4,f=4',
+        'case 4:h=2,f=2;break;case 6:h=2,f=3;break;case 8:h=3,f=3;break;case 9:h=3,f=3;break;case 13:h=4,f=4;break;case 16:h=4,f=4;break;case 20:h=4,f=5;break;case 25:h=5,f=5;break;case 36:h=6,f=6'
+      )
+      .replace(/applicationState:Object\(([^)]+)\)\([^)]+\.App\.CHANNEL_NUMBER\)/g, 'applicationState:Object($1)(36)')
+      .replace(/H5:\[1,2,4(?:,6,8,9)?\]/g, 'H5:[1,2,4,6,8,9,13,16,20,25,36]')
+      .replace(/H5:\[4(?:,8,9)?\]/g, 'H5:[4,8,9,16,25,36]');
   }
 
   const server = http.createServer({ insecureHTTPParser: true }, async (req, res) => {
@@ -130,13 +134,12 @@ function createNvrProxy(nvr) {
         let html = await upstream.text();
         html = html.replace(
           /(src="\/static\/js\/project\.[^"]+\.chunk\.js)"/,
-          '$1?v=vosctv2"'
+          '$1?v=vosctv4"'
         );
         res.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-          'Access-Control-Allow-Origin': '*',
-          'Content-Security-Policy': "connect-src 'self' http: https: ws://localhost:* wss://localhost:* ws://192.168.1.200:* ws://192.168.1.181:*;"
+          'Access-Control-Allow-Origin': '*'
         });
         res.end(html);
         return;
