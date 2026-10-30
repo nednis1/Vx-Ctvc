@@ -143,65 +143,90 @@ body {
   color: #ffffff;
 }
 
-/* Viewport Area */
+/* Viewport Area (Single & Split Views Share the Same NVR Panes) */
 .viewport-area {
   flex: 1;
   position: relative;
   background-color: #000000;
   overflow: hidden;
-}
-
-.viewport-pane {
-  display: none;
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.viewport-pane.active {
-  display: block;
-}
-
-.nvr-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: #000000;
-}
-
-/* Split View Layout */
-.split-container {
   display: flex;
   width: 100%;
   height: 100%;
+}
+
+.viewport-area[data-view="split"] {
   gap: 2px;
   background: #1e293b;
 }
 
-.split-half {
-  flex: 1;
+.nvr-pane {
   display: flex;
   flex-direction: column;
   background: #000000;
+  width: 100%;
+  height: 100%;
+}
+
+/* Single View: NVR 1 active, NVR 2 kept alive in background */
+.viewport-area[data-view="nvr1"] #pane-nvr1 {
+  flex: 1;
   position: relative;
+  visibility: visible;
+  z-index: 2;
+}
+
+.viewport-area[data-view="nvr1"] #pane-nvr2 {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Single View: NVR 2 active, NVR 1 kept alive in background */
+.viewport-area[data-view="nvr2"] #pane-nvr2 {
+  flex: 1;
+  position: relative;
+  visibility: visible;
+  z-index: 2;
+}
+
+.viewport-area[data-view="nvr2"] #pane-nvr1 {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Split View: Both NVR 1 and NVR 2 visible side-by-side */
+.viewport-area[data-view="split"] .nvr-pane {
+  flex: 1;
+  position: relative;
+  visibility: visible;
+  z-index: 2;
 }
 
 .split-title {
+  display: none;
   height: 22px;
   background: #0f172a;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
-  display: flex;
   align-items: center;
   padding: 0 8px;
   border-bottom: 1px solid var(--border);
 }
 
-.split-half .nvr-frame {
+.viewport-area[data-view="split"] .split-title {
+  display: flex;
+}
+
+.nvr-frame {
   flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #000000;
 }
