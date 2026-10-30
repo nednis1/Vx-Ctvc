@@ -47,30 +47,18 @@
     </div>
   </header>
 
-  <!-- Main Viewports (100% Screen Dedicated to NVR Views) -->
-  <main class="viewport-area">
-    <!-- NVR 1 Viewport -->
-    <div class="viewport-pane active" id="pane-nvr1">
+  <!-- Main Viewports (Shared Persistent NVR Sessions Across Single & Split Views) -->
+  <main class="viewport-area" id="viewport-area" data-view="nvr1">
+    <!-- NVR 1 Session Pane -->
+    <div class="nvr-pane" id="pane-nvr1">
+      <div class="split-title">NVR 1 (192.168.1.200)</div>
       <iframe id="frame-nvr1" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
     </div>
 
-    <!-- NVR 2 Viewport -->
-    <div class="viewport-pane" id="pane-nvr2">
+    <!-- NVR 2 Session Pane -->
+    <div class="nvr-pane" id="pane-nvr2">
+      <div class="split-title">NVR 2 (192.168.1.181)</div>
       <iframe id="frame-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
-    </div>
-
-    <!-- Dual Split View -->
-    <div class="viewport-pane" id="pane-split">
-      <div class="split-container">
-        <div class="split-half">
-          <div class="split-title">NVR 1 (192.168.1.200)</div>
-          <iframe id="frame-split-nvr1" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe>
-        </div>
-        <div class="split-half">
-          <div class="split-title">NVR 2 (192.168.1.181)</div>
-          <iframe id="frame-split-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe>
-        </div>
-      </div>
     </div>
   </main>
 

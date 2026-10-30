@@ -3,6 +3,7 @@ const http = require('http');
 const httpProxy = require('http-proxy');
 const net = require('net');
 const path = require('path');
+const zlib = require('zlib');
 
 // Configuration
 const CONFIG = {
@@ -82,7 +83,30 @@ function createNvrProxy(nvr) {
     }
   });
 
-  const server = http.createServer({ insecureHTTPParser: true }, (req, res) => {
+  const bundleCache = new Map();
+
+  function patchProjectBundle(js) {
+    return js
+      // 1. Suppress the "To use this function, please download and install the plug-in" banner in HTML5 mode
+      .replace(
+        't.showTipFun=function(){t.setState({showTip:!0})}',
+        't.showTipFun=function(){t.setState({showTip:!1})}'
+      )
+      // 2. Allow Live Preview, Playback, and Open All in pure HTML5 mode without triggering ShowDownloadTip
+      .replace('"PreviewIn","PlayBackIn"', '"_PreviewIn","_PlayBackIn"')
+      .replace('"previewDefMain","previewOpenAll"', '"previewDefMain","_previewOpenAll"')
+      .replace('"notSupport9CHPreviewTip"', '"_notSupport9CHPreviewTip"')
+      // 3. Implement connectRealTimeVideoByChannelList in the HTML5 player mixin so "Open All" opens all cameras
+      .replace(
+        'connectRealVideo:function(e,t,n){return e>1&&e<6&&(e-=1),this.ocx.callOcx("connectRealTimeVideo",{stream:e,channel:t,viewIndex:n})}',
+        'connectRealTimeVideoByChannelList:function(e,t){var n=this,a=Math.min(e.length,this.visibleViews||4),r=void 0===t?2:t;for(var i=0;i<a;i++)n.connectRealVideo(r,e[i],i)},connectRealVideo:function(e,t,n){return e>1&&e<6&&(e-=1),this.ocx.callOcx("connectRealTimeVideo",{stream:e,channel:t,viewIndex:n})}'
+      )
+      // 4. Enable 1/4/6/8/9/13/16 split views in HTML5 mode on both NVRs
+      .replace(/H5:\[1,2,4(?:,6,8,9)?\]/g, 'H5:[1,2,4,6,8,9,13,16]')
+      .replace(/H5:\[4(?:,8,9)?\]/g, 'H5:[4,8,9,16]');
+  }
+
+  const server = http.createServer({ insecureHTTPParser: true }, async (req, res) => {
     // Force Dahua Web 5.0 to use built-in HTML5 Canvas/MSE player instead of local Windows OCX plugin (which renders black in iframes)
     if (req.url && req.url.startsWith('/pluginVersion.js')) {
       res.writeHead(200, {
@@ -98,6 +122,61 @@ function createNvrProxy(nvr) {
       }));
       return;
     }
+
+    // Rewrite index.html to cache-bust the patched project.*.chunk.js bundle
+    if (req.url === '/' || req.url === '/index.html') {
+      try {
+        const upstream = await fetch(`http://${nvr.ip}:${nvr.port}/`);
+        let html = await upstream.text();
+        html = html.replace(
+          /(src="\/static\/js\/project\.[^"]+\.chunk\.js)"/,
+          '$1?v=vosctv2"'
+        );
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Access-Control-Allow-Origin': '*',
+          'Content-Security-Policy': "connect-src 'self' http: https: ws://localhost:* wss://localhost:* ws://192.168.1.200:* ws://192.168.1.181:*;"
+        });
+        res.end(html);
+        return;
+      } catch (err) {
+        // Fallback to standard proxy on error
+      }
+    }
+
+    // Patch /static/js/project.*.chunk.js on-the-fly so HTML5 mode never prompts for webplugin.exe and supports Open All
+    if (req.url && req.url.startsWith('/static/js/project.')) {
+      const cleanPath = req.url.split('?')[0];
+      try {
+        if (!bundleCache.has(cleanPath)) {
+          const upstream = await fetch(`http://${nvr.ip}:${nvr.port}${cleanPath}`);
+          const arrayBuf = await upstream.arrayBuffer();
+          const rawBuf = Buffer.from(arrayBuf);
+          let jsText;
+          if (rawBuf.length >= 2 && rawBuf[0] === 0x1f && rawBuf[1] === 0x8b) {
+            jsText = zlib.gunzipSync(rawBuf).toString('utf8');
+          } else {
+            jsText = rawBuf.toString('utf8');
+          }
+          const patchedJs = patchProjectBundle(jsText);
+          bundleCache.set(cleanPath, zlib.gzipSync(Buffer.from(patchedJs, 'utf8')));
+        }
+        const gzOut = bundleCache.get(cleanPath);
+        res.writeHead(200, {
+          'Content-Type': 'application/javascript; charset=utf-8',
+          'Content-Encoding': 'gzip',
+          'Content-Length': gzOut.length,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(gzOut);
+        return;
+      } catch (err) {
+        console.error(`[${nvr.id} Bundle Patch Error]:`, err.message);
+      }
+    }
+
     proxy.web(req, res);
   });
 
