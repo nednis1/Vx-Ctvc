@@ -1,9 +1,26 @@
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
 const httpProxy = require('http-proxy');
 const net = require('net');
 const path = require('path');
 const zlib = require('zlib');
+
+// Custom Camera Names file persistence
+const CAMERA_NAMES_FILE = path.join(__dirname, 'camera_names.json');
+function loadCustomNames() {
+  try {
+    if (fs.existsSync(CAMERA_NAMES_FILE)) {
+      return JSON.parse(fs.readFileSync(CAMERA_NAMES_FILE, 'utf8'));
+    }
+  } catch (e) {}
+  return { nvr1: {}, nvr2: {} };
+}
+function saveCustomNames(data) {
+  try {
+    fs.writeFileSync(CAMERA_NAMES_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {}
+}
 
 // Configuration
 const CONFIG = {
@@ -107,7 +124,12 @@ function createNvrProxy(nvr) {
       )
       .replace(/applicationState:Object\(([^)]+)\)\([^)]+\.App\.CHANNEL_NUMBER\)/g, 'applicationState:Object($1)(36)')
       .replace(/H5:\[1,2,4(?:,6,8,9)?\]/g, 'H5:[1,2,4,6,8,9,13,16,20,25,36]')
-      .replace(/H5:\[4(?:,8,9)?\]/g, 'H5:[4,8,9,16,25,36]');
+      .replace(/H5:\[4(?:,8,9)?\]/g, 'H5:[4,8,9,16,25,36]')
+      // 5. Hook channel display names directly in Dahua tree items to support in-app renaming with ✏️
+      .replace(
+        '.showName=r+(e.RemoteName?e.RemoteName:e.Name)',
+        '.showName=(window.__vosctvName?window.__vosctvName(n,r+(e.RemoteName?e.RemoteName:e.Name)):(r+(e.RemoteName?e.RemoteName:e.Name)))'
+      );
   }
 
   const server = http.createServer({ insecureHTTPParser: true }, async (req, res) => {
@@ -127,15 +149,112 @@ function createNvrProxy(nvr) {
       return;
     }
 
-    // Rewrite index.html to cache-bust the patched project.*.chunk.js bundle
+    // Rewrite index.html to cache-bust the patched project.*.chunk.js bundle and inject sidebar rename helper
     if (req.url === '/' || req.url === '/index.html') {
       try {
         const upstream = await fetch(`http://${nvr.ip}:${nvr.port}/`);
         let html = await upstream.text();
         html = html.replace(
           /(src="\/static\/js\/project\.[^"]+\.chunk\.js)"/,
-          '$1?v=vosctv4"'
+          '$1?v=vosctv5"'
         );
+
+        // Inject script that handles double-click or hover-rename on sidebar channel items
+        const renameScript = `
+<script>
+window.__VOSCTV_NVR_ID = "${nvr.id}";
+(function() {
+  function getCustomNames() {
+    try {
+      return JSON.parse(localStorage.getItem('vosctv_camera_names_' + window.__VOSCTV_NVR_ID) || '{}');
+    } catch(e) { return {}; }
+  }
+  function saveCustomNames(map) {
+    try {
+      localStorage.setItem('vosctv_camera_names_' + window.__VOSCTV_NVR_ID, JSON.stringify(map));
+    } catch(e) {}
+    fetch('/api/camera-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nvrId: window.__VOSCTV_NVR_ID, names: map })
+    }).catch(function(){});
+  }
+
+  // Hook Dahua's internal channel title formatter so it displays custom names directly
+  window.__vosctvName = function(chIndex, defaultTitle) {
+    var ch = chIndex + 1;
+    var custom = getCustomNames()[ch];
+    var displayName = custom || defaultTitle;
+    return displayName + " ✏️";
+  };
+
+  // Fetch initial names from VOSCTV server
+  fetch('/api/camera-names?nvrId=' + window.__VOSCTV_NVR_ID)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data && data.names) {
+        localStorage.setItem('vosctv_camera_names_' + window.__VOSCTV_NVR_ID, JSON.stringify(data.names));
+      }
+    }).catch(function(){});
+
+  // Handle double-click or click anywhere on the camera label or pencil icon
+  document.addEventListener('dblclick', handleTreeRename);
+  document.addEventListener('click', function(e) {
+    var txt = e.target.textContent || '';
+    if (txt.includes('✏️') || e.target.closest('[title*="✏️"]')) {
+      handleTreeRename(e);
+    }
+  });
+
+  function handleTreeRename(e) {
+    var target = e.target;
+    var row = target.closest('li, .ant-tree-treenode, .ant-tree-node-content-wrapper, [role="treeitem"]') || target;
+    var text = row.innerText || row.textContent || '';
+    if (!text.includes('✏️') && !text.match(/(?:CAM|Channel|CH|D|A)\\s*\\d+/i)) return;
+
+    var chMatch = text.match(/(?:CAM|Channel|CH|D|A)\\s*(\\d+)/i);
+    if (!chMatch) return;
+    var ch = parseInt(chMatch[1], 10);
+
+    var currentNames = getCustomNames();
+    var currentName = currentNames[ch] || text.replace(/✏️/g, '').trim();
+    var newName = prompt('Enter new name for Camera ' + ch + ':', currentName);
+    if (newName === null) return;
+    newName = newName.trim();
+    if (!newName) return;
+
+    // 1. Try Option B: Send Dahua RPC or CGI to update NVR firmware directly
+    fetch('/api/rename-nvr-camera', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nvrId: window.__VOSCTV_NVR_ID,
+        channel: ch,
+        name: newName
+      })
+    }).then(function(res) {
+      return res.json();
+    }).then(function(data) {
+      console.log('[VOSCTV] NVR rename response:', data);
+    }).catch(function(err) {
+      console.warn('[VOSCTV] NVR direct rename failed, falling back to local alias:', err);
+    });
+
+    // 2. Option A (Local fallback & instant UI update):
+    currentNames[ch] = newName;
+    saveCustomNames(currentNames);
+
+    // Update the DOM element directly so changes are visible instantly
+    if (target.textContent) {
+      target.textContent = target.textContent.replace(currentName, newName);
+    }
+    window.location.reload();
+  }
+})();
+</script>
+</body>`;
+        html = html.replace('</body>', renameScript);
+
         res.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -332,6 +451,76 @@ app.post('/api/ptz', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to dispatch PTZ command', details: err.message });
+  }
+});
+
+// API: Get custom camera names
+app.get('/api/camera-names', (req, res) => {
+  const { nvrId } = req.query;
+  const data = loadCustomNames();
+  if (nvrId) {
+    return res.json({ nvrId, names: data[nvrId] || {} });
+  }
+  res.json(data);
+});
+
+// API: Save custom camera names (Option A fallback)
+app.post('/api/camera-names', (req, res) => {
+  const { nvrId, names } = req.body;
+  if (!nvrId || !names) {
+    return res.status(400).json({ error: 'Missing nvrId or names' });
+  }
+  const data = loadCustomNames();
+  data[nvrId] = { ...(data[nvrId] || {}), ...names };
+  saveCustomNames(data);
+  res.json({ success: true, names: data[nvrId] });
+});
+
+// API: Rename Camera on NVR directly (Option B with Dahua RPC/CGI)
+app.post('/api/rename-nvr-camera', async (req, res) => {
+  const { nvrId, channel, name } = req.body;
+  const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
+  if (!nvr) return res.status(404).json({ error: 'NVR not found' });
+
+  // 1. Save to local fallback storage
+  const localData = loadCustomNames();
+  if (!localData[nvrId]) localData[nvrId] = {};
+  localData[nvrId][channel] = name;
+  saveCustomNames(localData);
+
+  // 2. Attempt to write to NVR ChannelTitle via configManager.cgi
+  // Dahua syntax: /cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[ch-1].Name=encodedName
+  const chIdx = Math.max(0, parseInt(channel, 10) - 1);
+  const encodedName = encodeURIComponent(name);
+  const nvrUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[${chIdx}].Name=${encodedName}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const nvrRes = await fetch(nvrUrl, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    const text = await nvrRes.text();
+    return res.json({
+      success: true,
+      nvrStatus: nvrRes.status,
+      nvrResponse: text.trim(),
+      channel,
+      name,
+      savedLocally: true
+    });
+  } catch (err) {
+    // Return success since local alias is stored
+    return res.json({
+      success: true,
+      nvrError: err.message,
+      channel,
+      name,
+      savedLocally: true,
+      fallbackUsed: true
+    });
   }
 });
 
