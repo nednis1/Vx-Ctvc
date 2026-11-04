@@ -141,6 +141,20 @@ async function syncOfficialNvrNames() {
   return customData;
 }
 
+// -------------------------------------------------------------
+// Express Dashboard App Initialization
+// -------------------------------------------------------------
+const app = express();
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 function createNvrProxy(nvr) {
   const proxy = httpProxy.createProxyServer({
     target: `http://${nvr.ip}:${nvr.port}`,
@@ -222,6 +236,11 @@ function createNvrProxy(nvr) {
   }
 
   const server = http.createServer({ insecureHTTPParser: true }, async (req, res) => {
+    // 0. Handle all /api/ requests from inside Dahua iframes directly via Express
+    if (req.url && req.url.startsWith('/api/')) {
+      return app(req, res);
+    }
+
     // Force Dahua Web 5.0 to use built-in HTML5 Canvas/MSE player instead of local Windows OCX plugin (which renders black in iframes)
     if (req.url && req.url.startsWith('/pluginVersion.js')) {
       res.writeHead(200, {
@@ -395,22 +414,29 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
     newName = newName.trim();
     if (!newName || newName === currentName) return;
 
-    // 1. Try Option B: Send Dahua RPC or CGI to update NVR firmware directly in background
-    fetch('/api/rename-nvr-camera', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nvrId: window.__VOSCTV_NVR_ID,
-        channel: ch,
-        name: newName
+    // 1. Send authenticated rename to VOSCTV backend (updates NVR hardware ChannelTitle + VideoWidget)
+    function dispatchRename(url) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nvrId: window.__VOSCTV_NVR_ID,
+          channel: ch,
+          name: newName
+        })
+      });
+    }
+
+    dispatchRename('/api/rename-nvr-camera')
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        console.log('[VOSCTV] NVR rename response:', data);
       })
-    }).then(function(res) {
-      return res.json();
-    }).then(function(data) {
-      console.log('[VOSCTV] NVR rename response:', data);
-    }).catch(function(err) {
-      console.warn('[VOSCTV] NVR direct rename failed, falling back to local alias:', err);
-    });
+      .catch(function(err) {
+        console.warn('[VOSCTV] Local proxy rename error, retrying dashboard port 8090:', err);
+        var fallbackUrl = window.location.protocol + '//' + window.location.hostname + ':8090/api/rename-nvr-camera';
+        dispatchRename(fallbackUrl).catch(function(){});
+      });
 
     // 2. Option A (Local sync & instant in-place DOM update without resetting video stream)
     currentNames[ch] = newName;
@@ -519,9 +545,7 @@ CONFIG.nvrs.forEach(createNvrProxy);
 // -------------------------------------------------------------
 // 2. Setup Main Dashboard Server
 // -------------------------------------------------------------
-const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// (app initialized earlier to service proxy API requests)
 
 // Helper to test TCP connection and latency
 function checkPort(host, port, timeout = 2500) {
@@ -702,18 +726,26 @@ app.post('/api/rename-nvr-camera', async (req, res) => {
   // 2. Write to NVR firmware directly using authenticated Digest Auth
   const chIdx = Math.max(0, parseInt(channel, 10) - 1);
   const encodedName = encodeURIComponent(name);
-  const nvrUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[${chIdx}].Name=${encodedName}&VideoWidget[${chIdx}].ChannelTitle.ChannelName=${encodedName}`;
+  const nvrUrlTitle = `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[${chIdx}].Name=${encodedName}`;
+  const nvrUrlWidget = `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=setConfig&VideoWidget[${chIdx}].ChannelTitle.ChannelName=${encodedName}`;
 
   try {
-    const nvrRes = await dahuaDigestRequest(nvrUrl, nvr.username, nvr.password);
-    console.log(`[VOSCTV] NVR ${nvrId} rename Ch ${channel} -> "${name}" result:`, nvrRes.status, nvrRes.body.trim());
+    const titleRes = await dahuaDigestRequest(nvrUrlTitle, nvr.username, nvr.password);
+    console.log(`[VOSCTV] NVR ${nvrId} rename ChannelTitle[${chIdx}] -> "${name}" result:`, titleRes.status, titleRes.body.trim());
+
+    // Also update VideoWidget OSD title if supported by this channel
+    try {
+      const widgetRes = await dahuaDigestRequest(nvrUrlWidget, nvr.username, nvr.password);
+      console.log(`[VOSCTV] NVR ${nvrId} rename VideoWidget[${chIdx}] -> "${name}" result:`, widgetRes.status, widgetRes.body.trim());
+    } catch(e) {}
+
     return res.json({
       success: true,
-      nvrStatus: nvrRes.status,
-      nvrResponse: nvrRes.body.trim(),
+      nvrStatus: titleRes.status,
+      nvrResponse: titleRes.body.trim(),
       channel,
       name,
-      savedToNvr: nvrRes.status === 200,
+      savedToNvr: titleRes.status === 200,
       savedLocally: true
     });
   } catch (err) {
