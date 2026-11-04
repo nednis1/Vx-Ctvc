@@ -400,26 +400,51 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
     });
   }
 
-  // Double-click to rename support on tree items
-  document.addEventListener('dblclick', function(e) {
-    var row = e.target.closest('[class*="treenode"], [class*="tree-node"], [class*="node-content-wrapper"], [class*="tree-content-wrapper"], [role="treeitem"], li');
-    if (!row) return;
-    var ch = row.dataset.vosctvCh;
-    if (!ch) {
-      var text = (row.innerText || row.textContent || '').replace(/✏️/g, '').trim();
-      if (window.__vosctvChMap && window.__vosctvChMap[text.toLowerCase()]) {
-        ch = window.__vosctvChMap[text.toLowerCase()];
-      } else {
-        var chMatch = text.match(/(?:CAM|Channel|CH|D|A)\\s*(\\d+)/i);
-        if (chMatch) ch = parseInt(chMatch[1], 10);
+  // Double-click or pencil click to rename camera in sidebar
+  document.addEventListener('dblclick', handleTreeRename, true);
+  document.addEventListener('click', function(e) {
+    var txt = e.target.textContent || '';
+    if (txt.includes('✏️') || (e.target && e.target.classList && e.target.classList.contains('vosctv-edit-pencil')) || (e.target && e.target.title && e.target.title.includes('rename'))) {
+      handleTreeRename(e);
+    }
+  }, true);
+
+  function handleTreeRename(e) {
+    var target = e.target;
+    if (!target) return;
+    if (target.classList && (target.classList.contains('ant-tree-switcher') || target.classList.contains('ant-tree-checkbox'))) return;
+
+    var el = target;
+    var ch = null;
+    var matchedRow = null;
+
+    for (var depth = 0; depth < 8 && el && el !== document.body; depth++) {
+      if (el.dataset && el.dataset.vosctvCh) {
+        ch = parseInt(el.dataset.vosctvCh, 10);
+        matchedRow = el;
+        break;
       }
+      var t = (el.innerText || el.textContent || '').replace(/✏️/g, '').trim();
+      if (window.__vosctvChMap && window.__vosctvChMap[t.toLowerCase()]) {
+        ch = window.__vosctvChMap[t.toLowerCase()];
+        matchedRow = el;
+        break;
+      }
+      var m = t.match(/(?:CAM|Channel|CH|D|A)\\s*(\\d+)/i);
+      if (m) {
+        ch = parseInt(m[1], 10);
+        matchedRow = el;
+        break;
+      }
+      el = el.parentElement;
     }
-    if (ch) {
-      e.preventDefault();
-      e.stopPropagation();
-      promptRenameCamera(parseInt(ch, 10), row);
-    }
-  });
+
+    if (!ch) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    promptRenameCamera(ch, matchedRow || target);
+  }
 
   // Prompt user for new name and update in-place without page reload
   function promptRenameCamera(ch, rowElement) {
