@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
 const http = require('http');
@@ -33,7 +34,9 @@ const CONFIG = {
       port: 80,
       rtspPort: 554,
       privatePort: 37777,
-      proxyPort: 8091
+      proxyPort: 8091,
+      username: process.env.NVR_USER || 'iot',
+      password: process.env.NVR_PASSWORD || 'iot12345'
     },
     {
       id: 'nvr2',
@@ -42,7 +45,9 @@ const CONFIG = {
       port: 80,
       rtspPort: 554,
       privatePort: 37777,
-      proxyPort: 8092
+      proxyPort: 8092,
+      username: process.env.NVR_USER || 'iot',
+      password: process.env.NVR_PASSWORD || 'iot12345'
     }
   ]
 };
@@ -51,6 +56,90 @@ const CONFIG = {
 // 1. Setup Reverse Proxies for NVRs
 // -------------------------------------------------------------
 const proxyServers = [];
+
+// -------------------------------------------------------------
+// Dahua Digest Authentication & CGI Helper
+// -------------------------------------------------------------
+function md5(str) {
+  return crypto.createHash('md5').update(str).digest('hex');
+}
+
+function parseDigestHeader(header) {
+  const params = {};
+  const regex = /(\w+)=(?:\"([^\"]+)\"|([^,\s]+))/g;
+  let match;
+  while ((match = regex.exec(header)) !== null) {
+    params[match[1]] = match[2] || match[3];
+  }
+  return params;
+}
+
+function dahuaDigestRequest(url, username, password) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const req1 = http.get(url, { timeout: 4500 }, (res1) => {
+      res1.resume();
+      if (res1.statusCode !== 401 || !res1.headers['www-authenticate']) {
+        return resolve({ status: res1.statusCode, body: '' });
+      }
+
+      const auth = parseDigestHeader(res1.headers['www-authenticate']);
+      const uri = parsedUrl.pathname + parsedUrl.search;
+      const cnonce = crypto.randomBytes(8).toString('hex');
+      const nc = '00000001';
+      const ha1 = md5(username + ':' + auth.realm + ':' + password);
+      const ha2 = md5('GET:' + uri);
+      const response = auth.qop
+        ? md5(ha1 + ':' + auth.nonce + ':' + nc + ':' + cnonce + ':' + auth.qop + ':' + ha2)
+        : md5(ha1 + ':' + auth.nonce + ':' + ha2);
+
+      let authHeader = 'Digest username="' + username + '", realm="' + auth.realm + '", nonce="' + auth.nonce + '", uri="' + uri + '", response="' + response + '"';
+      if (auth.qop) authHeader += ', qop=' + auth.qop + ', nc=' + nc + ', cnonce="' + cnonce + '"';
+      if (auth.opaque) authHeader += ', opaque="' + auth.opaque + '"';
+
+      const req2 = http.get(url, { headers: { 'Authorization': authHeader }, timeout: 4500 }, (res2) => {
+        let body = '';
+        res2.on('data', chunk => body += chunk);
+        res2.on('end', () => resolve({ status: res2.statusCode, body }));
+      });
+      req2.on('error', reject);
+    });
+    req1.on('error', reject);
+    req1.on('timeout', () => { req1.destroy(); reject(new Error('Request timeout')); });
+  });
+}
+
+// Automatically sync official camera names from NVRs on startup or refresh
+async function syncOfficialNvrNames() {
+  const customData = loadCustomNames();
+  let updated = false;
+  for (const nvr of CONFIG.nvrs) {
+    try {
+      const url = 'http://' + nvr.ip + ':' + nvr.port + '/cgi-bin/configManager.cgi?action=getConfig&name=ChannelTitle';
+      const res = await dahuaDigestRequest(url, nvr.username, nvr.password);
+      if (res.status === 200 && res.body) {
+        if (!customData[nvr.id]) customData[nvr.id] = {};
+        const lines = res.body.split('\n');
+        for (const line of lines) {
+          const m = line.trim().match(/table\.ChannelTitle\[(\d+)\]\.Name=(.*)/);
+          if (m) {
+            const ch = parseInt(m[1], 10) + 1;
+            const name = m[2].trim();
+            if (name && customData[nvr.id][ch] !== name) {
+              customData[nvr.id][ch] = name;
+              updated = true;
+            }
+          }
+        }
+        console.log('[VOSCTV] Synced ' + Object.keys(customData[nvr.id]).length + ' official camera names from ' + nvr.name);
+      }
+    } catch (err) {
+      console.warn('[VOSCTV] Could not sync official names from ' + nvr.id + ':', err.message);
+    }
+  }
+  if (updated) saveCustomNames(customData);
+  return customData;
+}
 
 function createNvrProxy(nvr) {
   const proxy = httpProxy.createProxyServer({
@@ -537,26 +626,16 @@ app.post('/api/ptz', async (req, res) => {
   const cgiUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/ptz.cgi?action=start&channel=${channel}&code=${code}&arg1=${arg1}&arg2=${arg2}&arg3=${arg3}`;
   
   try {
-    const headers = {};
-    if (auth && auth.username && auth.password) {
-      const basic = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
-      headers['Authorization'] = `Basic ${basic}`;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const response = await fetch(cgiUrl, { headers, signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    const text = await response.text();
+    const username = (auth && auth.username) || nvr.username;
+    const password = (auth && auth.password) || nvr.password;
+    const nvrRes = await dahuaDigestRequest(cgiUrl, username, password);
     res.json({
-      success: response.ok,
-      status: response.status,
+      success: nvrRes.status === 200,
+      status: nvrRes.status,
       nvr: nvr.ip,
       channel,
       command: code,
-      response: text.trim()
+      response: nvrRes.body.trim()
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to dispatch PTZ command', details: err.message });
@@ -598,43 +677,47 @@ app.post('/api/camera-names', (req, res) => {
   res.json({ success: true, names: data[nvrId] });
 });
 
-// API: Rename Camera on NVR directly (Option B with Dahua RPC/CGI)
+// API: Force refresh camera names directly from NVRs
+app.post('/api/sync-nvr-names', async (req, res) => {
+  try {
+    const data = await syncOfficialNvrNames();
+    res.json({ success: true, names: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Rename Camera on NVR directly (authenticated Dahua CGI)
 app.post('/api/rename-nvr-camera', async (req, res) => {
   const { nvrId, channel, name } = req.body;
   const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
   if (!nvr) return res.status(404).json({ error: 'NVR not found' });
 
-  // 1. Save to local fallback storage
+  // 1. Save to local storage for instant sync across all viewers
   const localData = loadCustomNames();
   if (!localData[nvrId]) localData[nvrId] = {};
   localData[nvrId][channel] = name;
   saveCustomNames(localData);
 
-  // 2. Attempt to write to NVR ChannelTitle via configManager.cgi
-  // Dahua syntax: /cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[ch-1].Name=encodedName
+  // 2. Write to NVR firmware directly using authenticated Digest Auth
   const chIdx = Math.max(0, parseInt(channel, 10) - 1);
   const encodedName = encodeURIComponent(name);
-  const nvrUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[${chIdx}].Name=${encodedName}`;
+  const nvrUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=setConfig&ChannelTitle[${chIdx}].Name=${encodedName}&VideoWidget[${chIdx}].ChannelTitle.ChannelName=${encodedName}`;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
-    const nvrRes = await fetch(nvrUrl, {
-      method: 'GET',
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    const text = await nvrRes.text();
+    const nvrRes = await dahuaDigestRequest(nvrUrl, nvr.username, nvr.password);
+    console.log(`[VOSCTV] NVR ${nvrId} rename Ch ${channel} -> "${name}" result:`, nvrRes.status, nvrRes.body.trim());
     return res.json({
       success: true,
       nvrStatus: nvrRes.status,
-      nvrResponse: text.trim(),
+      nvrResponse: nvrRes.body.trim(),
       channel,
       name,
+      savedToNvr: nvrRes.status === 200,
       savedLocally: true
     });
   } catch (err) {
-    // Return success since local alias is stored
+    console.warn('[VOSCTV] NVR direct rename error, local alias preserved:', err.message);
     return res.json({
       success: true,
       nvrError: err.message,
@@ -653,6 +736,7 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   console.log(`- NVR 1 (${CONFIG.nvrs[0].ip}) Proxy: http://localhost:${CONFIG.nvrs[0].proxyPort}`);
   console.log(`- NVR 2 (${CONFIG.nvrs[1].ip}) Proxy: http://localhost:${CONFIG.nvrs[1].proxyPort}`);
   console.log(`====================================================`);
+  syncOfficialNvrNames().catch(() => {});
 });
 
 // Graceful shutdown
