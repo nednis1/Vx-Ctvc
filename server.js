@@ -232,6 +232,11 @@ function createNvrProxy(nvr) {
       .replace(
         '.showName=r+(e.RemoteName?e.RemoteName:e.Name)',
         '.showName=(window.__vosctvName?window.__vosctvName(n,r+(e.RemoteName?e.RemoteName:e.Name)):(r+(e.RemoteName?e.RemoteName:e.Name)))'
+      )
+      // 6. Hook the MAIN Live Preview & Playback sidebar channel tree names
+      .replace(
+        'O=(null===r||void 0===r?void 0:null===(C=r[g])||void 0===C?void 0:C.RemoteName)||(null===r||void 0===r?void 0:null===(T=r[g])||void 0===T?void 0:T.Name)',
+        'O=(window.__vosctvName?window.__vosctvName(g,(null===r||void 0===r?void 0:null===(C=r[g])||void 0===C?void 0:C.RemoteName)||(null===r||void 0===r?void 0:null===(T=r[g])||void 0===T?void 0:T.Name)):((null===r||void 0===r?void 0:null===(C=r[g])||void 0===C?void 0:C.RemoteName)||(null===r||void 0===r?void 0:null===(T=r[g])||void 0===T?void 0:T.Name)))'
       );
   }
 
@@ -264,18 +269,20 @@ function createNvrProxy(nvr) {
         let html = await upstream.text();
         html = html.replace(
           /(src="\/static\/js\/project\.[^"]+\.chunk\.js)"/,
-          '$1?v=vosctv5"'
+          '$1?v=vosctv8"'
         );
 
         // Inject script that handles double-click or hover-rename on sidebar channel items
         const renameScript = `
 <script>
 window.__VOSCTV_NVR_ID = "${nvr.id}";
+window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {})};
 (function() {
   function getCustomNames() {
     try {
-      return JSON.parse(localStorage.getItem('vosctv_camera_names_' + window.__VOSCTV_NVR_ID) || '{}');
-    } catch(e) { return {}; }
+      var stored = JSON.parse(localStorage.getItem('vosctv_camera_names_' + window.__VOSCTV_NVR_ID) || '{}');
+      return Object.assign({}, window.__VOSCTV_INITIAL_NAMES || {}, stored);
+    } catch(e) { return window.__VOSCTV_INITIAL_NAMES || {}; }
   }
   function saveCustomNames(map) {
     try {
@@ -353,12 +360,24 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
         var titleNode = targetWrap.querySelector('.ant-tree-title') || targetWrap;
         if (titleNode && titleNode.dataset.vosctvCustom !== customNames[ch]) {
           var pencil = titleNode.querySelector('.vosctv-edit-pencil');
-          titleNode.childNodes.forEach(function(node) {
-            if (node.nodeType === 3 && node.textContent.trim()) {
-              node.textContent = customNames[ch];
+          var labelText = 'D' + ch + ' ' + customNames[ch];
+          var innerSpan = titleNode.querySelector('span:not(.vosctv-edit-pencil)');
+          if (innerSpan) {
+            innerSpan.textContent = labelText;
+          } else {
+            var updated = false;
+            titleNode.childNodes.forEach(function(node) {
+              if (node.nodeType === 3 && node.textContent.trim()) {
+                node.textContent = labelText;
+                updated = true;
+              }
+            });
+            if (!updated) {
+              titleNode.textContent = labelText;
             }
-          });
+          }
           titleNode.dataset.vosctvCustom = customNames[ch];
+          titleNode.title = labelText;
           if (pencil && !titleNode.contains(pencil)) titleNode.appendChild(pencil);
         }
       }
@@ -452,18 +471,25 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
         : (rowElement.querySelector('.ant-tree-node-content-wrapper') || rowElement.querySelector('.ant-tree-title') || rowElement);
       var titleNode = targetWrap.querySelector('.ant-tree-title') || targetWrap;
       var pencil = titleNode.querySelector('.vosctv-edit-pencil');
-      var updated = false;
-      titleNode.childNodes.forEach(function(node) {
-        if (node.nodeType === 3 && node.textContent.trim()) {
-          node.textContent = newName;
-          updated = true;
+      var labelText = 'D' + ch + ' ' + newName;
+      var innerSpan = titleNode.querySelector('span:not(.vosctv-edit-pencil)');
+      if (innerSpan) {
+        innerSpan.textContent = labelText;
+      } else {
+        var updated = false;
+        titleNode.childNodes.forEach(function(node) {
+          if (node.nodeType === 3 && node.textContent.trim()) {
+            node.textContent = labelText;
+            updated = true;
+          }
+        });
+        if (!updated) {
+          titleNode.textContent = labelText;
         }
-      });
-      if (!updated) {
-        titleNode.textContent = newName;
-        if (pencil) titleNode.appendChild(pencil);
       }
       titleNode.dataset.vosctvCustom = newName;
+      titleNode.title = labelText;
+      if (pencil && !titleNode.contains(pencil)) titleNode.appendChild(pencil);
     }
     injectPencilButtons();
   }
