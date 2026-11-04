@@ -182,21 +182,27 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
 
   // Hook Dahua's internal channel title formatter so it displays custom names directly
   var __harvested = {};
+  window.__vosctvChMap = window.__vosctvChMap || {};
   window.__vosctvName = function(chIndex, defaultTitle) {
     var ch = chIndex + 1;
     var rawTitle = (defaultTitle || "").trim();
-    if (rawTitle && !__harvested[ch]) {
-      __harvested[ch] = rawTitle;
-      fetch("/api/sync-camera-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nvrId: window.__VOSCTV_NVR_ID, channel: ch, defaultName: rawTitle })
-      }).catch(function(){});
+    if (rawTitle) {
+      window.__vosctvChMap[rawTitle.toLowerCase()] = ch;
+      if (!__harvested[ch]) {
+        __harvested[ch] = rawTitle;
+        fetch("/api/sync-camera-name", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nvrId: window.__VOSCTV_NVR_ID, channel: ch, defaultName: rawTitle })
+        }).catch(function(){});
+      }
     }
-    var ch = chIndex + 1;
     var custom = getCustomNames()[ch];
+    if (custom) {
+      window.__vosctvChMap[custom.toLowerCase()] = ch;
+    }
     var displayName = custom || defaultTitle;
-    return displayName + " ✏️";
+    return displayName;
   };
 
   // Fetch initial names from VOSCTV server
@@ -205,36 +211,102 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
     .then(function(data) {
       if (data && data.names) {
         localStorage.setItem('vosctv_camera_names_' + window.__VOSCTV_NVR_ID, JSON.stringify(data.names));
+        Object.keys(data.names).forEach(function(c) {
+          if (data.names[c]) window.__vosctvChMap[String(data.names[c]).toLowerCase()] = parseInt(c, 10);
+        });
+        injectPencilButtons();
       }
     }).catch(function(){});
 
-  // Handle double-click or click anywhere on the camera label or pencil icon
-  document.addEventListener('dblclick', handleTreeRename);
-  document.addEventListener('click', function(e) {
-    var txt = e.target.textContent || '';
-    if (txt.includes('✏️') || e.target.closest('[title*="✏️"]')) {
-      handleTreeRename(e);
+  // Inject visible, interactive pencil buttons into the Dahua sidebar tree
+  function injectPencilButtons() {
+    var customNames = getCustomNames();
+    var rows = document.querySelectorAll('li, .ant-tree-treenode, .ant-tree-node-content-wrapper, [role="treeitem"]');
+    rows.forEach(function(row) {
+      var text = (row.innerText || row.textContent || '').replace(/✏️/g, '').trim();
+      var ch = row.dataset.vosctvCh;
+      if (!ch) {
+        if (window.__vosctvChMap && window.__vosctvChMap[text.toLowerCase()]) {
+          ch = window.__vosctvChMap[text.toLowerCase()];
+        } else {
+          var chMatch = text.match(/(?:CAM|Channel|CH|D|A)\\s*(\\d+)/i);
+          if (chMatch) ch = parseInt(chMatch[1], 10);
+        }
+      }
+      if (!ch) return;
+      row.dataset.vosctvCh = ch;
+
+      var targetWrap = row.classList.contains('ant-tree-node-content-wrapper')
+        ? row
+        : (row.querySelector('.ant-tree-node-content-wrapper') || row.querySelector('.ant-tree-title') || row);
+
+      // If custom name is set and not yet applied to text, update it
+      if (customNames[ch]) {
+        var titleNode = targetWrap.querySelector('.ant-tree-title') || targetWrap;
+        if (titleNode && titleNode.dataset.vosctvCustom !== customNames[ch]) {
+          var pencil = titleNode.querySelector('.vosctv-edit-pencil');
+          titleNode.childNodes.forEach(function(node) {
+            if (node.nodeType === 3 && node.textContent.trim()) {
+              node.textContent = customNames[ch];
+            }
+          });
+          titleNode.dataset.vosctvCustom = customNames[ch];
+          if (pencil && !titleNode.contains(pencil)) titleNode.appendChild(pencil);
+        }
+      }
+
+      // Append visible pencil edit button if not already present
+      if (!targetWrap.querySelector('.vosctv-edit-pencil')) {
+        var btn = document.createElement('span');
+        btn.className = 'vosctv-edit-pencil';
+        btn.textContent = ' ✏️';
+        btn.title = 'Click to rename Camera ' + ch;
+        btn.style.cssText = 'cursor:pointer;opacity:0.65;font-size:12px;margin-left:6px;user-select:none;display:inline-block;transition:all 0.15s;vertical-align:middle;';
+        btn.onmouseenter = function() { btn.style.opacity = '1'; btn.style.transform = 'scale(1.2)'; };
+        btn.onmouseleave = function() { btn.style.opacity = '0.65'; btn.style.transform = 'scale(1)'; };
+        btn.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          promptRenameCamera(parseInt(ch, 10), row);
+        };
+        targetWrap.appendChild(btn);
+      }
+    });
+  }
+
+  // Double-click to rename support on tree items
+  document.addEventListener('dblclick', function(e) {
+    var row = e.target.closest('li, .ant-tree-treenode, .ant-tree-node-content-wrapper, [role="treeitem"]');
+    if (!row) return;
+    var ch = row.dataset.vosctvCh;
+    if (!ch) {
+      var text = (row.innerText || row.textContent || '').replace(/✏️/g, '').trim();
+      if (window.__vosctvChMap && window.__vosctvChMap[text.toLowerCase()]) {
+        ch = window.__vosctvChMap[text.toLowerCase()];
+      } else {
+        var chMatch = text.match(/(?:CAM|Channel|CH|D|A)\\s*(\\d+)/i);
+        if (chMatch) ch = parseInt(chMatch[1], 10);
+      }
+    }
+    if (ch) {
+      e.preventDefault();
+      e.stopPropagation();
+      promptRenameCamera(parseInt(ch, 10), row);
     }
   });
 
-  function handleTreeRename(e) {
-    var target = e.target;
-    var row = target.closest('li, .ant-tree-treenode, .ant-tree-node-content-wrapper, [role="treeitem"]') || target;
-    var text = row.innerText || row.textContent || '';
-    if (!text.includes('✏️') && !text.match(/(?:CAM|Channel|CH|D|A)\\s*\\d+/i)) return;
-
-    var chMatch = text.match(/(?:CAM|Channel|CH|D|A)\\s*(\\d+)/i);
-    if (!chMatch) return;
-    var ch = parseInt(chMatch[1], 10);
-
+  // Prompt user for new name and update in-place without page reload
+  function promptRenameCamera(ch, rowElement) {
     var currentNames = getCustomNames();
-    var currentName = currentNames[ch] || text.replace(/✏️/g, '').trim();
+    var currentText = rowElement ? (rowElement.innerText || rowElement.textContent) : '';
+    var currentName = currentNames[ch] || currentText.replace(/✏️/g, '').trim() || ('Camera ' + ch);
+
     var newName = prompt('Enter new name for Camera ' + ch + ':', currentName);
     if (newName === null) return;
     newName = newName.trim();
-    if (!newName) return;
+    if (!newName || newName === currentName) return;
 
-    // 1. Try Option B: Send Dahua RPC or CGI to update NVR firmware directly
+    // 1. Try Option B: Send Dahua RPC or CGI to update NVR firmware directly in background
     fetch('/api/rename-nvr-camera', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -251,16 +323,42 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
       console.warn('[VOSCTV] NVR direct rename failed, falling back to local alias:', err);
     });
 
-    // 2. Option A (Local fallback & instant UI update):
+    // 2. Option A (Local sync & instant in-place DOM update without resetting video stream)
     currentNames[ch] = newName;
     saveCustomNames(currentNames);
-
-    // Update the DOM element directly so changes are visible instantly
-    if (target.textContent) {
-      target.textContent = target.textContent.replace(currentName, newName);
+    if (window.__vosctvChMap) {
+      window.__vosctvChMap[newName.toLowerCase()] = ch;
     }
-    window.location.reload();
+
+    // Update DOM in-place smoothly
+    if (rowElement) {
+      var targetWrap = rowElement.classList.contains('ant-tree-node-content-wrapper')
+        ? rowElement
+        : (rowElement.querySelector('.ant-tree-node-content-wrapper') || rowElement.querySelector('.ant-tree-title') || rowElement);
+      var titleNode = targetWrap.querySelector('.ant-tree-title') || targetWrap;
+      var pencil = titleNode.querySelector('.vosctv-edit-pencil');
+      var updated = false;
+      titleNode.childNodes.forEach(function(node) {
+        if (node.nodeType === 3 && node.textContent.trim()) {
+          node.textContent = newName;
+          updated = true;
+        }
+      });
+      if (!updated) {
+        titleNode.textContent = newName;
+        if (pencil) titleNode.appendChild(pencil);
+      }
+      titleNode.dataset.vosctvCustom = newName;
+    }
+    injectPencilButtons();
   }
+
+  // Continuously ensure pencil buttons are present when tree expands or updates
+  setInterval(injectPencilButtons, 800);
+  try {
+    var observer = new MutationObserver(injectPencilButtons);
+    observer.observe(document.body, { childList: true, subtree: true });
+  } catch(e) {}
 })();
 </script>
 </body>`;
