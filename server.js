@@ -181,7 +181,18 @@ window.__VOSCTV_NVR_ID = "${nvr.id}";
   }
 
   // Hook Dahua's internal channel title formatter so it displays custom names directly
+  var __harvested = {};
   window.__vosctvName = function(chIndex, defaultTitle) {
+    var ch = chIndex + 1;
+    var rawTitle = (defaultTitle || "").trim();
+    if (rawTitle && !__harvested[ch]) {
+      __harvested[ch] = rawTitle;
+      fetch("/api/sync-camera-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nvrId: window.__VOSCTV_NVR_ID, channel: ch, defaultName: rawTitle })
+      }).catch(function(){});
+    }
     var ch = chIndex + 1;
     var custom = getCustomNames()[ch];
     var displayName = custom || defaultTitle;
@@ -452,6 +463,19 @@ app.post('/api/ptz', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to dispatch PTZ command', details: err.message });
   }
+});
+
+// API: Automatically sync/pull camera names discovered from NVR stream
+app.post('/api/sync-camera-name', (req, res) => {
+  const { nvrId, channel, defaultName } = req.body;
+  if (!nvrId || !channel || !defaultName) return res.status(400).end();
+  const data = loadCustomNames();
+  if (!data[nvrId]) data[nvrId] = {};
+  if (!data[nvrId][channel]) {
+    data[nvrId][channel] = defaultName;
+    saveCustomNames(data);
+  }
+  res.json({ success: true, name: data[nvrId][channel] });
 });
 
 // API: Get custom camera names
