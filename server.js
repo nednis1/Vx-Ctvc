@@ -336,7 +336,8 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
   // Inject visible, interactive pencil buttons into the Dahua sidebar tree
   function injectPencilButtons() {
     var customNames = getCustomNames();
-    var rows = document.querySelectorAll('li, .ant-tree-treenode, .ant-tree-node-content-wrapper, [role="treeitem"]');
+    var selector = '[class*="treenode"], [class*="tree-node"], [class*="node-content-wrapper"], [class*="tree-content-wrapper"], [class*="tree-title"], [role="treeitem"], li';
+    var rows = document.querySelectorAll(selector);
     rows.forEach(function(row) {
       var text = (row.innerText || row.textContent || '').replace(/✏️/g, '').trim();
       var ch = row.dataset.vosctvCh;
@@ -351,13 +352,11 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
       if (!ch) return;
       row.dataset.vosctvCh = ch;
 
-      var targetWrap = row.classList.contains('ant-tree-node-content-wrapper')
-        ? row
-        : (row.querySelector('.ant-tree-node-content-wrapper') || row.querySelector('.ant-tree-title') || row);
+      var targetWrap = row.querySelector('[class*="content-wrapper"], [class*="title"], span') || row;
 
       // If custom name is set and not yet applied to text, update it
       if (customNames[ch]) {
-        var titleNode = targetWrap.querySelector('.ant-tree-title') || targetWrap;
+        var titleNode = targetWrap.querySelector('[class*="title"]') || targetWrap;
         if (titleNode && titleNode.dataset.vosctvCustom !== customNames[ch]) {
           var pencil = titleNode.querySelector('.vosctv-edit-pencil');
           var labelText = 'D' + ch + ' ' + customNames[ch];
@@ -403,7 +402,7 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
 
   // Double-click to rename support on tree items
   document.addEventListener('dblclick', function(e) {
-    var row = e.target.closest('li, .ant-tree-treenode, .ant-tree-node-content-wrapper, [role="treeitem"]');
+    var row = e.target.closest('[class*="treenode"], [class*="tree-node"], [class*="node-content-wrapper"], [class*="tree-content-wrapper"], [role="treeitem"], li');
     if (!row) return;
     var ch = row.dataset.vosctvCh;
     if (!ch) {
