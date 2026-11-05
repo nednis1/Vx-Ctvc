@@ -524,6 +524,27 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
     var observer = new MutationObserver(injectPencilButtons);
     observer.observe(document.body, { childList: true, subtree: true });
   } catch(e) {}
+
+  // Signal parent VOSCTV window that NVR web application is active
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'vosctv:nvr_ready', nvrId: window.__VOSCTV_NVR_ID }, '*');
+    }
+  } catch(e) {}
+
+  // Detect when Dahua HTML5 player canvas or preview container renders
+  var __feedCheck = setInterval(function() {
+    var player = document.querySelector('canvas, video, .player-container, #player, [class*="player"], [class*="preview"]');
+    if (player) {
+      clearInterval(__feedCheck);
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'vosctv:nvr_ready', nvrId: window.__VOSCTV_NVR_ID }, '*');
+        }
+      } catch(e) {}
+    }
+  }, 400);
+  setTimeout(function() { clearInterval(__feedCheck); }, 15000);
 })();
 </script>
 </body>`;
