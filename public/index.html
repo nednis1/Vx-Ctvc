@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#EF4444">
-  <link rel="stylesheet" href="/css/style.css?v=vosctv5">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -29,12 +29,12 @@
 
       <nav class="session-tabs">
         <button class="session-tab active" id="tab-nvr1" onclick="switchTab('nvr1')">
-          <span class="dot loading" id="dot-nvr1" title="Status: Connecting..."></span>
+          <span class="dot loading" id="dot-nvr1" title="Connecting..."></span>
           <span>NVR 1 (192.168.1.200)</span>
         </button>
 
         <button class="session-tab" id="tab-nvr2" onclick="switchTab('nvr2')">
-          <span class="dot loading" id="dot-nvr2" title="Status: Connecting..."></span>
+          <span class="dot loading" id="dot-nvr2" title="Connecting..."></span>
           <span>NVR 2 (192.168.1.181)</span>
         </button>
 
@@ -56,63 +56,18 @@
   <main class="viewport-area" id="viewport-area" data-view="nvr1">
     <!-- NVR 1 Session Pane -->
     <div class="nvr-pane" id="pane-nvr1">
-      <div class="split-title">
-        <span class="split-title-text">NVR 1 (192.168.1.200)</span>
-        <span class="pane-status-badge badge-loading" id="badge-nvr1">Connecting...</span>
-      </div>
+      <div class="split-title">NVR 1 (192.168.1.200)</div>
 
-      <!-- Loading / Timeout Overlay -->
+      <!-- Simple Loading / Timeout Overlay -->
       <div class="nvr-overlay" id="overlay-nvr1">
-        <!-- State: Loading / Not yet shown -->
-        <div class="overlay-card state-loading" id="card-loading-nvr1">
-          <div class="feed-spinner">
-            <div class="spinner-ring"></div>
-            <div class="spinner-core">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 7l-7 5 7 5V7z"/>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-              </svg>
-            </div>
-          </div>
-          <div class="overlay-info">
-            <h3 class="overlay-title" id="title-nvr1">Connecting to NVR 1</h3>
-            <p class="overlay-meta" id="meta-nvr1">192.168.1.200 : 8091 • Initializing video stream...</p>
-          </div>
-          <div class="progress-track">
-            <div class="progress-bar"></div>
-          </div>
-          <div class="overlay-footer">
-            <span class="hint-text">Loading Dahua HTML5 feed • Alt+1 / Alt+2 to switch</span>
-            <button class="overlay-link-btn" onclick="retryPane('nvr1')">↻ Reload</button>
-          </div>
+        <div class="simple-loading" id="card-loading-nvr1">
+          <div class="simple-spinner"></div>
+          <span class="simple-text" id="title-nvr1">Connecting to NVR 1...</span>
         </div>
 
-        <!-- State: Timed Out -->
-        <div class="overlay-card state-timeout" id="card-timeout-nvr1" style="display: none;">
-          <div class="timeout-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <div class="overlay-info">
-            <h3 class="overlay-title timeout-heading">Connection Timed Out</h3>
-            <p class="overlay-meta" id="timeout-msg-nvr1">NVR 1 (192.168.1.200 : 8091) took longer than expected to respond or is unreachable.</p>
-          </div>
-          <div class="diagnostics-panel" id="diag-nvr1">
-            <div class="diag-header">Connection Diagnostics:</div>
-            <div class="diag-body" id="diag-body-nvr1">Checking network connectivity...</div>
-          </div>
-          <div class="timeout-actions">
-            <button class="btn-primary" onclick="retryPane('nvr1')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Retry Connection
-            </button>
-            <button class="btn-secondary" onclick="openDirectTab('nvr1')">
-              ↗ Open in Direct Tab
-            </button>
-          </div>
+        <div class="simple-timeout" id="card-timeout-nvr1" style="display: none;">
+          <span class="simple-timeout-msg">Connection timed out</span>
+          <button class="simple-retry-btn" onclick="retryPane('nvr1')">↻ Retry</button>
         </div>
       </div>
 
@@ -121,63 +76,18 @@
 
     <!-- NVR 2 Session Pane -->
     <div class="nvr-pane" id="pane-nvr2">
-      <div class="split-title">
-        <span class="split-title-text">NVR 2 (192.168.1.181)</span>
-        <span class="pane-status-badge badge-loading" id="badge-nvr2">Connecting...</span>
-      </div>
+      <div class="split-title">NVR 2 (192.168.1.181)</div>
 
-      <!-- Loading / Timeout Overlay -->
+      <!-- Simple Loading / Timeout Overlay -->
       <div class="nvr-overlay" id="overlay-nvr2">
-        <!-- State: Loading / Not yet shown -->
-        <div class="overlay-card state-loading" id="card-loading-nvr2">
-          <div class="feed-spinner">
-            <div class="spinner-ring"></div>
-            <div class="spinner-core">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 7l-7 5 7 5V7z"/>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-              </svg>
-            </div>
-          </div>
-          <div class="overlay-info">
-            <h3 class="overlay-title" id="title-nvr2">Connecting to NVR 2</h3>
-            <p class="overlay-meta" id="meta-nvr2">192.168.1.181 : 8092 • Initializing video stream...</p>
-          </div>
-          <div class="progress-track">
-            <div class="progress-bar"></div>
-          </div>
-          <div class="overlay-footer">
-            <span class="hint-text">Loading Dahua HTML5 feed • Alt+1 / Alt+2 to switch</span>
-            <button class="overlay-link-btn" onclick="retryPane('nvr2')">↻ Reload</button>
-          </div>
+        <div class="simple-loading" id="card-loading-nvr2">
+          <div class="simple-spinner"></div>
+          <span class="simple-text" id="title-nvr2">Connecting to NVR 2...</span>
         </div>
 
-        <!-- State: Timed Out -->
-        <div class="overlay-card state-timeout" id="card-timeout-nvr2" style="display: none;">
-          <div class="timeout-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <div class="overlay-info">
-            <h3 class="overlay-title timeout-heading">Connection Timed Out</h3>
-            <p class="overlay-meta" id="timeout-msg-nvr2">NVR 2 (192.168.1.181 : 8092) took longer than expected to respond or is unreachable.</p>
-          </div>
-          <div class="diagnostics-panel" id="diag-nvr2">
-            <div class="diag-header">Connection Diagnostics:</div>
-            <div class="diag-body" id="diag-body-nvr2">Checking network connectivity...</div>
-          </div>
-          <div class="timeout-actions">
-            <button class="btn-primary" onclick="retryPane('nvr2')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Retry Connection
-            </button>
-            <button class="btn-secondary" onclick="openDirectTab('nvr2')">
-              ↗ Open in Direct Tab
-            </button>
-          </div>
+        <div class="simple-timeout" id="card-timeout-nvr2" style="display: none;">
+          <span class="simple-timeout-msg">Connection timed out</span>
+          <button class="simple-retry-btn" onclick="retryPane('nvr2')">↻ Retry</button>
         </div>
       </div>
 
@@ -185,6 +95,6 @@
     </div>
   </main>
 
-  <script src="/js/app.js?v=vosctv5"></script>
+  <script src="/js/app.js?v=vosctv6"></script>
 </body>
 </html>

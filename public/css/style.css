@@ -123,14 +123,14 @@ body {
 
 .dot.loading {
   background-color: var(--amber);
-  box-shadow: 0 0 7px var(--amber);
+  box-shadow: 0 0 6px var(--amber);
   animation: pulseDot 1.2s infinite ease-in-out;
 }
 
 .dot.timeout,
 .dot.offline {
   background-color: var(--vosctv-red);
-  box-shadow: 0 0 7px var(--vosctv-red);
+  box-shadow: 0 0 6px var(--vosctv-red);
 }
 
 .split-icon {
@@ -162,7 +162,7 @@ body {
   color: #ffffff;
 }
 
-/* Viewport Area (Single & Split Views Share the Same NVR Panes) */
+/* Viewport Area */
 .viewport-area {
   flex: 1;
   position: relative;
@@ -237,13 +237,12 @@ body {
 
 .split-title {
   display: none;
-  height: 24px;
+  height: 22px;
   background: #0f172a;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
   align-items: center;
-  justify-content: space-between;
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
   z-index: 30;
@@ -251,38 +250,6 @@ body {
 
 .viewport-area[data-view="split"] .split-title {
   display: flex;
-}
-
-.split-title-text {
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.pane-status-badge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.badge-loading {
-  color: var(--amber);
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.badge-online {
-  color: var(--green);
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.badge-timeout {
-  color: var(--vosctv-red);
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .nvr-frame {
@@ -294,7 +261,7 @@ body {
 }
 
 /* ------------------------------------------------------------- */
-/* OVERLAY STYLES: Loading & Timeout Indication                  */
+/* SIMPLE MINIMALIST OVERLAY: Loading & Timeout                  */
 /* ------------------------------------------------------------- */
 .nvr-overlay {
   position: absolute;
@@ -303,12 +270,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+  background-color: #020617;
   opacity: 1;
   visibility: visible;
-  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s ease;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
   user-select: none;
-  padding: 16px;
 }
 
 .nvr-overlay.hidden {
@@ -317,244 +283,69 @@ body {
   pointer-events: none;
 }
 
-.overlay-card {
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 14px;
-  padding: 28px 32px;
-  max-width: 460px;
-  width: 92%;
-  text-align: center;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+/* Clean Simple Spinner */
+.simple-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  animation: cardPopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 12px;
 }
 
-/* Loading Spinner */
-.feed-spinner {
-  position: relative;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.spinner-ring {
-  position: absolute;
-  inset: 0;
-  border: 3px solid rgba(239, 68, 68, 0.16);
-  border-top-color: #ef4444;
-  border-right-color: #f59e0b;
+.simple-spinner {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--vosctv-red);
   border-radius: 50%;
-  animation: spinRadar 1.1s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+  animation: spinSimple 0.8s linear infinite;
 }
 
-.spinner-core {
-  width: 26px;
-  height: 26px;
-  color: #f8fafc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: pulseGlow 1.8s ease-in-out infinite;
-}
-
-.spinner-core svg {
-  width: 24px;
-  height: 24px;
-}
-
-.overlay-info {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.overlay-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #f8fafc;
-  letter-spacing: -0.2px;
-}
-
-.overlay-meta {
-  font-size: 12px;
+.simple-text {
+  font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.1px;
 }
 
-/* Loading Shimmer Bar */
-.progress-track {
-  width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-}
-
-.progress-bar {
-  position: absolute;
-  height: 100%;
-  width: 45%;
-  background: linear-gradient(90deg, transparent, #ef4444, #f59e0b, transparent);
-  border-radius: 4px;
-  animation: shimmerProgress 1.5s ease-in-out infinite;
-}
-
-.overlay-footer {
+/* Clean Simple Timeout */
+.simple-timeout {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 11px;
-  color: #64748b;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 16px;
+  border-radius: 6px;
 }
 
-.overlay-link-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.overlay-link-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-}
-
-/* Timeout Card */
-.timeout-icon-wrap {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: rgba(239, 68, 68, 0.14);
-  border: 2px solid rgba(239, 68, 68, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ef4444;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
-  animation: pulseTimeout 2s infinite ease-in-out;
-}
-
-.timeout-icon-wrap svg {
-  width: 28px;
-  height: 28px;
-}
-
-.timeout-heading {
+.simple-timeout-msg {
+  font-size: 13px;
   color: #f87171;
+  font-weight: 500;
 }
 
-.diagnostics-panel {
-  width: 100%;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 10px 12px;
-  text-align: left;
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.diag-header {
-  color: #94a3b8;
-  font-weight: 600;
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-size: 10px;
-}
-
-.diag-body {
-  color: #cbd5e1;
-  line-height: 1.45;
-  word-break: break-word;
-}
-
-.timeout-actions {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  justify-content: center;
-}
-
-.btn-primary {
-  background: #ef4444;
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-primary:hover {
-  background: #dc2626;
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
-}
-
-.btn-secondary {
+.simple-retry-btn {
   background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #f8fafc;
-  border: 1px solid var(--border);
-  padding: 8px 16px;
-  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.16);
+.simple-retry-btn:hover {
+  background: var(--vosctv-red);
+  border-color: var(--vosctv-red);
 }
 
-/* Animations */
-@keyframes spinRadar {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes pulseGlow {
-  0%, 100% { opacity: 0.55; transform: scale(0.95); }
-  50% { opacity: 1; transform: scale(1.05); }
-}
-
-@keyframes shimmerProgress {
-  0% { left: -45%; }
-  100% { left: 105%; }
-}
-
-@keyframes pulseTimeout {
-  0%, 100% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.2); }
-  50% { box-shadow: 0 0 24px rgba(239, 68, 68, 0.45); }
+@keyframes spinSimple {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes pulseDot {
   0%, 100% { opacity: 0.4; transform: scale(0.9); }
   50% { opacity: 1; transform: scale(1.25); }
-}
-
-@keyframes cardPopIn {
-  0% { opacity: 0; transform: scale(0.96) translateY(6px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
 }

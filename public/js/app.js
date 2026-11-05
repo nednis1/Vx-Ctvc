@@ -1,43 +1,37 @@
 /**
  * VOSCCTV NVR REMOTE CONSOLE
- * Clean Zero-Clutter Remote Viewer with Live Connection & Timeout Feedback
+ * Clean, lightweight viewer with simple loading & timeout feedback
  */
 
 const host = window.location.hostname || 'localhost';
 const NVR1_URL = `http://${host}:8091/`;
 const NVR2_URL = `http://${host}:8092/`;
-const TIMEOUT_MS = 14000;      // 14 seconds before triggering timeout state
-const STATUS_POLL_MS = 15000;  // 15 seconds periodic health check
+const TIMEOUT_MS = 14000;      // 14s timeout
+const STATUS_POLL_MS = 15000;  // 15s health check
 
 let currentTab = 'nvr1';
 
 const nvrState = {
   nvr1: {
     id: 'nvr1',
-    name: 'NVR 1 (192.168.1.200)',
-    ip: '192.168.1.200',
-    port: 8091,
+    name: 'NVR 1',
     url: NVR1_URL,
-    status: 'idle', // 'idle' | 'loading' | 'ready' | 'timeout'
+    status: 'idle',
     timer: null,
-    loaded: false,
-    startTime: 0
+    loaded: false
   },
   nvr2: {
     id: 'nvr2',
-    name: 'NVR 2 (192.168.1.181)',
-    ip: '192.168.1.181',
-    port: 8092,
+    name: 'NVR 2',
     url: NVR2_URL,
     status: 'idle',
     timer: null,
-    loaded: false,
-    startTime: 0
+    loaded: false
   }
 };
 
 /**
- * Start loading an NVR frame with visual progress & timeout timer
+ * Show simple loading spinner
  */
 function startLoading(id) {
   const item = nvrState[id];
@@ -49,44 +43,36 @@ function startLoading(id) {
   }
 
   item.status = 'loading';
-  item.startTime = Date.now();
 
-  // Show overlay
+  // Reveal overlay
   const overlay = document.getElementById(`overlay-${id}`);
   if (overlay) overlay.classList.remove('hidden');
 
-  // Display loading card, hide timeout card
+  // Show spinner, hide timeout
   const cardLoading = document.getElementById(`card-loading-${id}`);
   const cardTimeout = document.getElementById(`card-timeout-${id}`);
   if (cardLoading) cardLoading.style.display = 'flex';
   if (cardTimeout) cardTimeout.style.display = 'none';
 
-  // Update text & indicators
+  // Text
   const titleEl = document.getElementById(`title-${id}`);
-  const metaEl = document.getElementById(`meta-${id}`);
-  if (titleEl) titleEl.textContent = `Connecting to ${id === 'nvr1' ? 'NVR 1' : 'NVR 2'}`;
-  if (metaEl) metaEl.textContent = `${item.ip} : ${item.port} • Initializing video stream...`;
+  if (titleEl) titleEl.textContent = `Connecting to ${item.name}...`;
 
+  // Tab dot
   const dotEl = document.getElementById(`dot-${id}`);
   if (dotEl) {
     dotEl.className = 'dot loading';
-    dotEl.title = `Status: Connecting to ${item.name}...`;
+    dotEl.title = `Connecting to ${item.name}...`;
   }
 
-  const badgeEl = document.getElementById(`badge-${id}`);
-  if (badgeEl) {
-    badgeEl.className = 'pane-status-badge badge-loading';
-    badgeEl.textContent = 'Connecting...';
-  }
-
-  // Set timeout timer
+  // Timeout timer
   item.timer = setTimeout(() => {
     onTimeout(id);
   }, TIMEOUT_MS);
 }
 
 /**
- * Mark NVR feed as ready & smoothly hide loading overlay
+ * Hide loading overlay and show feed
  */
 function markReady(id) {
   const item = nvrState[id];
@@ -100,34 +86,20 @@ function markReady(id) {
   item.status = 'ready';
   item.loaded = true;
 
-  // Update meta text briefly before fading out
-  const metaEl = document.getElementById(`meta-${id}`);
-  if (metaEl) metaEl.textContent = 'Feed Connected • Rendering cameras...';
+  // Smoothly fade out overlay
+  const overlay = document.getElementById(`overlay-${id}`);
+  if (overlay) overlay.classList.add('hidden');
 
-  // Update status indicators to online
+  // Tab dot
   const dotEl = document.getElementById(`dot-${id}`);
   if (dotEl) {
     dotEl.className = 'dot online';
-    dotEl.title = `Status: ${item.name} Online`;
+    dotEl.title = `${item.name} Online`;
   }
-
-  const badgeEl = document.getElementById(`badge-${id}`);
-  if (badgeEl) {
-    badgeEl.className = 'pane-status-badge badge-online';
-    badgeEl.textContent = 'Live';
-  }
-
-  // Smoothly fade out overlay
-  setTimeout(() => {
-    const overlay = document.getElementById(`overlay-${id}`);
-    if (overlay && item.status === 'ready') {
-      overlay.classList.add('hidden');
-    }
-  }, 350);
 }
 
 /**
- * Handle connection timeout and run diagnostics
+ * Show simple connection timeout state
  */
 function onTimeout(id) {
   const item = nvrState[id];
@@ -140,74 +112,22 @@ function onTimeout(id) {
 
   item.status = 'timeout';
 
-  // Ensure overlay is visible
+  // Reveal overlay
   const overlay = document.getElementById(`overlay-${id}`);
   if (overlay) overlay.classList.remove('hidden');
 
-  // Switch cards
+  // Show timeout row, hide spinner
   const cardLoading = document.getElementById(`card-loading-${id}`);
   const cardTimeout = document.getElementById(`card-timeout-${id}`);
   if (cardLoading) cardLoading.style.display = 'none';
   if (cardTimeout) cardTimeout.style.display = 'flex';
 
-  // Update tab dot to red timeout
+  // Tab dot
   const dotEl = document.getElementById(`dot-${id}`);
   if (dotEl) {
     dotEl.className = 'dot timeout';
-    dotEl.title = `Status: ${item.name} Connection Timed Out`;
+    dotEl.title = `${item.name} Connection Timed Out`;
   }
-
-  const badgeEl = document.getElementById(`badge-${id}`);
-  if (badgeEl) {
-    badgeEl.className = 'pane-status-badge badge-timeout';
-    badgeEl.textContent = 'Timed Out';
-  }
-
-  // Run live network diagnostic
-  runDiagnostics(id);
-}
-
-/**
- * Run diagnostic port check against /api/status for helpful troubleshooting
- */
-function runDiagnostics(id) {
-  const item = nvrState[id];
-  const diagBody = document.getElementById(`diag-body-${id}`);
-  if (!diagBody) return;
-
-  diagBody.innerHTML = '<span style="color:#94a3b8">Checking network connectivity & NVR ports...</span>';
-
-  fetch('/api/status')
-    .then(res => res.json())
-    .then(data => {
-      const info = (data.nvrs || []).find(n => n.id === id);
-      if (info) {
-        const p = info.ports || {};
-        const httpOk = p.http && p.http.open;
-        const rtspOk = p.rtsp && p.rtsp.open;
-        const privOk = p.dahuaPrivate && p.dahuaPrivate.open;
-
-        const lines = [
-          `• NVR IP: ${info.ip} (Proxy Port ${item.port})`,
-          `• Web Port 80: ${httpOk ? `✅ Open (${p.http.latency || 0}ms)` : '❌ Closed / Unreachable'}`,
-          `• RTSP Port 554: ${rtspOk ? `✅ Open (${p.rtsp.latency || 0}ms)` : '❌ Closed / Unreachable'}`,
-          `• Dahua Private Port 37777: ${privOk ? `✅ Open (${p.dahuaPrivate.latency || 0}ms)` : '❌ Closed / Unreachable'}`
-        ];
-
-        if (info.online) {
-          lines.push(`• Assessment: Hardware is reachable, but web feed exceeded ${TIMEOUT_MS / 1000}s. Click "Retry Connection".`);
-        } else {
-          lines.push(`• Assessment: NVR is unreachable. Verify network cable, switch port, and power.`);
-        }
-
-        diagBody.innerHTML = lines.join('<br>');
-      } else {
-        diagBody.textContent = `No diagnostic data returned for ${id}`;
-      }
-    })
-    .catch(err => {
-      diagBody.textContent = `Diagnostics error: ${err.message}`;
-    });
 }
 
 /**
@@ -306,7 +226,7 @@ function toggleFullscreen() {
 }
 
 /**
- * Periodic health checker to keep tab status dots in sync
+ * Periodic health checker for tab status dots
  */
 function pollHealth() {
   fetch('/api/status')
@@ -317,24 +237,17 @@ function pollHealth() {
         if (!item) return;
 
         const dotEl = document.getElementById(`dot-${nvr.id}`);
-        const badgeEl = document.getElementById(`badge-${nvr.id}`);
+        if (!dotEl) return;
 
         if (nvr.online) {
-          if (item.status === 'ready' && dotEl) {
+          if (item.status === 'ready') {
             dotEl.className = 'dot online';
-            dotEl.title = `Status: ${item.name} Online (${nvr.latencyMs}ms)`;
+            dotEl.title = `${item.name} Online (${nvr.latencyMs}ms)`;
           }
         } else {
-          // If server reports offline and pane was supposed to be ready
           if (item.status === 'ready') {
-            if (dotEl) {
-              dotEl.className = 'dot offline';
-              dotEl.title = `Status: ${item.name} Offline`;
-            }
-            if (badgeEl) {
-              badgeEl.className = 'pane-status-badge badge-timeout';
-              badgeEl.textContent = 'Offline';
-            }
+            dotEl.className = 'dot offline';
+            dotEl.title = `${item.name} Offline`;
           }
         }
       });
@@ -351,13 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const frame = document.getElementById(`frame-${id}`);
     if (frame) {
       frame.addEventListener('load', () => {
-        // If iframe finishes loading and still in loading state, give brief grace period then mark ready
         if (nvrState[id].status === 'loading') {
           setTimeout(() => {
             if (nvrState[id].status === 'loading') {
               markReady(id);
             }
-          }, 800);
+          }, 600);
         }
       });
 
