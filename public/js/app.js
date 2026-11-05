@@ -58,13 +58,6 @@ function startLoading(id) {
   const titleEl = document.getElementById(`title-${id}`);
   if (titleEl) titleEl.textContent = `Connecting to ${item.name}...`;
 
-  // Tab dot
-  const dotEl = document.getElementById(`dot-${id}`);
-  if (dotEl) {
-    dotEl.className = 'dot loading';
-    dotEl.title = `Connecting to ${item.name}...`;
-  }
-
   // Timeout timer
   item.timer = setTimeout(() => {
     onTimeout(id);
@@ -90,7 +83,7 @@ function markReady(id) {
   const overlay = document.getElementById(`overlay-${id}`);
   if (overlay) overlay.classList.add('hidden');
 
-  // Tab dot
+  // Tab dot: Solid Green
   const dotEl = document.getElementById(`dot-${id}`);
   if (dotEl) {
     dotEl.className = 'dot online';
@@ -122,11 +115,11 @@ function onTimeout(id) {
   if (cardLoading) cardLoading.style.display = 'none';
   if (cardTimeout) cardTimeout.style.display = 'flex';
 
-  // Tab dot
+  // Tab dot: Grey (Dead)
   const dotEl = document.getElementById(`dot-${id}`);
   if (dotEl) {
-    dotEl.className = 'dot timeout';
-    dotEl.title = `${item.name} Connection Timed Out`;
+    dotEl.className = 'dot dead';
+    dotEl.title = `${item.name} Offline`;
   }
 }
 
@@ -226,7 +219,7 @@ function toggleFullscreen() {
 }
 
 /**
- * Periodic health checker for tab status dots
+ * Periodic health checker for tab status dots: Solid Green (Online) or Grey (Dead)
  */
 function pollHealth() {
   fetch('/api/status')
@@ -240,15 +233,11 @@ function pollHealth() {
         if (!dotEl) return;
 
         if (nvr.online) {
-          if (item.status === 'ready') {
-            dotEl.className = 'dot online';
-            dotEl.title = `${item.name} Online (${nvr.latencyMs}ms)`;
-          }
+          dotEl.className = 'dot online';
+          dotEl.title = `${item.name} Online (${nvr.latencyMs}ms)`;
         } else {
-          if (item.status === 'ready') {
-            dotEl.className = 'dot offline';
-            dotEl.title = `${item.name} Offline`;
-          }
+          dotEl.className = 'dot dead';
+          dotEl.title = `${item.name} Offline`;
         }
       });
     })
@@ -292,7 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initially load NVR 1
   ensureFrameLoaded('nvr1');
 
-  // Setup periodic health polling
+  // Immediate health check and setup periodic health polling
+  pollHealth();
   setInterval(pollHealth, STATUS_POLL_MS);
 
   // Setup keyboard shortcuts

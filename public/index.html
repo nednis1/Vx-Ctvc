@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#EF4444">
-  <link rel="stylesheet" href="/css/style.css?v=vosctv6">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -19,22 +19,17 @@
   <header class="vosctv-bar">
     <div class="bar-left">
       <div class="vosctv-brand">
-        <svg class="vosctv-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="40" height="40" rx="8" fill="#EF4444"/>
-          <path d="M12 28L28 12M12 12L28 28" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="20" cy="20" r="4.5" fill="#FFFFFF"/>
-        </svg>
         <span class="vosctv-title">VOSC<span class="accent">CTV</span></span>
       </div>
 
       <nav class="session-tabs">
         <button class="session-tab active" id="tab-nvr1" onclick="switchTab('nvr1')">
-          <span class="dot loading" id="dot-nvr1" title="Connecting..."></span>
+          <span class="dot online" id="dot-nvr1" title="Online"></span>
           <span>NVR 1 (192.168.1.200)</span>
         </button>
 
         <button class="session-tab" id="tab-nvr2" onclick="switchTab('nvr2')">
-          <span class="dot loading" id="dot-nvr2" title="Connecting..."></span>
+          <span class="dot online" id="dot-nvr2" title="Online"></span>
           <span>NVR 2 (192.168.1.181)</span>
         </button>
 
@@ -95,6 +90,6 @@
     </div>
   </main>
 
-  <script src="/js/app.js?v=vosctv6"></script>
+  <script src="/js/app.js?v=vosctv7"></script>
 </body>
 </html>
