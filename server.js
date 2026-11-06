@@ -712,14 +712,14 @@ app.get('/api/status', async (req, res) => {
 
 // API: Dahua PTZ CGI Command Relay
 app.post('/api/ptz', async (req, res) => {
-  const { nvrId, channel = 1, code = 'Up', arg1 = 0, arg2 = 5, arg3 = 0, auth } = req.body;
+  const { nvrId, channel = 1, code = 'Up', arg1 = 0, arg2 = 5, arg3 = 0, action = 'start', auth } = req.body;
   const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
 
   if (!nvr) {
     return res.status(404).json({ error: 'NVR not found' });
   }
 
-  const cgiUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/ptz.cgi?action=start&channel=${channel}&code=${code}&arg1=${arg1}&arg2=${arg2}&arg3=${arg3}`;
+  const cgiUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/ptz.cgi?action=${action}&channel=${channel}&code=${code}&arg1=${arg1}&arg2=${arg2}&arg3=${arg3}`;
   
   try {
     const username = (auth && auth.username) || nvr.username;

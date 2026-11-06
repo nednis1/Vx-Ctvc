@@ -767,13 +767,107 @@ body {
 }
 
 /* Slot Tile (Base) */
+/* Toolbar Aspect & Tour & Presets */
+.gpu-aspect-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gpu-aspect-btn:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.gpu-aspect-btn.active {
+  background: #38bdf8;
+  color: #020617;
+  border-color: #38bdf8;
+  font-weight: 700;
+}
+
+.gpu-tour-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.gpu-tour-btn:hover {
+  background: #334155;
+}
+
+.gpu-tour-btn.active {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #34d399;
+  font-weight: 700;
+  animation: pulseTour 1.5s infinite;
+}
+
+@keyframes pulseTour {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+
+.gpu-view-dropdown-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gpu-view-select {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.gpu-view-save-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gpu-view-save-btn:hover {
+  background: #334155;
+  color: #38bdf8;
+  border-color: #38bdf8;
+}
+
+/* Slot Tile (Base) - 100% Full-Bleed Video Canvas */
 .gpu-slot {
-  background: #060910;
+  background: #000000;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   position: relative;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -796,9 +890,7 @@ body {
 .gpu-slot.empty {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #060910;
 }
 
 .gpu-slot-watermark {
@@ -831,26 +923,78 @@ body {
   opacity: 0.7;
 }
 
-/* Playing Slot Header Overlay */
-.gpu-slot-header {
-  height: 24px;
-  background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 6px;
-  z-index: 3;
-}
-
-.gpu-slot-info {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+/* 100% Edge-to-Edge Video Wrapper */
+.gpu-video-wrapper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
 }
 
-.gpu-slot-badge {
+.gpu-video-wrapper video-rtc,
+.gpu-player-el {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000000;
+}
+
+.gpu-video-wrapper video-rtc video,
+.gpu-player-el video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000000;
+  transition: transform 0.05s ease-out;
+}
+
+/* Aspect Ratio Controls */
+.aspect-contain video {
+  object-fit: contain !important;
+}
+
+.aspect-fill video {
+  object-fit: fill !important;
+}
+
+.aspect-cover video {
+  object-fit: cover !important;
+}
+
+/* Digital Zoom Mode Cursor */
+.gpu-video-wrapper.zoom-active {
+  cursor: grab;
+}
+
+.gpu-video-wrapper.zoom-active:active {
+  cursor: grabbing;
+}
+
+/* Minimalist Top-Left Floating OSD Pill */
+.gpu-slot-osd {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.gpu-osd-badge {
   font-size: 9px;
   font-weight: 700;
   padding: 1px 4px;
@@ -867,73 +1011,277 @@ body {
   color: #38bdf8;
 }
 
-.gpu-slot-ch {
+.gpu-osd-ch {
   font-size: 10px;
   font-weight: 700;
   color: #94a3b8;
 }
 
-.gpu-slot-title {
+.gpu-osd-name {
   font-size: 11px;
   font-weight: 600;
   color: #f1f5f9;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 130px;
+  max-width: 140px;
 }
 
-.gpu-slot-actions {
+.gpu-osd-quality {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+}
+
+.gpu-osd-quality.hd {
+  background: #38bdf8;
+  color: #020617;
+}
+
+/* Pulsating Recording Indicator Badge (Top-Right) */
+.gpu-rec-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(220, 38, 38, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.5);
+}
+
+.gpu-rec-badge.hidden {
+  display: none !important;
+}
+
+.gpu-rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: blinkRec 1s ease-in-out infinite;
+}
+
+@keyframes blinkRec {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* Floating Glass Action HUD (Bottom-Center, appears on Hover / Tap) */
+.gpu-slot-hud {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 8;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  padding: 3px 6px;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
-.gpu-slot-action-btn {
+.gpu-slot:hover .gpu-slot-hud,
+.gpu-slot.touch-active .gpu-slot-hud {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.gpu-hud-btn {
   background: transparent;
+  border: 1px solid transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  min-width: 20px;
+  height: 20px;
+}
+
+.gpu-hud-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.gpu-hud-btn.active {
+  background: #38bdf8;
+  color: #020617;
+  border-color: #38bdf8;
+  font-weight: 700;
+}
+
+.gpu-hud-btn.recording {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+  animation: pulseRec 1s infinite alternate;
+}
+
+@keyframes pulseRec {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+.gpu-hud-btn.btn-close:hover {
+  background: rgba(239, 68, 68, 0.8);
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+/* Floating PTZ Joystick Dial Panel */
+.gpu-ptz-panel {
+  position: absolute;
+  right: 8px;
+  bottom: 40px;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 140px;
+}
+
+.gpu-ptz-panel.hidden {
+  display: none !important;
+}
+
+.gpu-ptz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 4px;
+}
+
+.gpu-ptz-close {
+  background: none;
   border: none;
   color: #94a3b8;
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 2px;
-  font-size: 10px;
-  transition: all 0.15s;
+  font-size: 11px;
 }
 
-.gpu-slot-action-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+.gpu-ptz-close:hover {
+  color: #f1f5f9;
 }
 
-.gpu-slot-action-btn.btn-close:hover {
-  background: rgba(239, 68, 68, 0.25);
-  color: #ef4444;
+.gpu-ptz-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
 }
 
-/* Slot Body & VideoRTC Player */
-.gpu-slot-body {
-  flex: 1;
-  position: relative;
-  background: #000000;
+.ptz-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  border-radius: 3px;
+  height: 26px;
+  font-size: 11px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  transition: all 0.1s;
+  user-select: none;
 }
 
-.gpu-player-el {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000000;
-  display: block;
+.ptz-btn:active,
+.ptz-btn.active {
+  background: #38bdf8;
+  color: #020617;
+  transform: scale(0.95);
 }
 
-.gpu-player-el video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000000;
+.ptz-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.gpu-ptz-zoom-ctrls {
+  display: flex;
+  gap: 4px;
+}
+
+.ptz-zoom-btn {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #38bdf8;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px;
+  cursor: pointer;
+}
+
+.ptz-zoom-btn:active {
+  background: #38bdf8;
+  color: #020617;
+}
+
+.gpu-ptz-presets {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.ptz-preset-btn {
+  width: 20px;
+  height: 18px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.ptz-preset-btn:hover {
+  background: #38bdf8;
+  color: #020617;
 }
 
 /* Spinner */
@@ -1047,9 +1395,6 @@ body {
     display: none;
   }
 
-  .gpu-slot-header {
-    height: 20px;
-  }
 
   .gpu-grid-container.split-4 {
     grid-template-columns: repeat(2, 1fr) !important;

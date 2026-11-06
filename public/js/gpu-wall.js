@@ -1,19 +1,25 @@
 /**
- * VOSCCTV Dahua-Style Dynamic GPU Live Wall Engine
- * Modifiable Central Grid (1..32) + Interactive Device Tree + Direct NVR Renaming
+ * VOSCCTV Enterprise Dahua-Style Dynamic GPU Live Wall Engine
+ * Modifiable Central Grid (1..32) + 100% Full-Bleed Video + Floating Glass HUD
+ * Deep VMS Capabilities: PTZ, Digital Zoom, Smart HD Autoscaler, Audio, Clip Recording, Tour, Presets
  * 100% Client GPU Hardware Accelerated via VideoRTC (WebRTC/MSE)
  */
 
 (function () {
   const STORAGE_KEY = 'voscctv_gpu_wall_layout';
+  const PRESETS_STORAGE_KEY = 'voscctv_gpu_wall_presets';
 
   const state = {
     split: 4,                  // 1, 4, 9, 16, 25, 32
     previousSplit: 4,          // For double-click 1x1 zoom toggle
     focusedSlotIndex: null,    // If zoomed to single slot (0..31)
     selectedSlotIndex: 0,      // Which slot receives next camera click
-    slots: {},                 // slotIndex -> { nvrId, channel, subtype: 'sub'|'hd', playerEl }
+    globalAspect: 'contain',   // 'contain' (Fit 16:9), 'fill' (Stretch), 'cover' (Crop)
+    slots: {},                 // slotIndex -> slotState
     cameraNames: { nvr1: {}, nvr2: {} },
+    viewPresets: { default: { name: 'Default', split: 4, slots: {} } },
+    currentPresetId: 'default',
+    tour: { active: false, timer: null, intervalMs: 15000, offset: 0 },
     drawerOpen: false,
     longPressTimer: null
   };
@@ -41,7 +47,7 @@
   }
 
   /**
-   * Layout Persistence (Save & Restore)
+   * Layout & Presets Persistence (Save & Restore)
    */
   function saveLayout() {
     try {
@@ -52,13 +58,15 @@
           serializableSlots[idx] = {
             nvrId: item.nvrId,
             channel: item.channel,
-            subtype: item.subtype || 'sub'
+            subtype: item.subtype || 'sub',
+            aspect: item.aspect || null
           };
         }
       });
 
       const data = {
         split: state.split,
+        globalAspect: state.globalAspect,
         slots: serializableSlots
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -67,11 +75,21 @@
 
   function restoreSavedLayout() {
     try {
+      const savedPresets = localStorage.getItem(PRESETS_STORAGE_KEY);
+      if (savedPresets) {
+        state.viewPresets = JSON.parse(savedPresets);
+        updatePresetDropdown();
+      }
+
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.split && [1, 4, 9, 16, 25, 32].includes(parsed.split)) {
           state.split = parsed.split;
+        }
+        if (parsed.globalAspect && ['contain', 'fill', 'cover'].includes(parsed.globalAspect)) {
+          state.globalAspect = parsed.globalAspect;
+          updateGlobalAspectUI();
         }
         if (parsed.slots && typeof parsed.slots === 'object') {
           state.slots = {};
@@ -81,7 +99,8 @@
               state.slots[numIdx] = {
                 nvrId: parsed.slots[idx].nvrId,
                 channel: parsed.slots[idx].channel,
-                subtype: parsed.slots[idx].subtype || 'sub'
+                subtype: parsed.slots[idx].subtype || 'sub',
+                aspect: parsed.slots[idx].aspect || null
               };
             }
           });
@@ -91,7 +110,7 @@
   }
 
   // -------------------------------------------------------------
-  // Left Device Tree & Inline NVR Renaming
+  // Left Device Tree & Clutter-Free Inline NVR Renaming
   // -------------------------------------------------------------
 
   function renderTree() {
@@ -135,7 +154,7 @@
         `;
 
         // Click: Assign to currently selected slot
-        itemEl.addEventListener('click', (e) => {
+        itemEl.addEventListener('click', () => {
           if (itemEl.classList.contains('editing')) return;
           assignCameraToSelectedSlot(nvr.id, ch);
 
@@ -150,7 +169,7 @@
           e.dataTransfer.setData('application/json', JSON.stringify({ nvrId: nvr.id, channel: ch }));
         });
 
-        // Desktop: Double-Click to Inline Rename (No pencil icons!)
+        // Desktop: Double-Click to Inline Rename (Zero Clutter, No Pencil Icon!)
         const labelEl = itemEl.querySelector('.gpu-tree-name-label');
         labelEl.addEventListener('dblclick', (e) => {
           e.stopPropagation();
@@ -158,7 +177,7 @@
         });
 
         // Mobile/Tablet: Long-Press (hold 500ms) to Inline Rename
-        itemEl.addEventListener('touchstart', (e) => {
+        itemEl.addEventListener('touchstart', () => {
           state.longPressTimer = setTimeout(() => {
             startInlineRename(nvr.id, ch, itemEl, labelEl);
           }, 500);
@@ -312,7 +331,7 @@
       if (item && item.nvrId === nvrId && item.channel == channel) {
         const slotEl = document.getElementById(`gpu-slot-${idx}`);
         if (slotEl) {
-          const titleEl = slotEl.querySelector('.gpu-slot-title');
+          const titleEl = slotEl.querySelector('.gpu-osd-name');
           if (titleEl) titleEl.textContent = newName;
         }
       }
@@ -325,13 +344,23 @@
   }
 
   function assignCameraToSlot(slotIndex, nvrId, channel, optSubtype) {
-    const subtype = optSubtype || 'sub';
+    // When in single 1x1 zoomed focus, default to HD; otherwise default to Sub
+    const defaultSub = state.focusedSlotIndex !== null ? 'hd' : 'sub';
+    const subtype = optSubtype || defaultSub;
+
     clearSlot(slotIndex, false); // Clear old player in this slot if any
 
     state.slots[slotIndex] = {
       nvrId,
       channel: parseInt(channel, 10),
-      subtype
+      subtype,
+      aspect: null,
+      digitalZoom: { active: false, scale: 1, x: 0, y: 0, startX: 0, startY: 0, isDragging: false },
+      ptzOpen: false,
+      recording: { active: false, recorder: null, timer: null, seconds: 0, chunks: [] },
+      audioMuted: true,
+      touchTimeout: null,
+      lastTapTime: 0
     };
 
     saveLayout();
@@ -339,9 +368,13 @@
   }
 
   function clearSlot(slotIndex, updateStore = true) {
+    const item = state.slots[slotIndex];
+    if (item && item.recording && item.recording.active) {
+      stopRecording(slotIndex);
+    }
+
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
     if (slotEl) {
-      // Disconnect and remove player element
       const player = slotEl.querySelector('video-rtc');
       if (player) {
         try {
@@ -375,6 +408,9 @@
     selectSlot(0);
   }
 
+  /**
+   * Smart Resolution & Sub/HD Quality Toggle
+   */
   function toggleSubtype(slotIndex) {
     const item = state.slots[slotIndex];
     if (!item) return;
@@ -383,18 +419,485 @@
     renderSlotContent(slotIndex);
   }
 
+  /**
+   * Double-Click 1x1 Zoom with Smart Resolution Autoscaler
+   */
   function toggleSlotZoom(slotIndex) {
     if (state.focusedSlotIndex !== null) {
-      // Restore previous split
+      // Restore previous split & downgrade focused slot back to Sub-stream
+      const prevFocused = state.slots[state.focusedSlotIndex];
+      if (prevFocused && prevFocused.subtype === 'hd') {
+        prevFocused.subtype = 'sub';
+      }
       state.focusedSlotIndex = null;
       state.split = state.previousSplit;
     } else {
-      // Zoom into 1x1 full grid
+      // Zoom into 1x1 full grid & promote focused slot to Main HD
       state.previousSplit = state.split;
       state.focusedSlotIndex = slotIndex;
+      const targetSlot = state.slots[slotIndex];
+      if (targetSlot) {
+        targetSlot.subtype = 'hd';
+      }
     }
+    saveLayout();
     renderGrid();
   }
+
+  /**
+   * Aspect Ratio Controls (Global & Per-Slot)
+   */
+  function setGlobalAspect(aspect) {
+    if (!['contain', 'fill', 'cover'].includes(aspect)) return;
+    state.globalAspect = aspect;
+    updateGlobalAspectUI();
+
+    // Apply to all active slots that don't have a manual override
+    Object.keys(state.slots).forEach((idx) => {
+      const item = state.slots[idx];
+      if (item && !item.aspect) {
+        applyAspectToSlot(idx, aspect);
+      }
+    });
+    saveLayout();
+  }
+
+  function updateGlobalAspectUI() {
+    document.querySelectorAll('.gpu-aspect-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.aspect === state.globalAspect);
+    });
+  }
+
+  function cycleSlotAspect(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+    const current = item.aspect || state.globalAspect;
+    const nextMap = { contain: 'fill', fill: 'cover', cover: 'contain' };
+    item.aspect = nextMap[current] || 'contain';
+    applyAspectToSlot(slotIndex, item.aspect);
+
+    // Update HUD button label
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (slotEl) {
+      const btn = slotEl.querySelector('.hud-aspect');
+      if (btn) btn.textContent = item.aspect.toUpperCase();
+    }
+    saveLayout();
+  }
+
+  function applyAspectToSlot(slotIndex, aspect) {
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+    const wrapper = slotEl.querySelector('.gpu-video-wrapper');
+    if (!wrapper) return;
+    wrapper.classList.remove('aspect-contain', 'aspect-fill', 'aspect-cover');
+    wrapper.classList.add(`aspect-${aspect}`);
+  }
+
+  // -------------------------------------------------------------
+  // Digital Zoom & ROI Pan Engine
+  // -------------------------------------------------------------
+
+  function toggleDigitalZoom(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+
+    item.digitalZoom.active = !item.digitalZoom.active;
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+
+    const wrapper = slotEl.querySelector('.gpu-video-wrapper');
+    const zoomBtn = slotEl.querySelector('.hud-zoom');
+
+    if (item.digitalZoom.active) {
+      if (wrapper) wrapper.classList.add('zoom-active');
+      if (zoomBtn) zoomBtn.classList.add('active');
+    } else {
+      // Reset zoom
+      item.digitalZoom.scale = 1;
+      item.digitalZoom.x = 0;
+      item.digitalZoom.y = 0;
+      applyVideoTransform(slotIndex);
+      if (wrapper) wrapper.classList.remove('zoom-active');
+      if (zoomBtn) zoomBtn.classList.remove('active');
+    }
+  }
+
+  function applyVideoTransform(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+    const video = slotEl.querySelector('video');
+    if (video) {
+      const { scale, x, y } = item.digitalZoom;
+      video.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    }
+  }
+
+  function setupDigitalZoomListeners(slotIndex, wrapper) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+
+    // Mouse wheel zoom
+    wrapper.addEventListener('wheel', (e) => {
+      if (!item.digitalZoom.active) return;
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.25 : -0.25;
+      item.digitalZoom.scale = Math.min(8.0, Math.max(1.0, item.digitalZoom.scale + delta));
+      if (item.digitalZoom.scale === 1.0) {
+        item.digitalZoom.x = 0;
+        item.digitalZoom.y = 0;
+      }
+      applyVideoTransform(slotIndex);
+    }, { passive: false });
+
+    // Drag to pan
+    wrapper.addEventListener('mousedown', (e) => {
+      if (!item.digitalZoom.active || item.digitalZoom.scale <= 1) return;
+      item.digitalZoom.isDragging = true;
+      item.digitalZoom.startX = e.clientX - item.digitalZoom.x;
+      item.digitalZoom.startY = e.clientY - item.digitalZoom.y;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!item.digitalZoom.active || !item.digitalZoom.isDragging) return;
+      item.digitalZoom.x = e.clientX - item.digitalZoom.startX;
+      item.digitalZoom.y = e.clientY - item.digitalZoom.startY;
+      applyVideoTransform(slotIndex);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (item.digitalZoom) item.digitalZoom.isDragging = false;
+    });
+  }
+
+  // -------------------------------------------------------------
+  // Dahua PTZ Camera Controller
+  // -------------------------------------------------------------
+
+  function togglePtz(slotIndex, forceState) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+
+    item.ptzOpen = typeof forceState === 'boolean' ? forceState : !item.ptzOpen;
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+
+    const ptzPanel = slotEl.querySelector('.gpu-ptz-panel');
+    const ptzBtn = slotEl.querySelector('.hud-ptz');
+
+    if (ptzPanel) ptzPanel.classList.toggle('hidden', !item.ptzOpen);
+    if (ptzBtn) ptzBtn.classList.toggle('active', item.ptzOpen);
+  }
+
+  async function sendPtzCommand(slotIndex, code, action = 'start', arg1 = 0, arg2 = 5) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+
+    try {
+      await fetch('/api/ptz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nvrId: item.nvrId,
+          channel: item.channel,
+          code,
+          action,
+          arg1,
+          arg2
+        })
+      });
+    } catch (e) {
+      console.warn('[PTZ] Command failed:', e);
+    }
+  }
+
+  function ptzGotoPreset(slotIndex, presetNum) {
+    sendPtzCommand(slotIndex, 'GotoPreset', 'start', 0, presetNum);
+  }
+
+  function setupPtzButtons(slotIndex, ptzPanel) {
+    ptzPanel.querySelectorAll('[data-code]').forEach((btn) => {
+      const code = btn.dataset.code;
+
+      const start = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.add('active');
+        sendPtzCommand(slotIndex, code, 'start');
+      };
+
+      const stop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.remove('active');
+        sendPtzCommand(slotIndex, code, 'stop');
+      };
+
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('mouseup', stop);
+      btn.addEventListener('mouseleave', stop);
+      btn.addEventListener('touchstart', start, { passive: false });
+      btn.addEventListener('touchend', stop, { passive: false });
+    });
+  }
+
+  // -------------------------------------------------------------
+  // Live Audio Monitoring
+  // -------------------------------------------------------------
+
+  function toggleAudio(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+    const video = slotEl.querySelector('video');
+    const audioBtn = slotEl.querySelector('.hud-audio');
+
+    item.audioMuted = !item.audioMuted;
+
+    // Solo audio: mute all other slots so sounds do not clash
+    if (!item.audioMuted) {
+      Object.keys(state.slots).forEach((idx) => {
+        if (idx != slotIndex && state.slots[idx]) {
+          state.slots[idx].audioMuted = true;
+          const otherEl = document.getElementById(`gpu-slot-${idx}`);
+          if (otherEl) {
+            const otherVid = otherEl.querySelector('video');
+            if (otherVid) otherVid.muted = true;
+            const otherBtn = otherEl.querySelector('.hud-audio');
+            if (otherBtn) {
+              otherBtn.classList.remove('active');
+              otherBtn.textContent = '🔇';
+            }
+          }
+        }
+      });
+    }
+
+    if (video) {
+      video.muted = item.audioMuted;
+    }
+
+    if (audioBtn) {
+      audioBtn.classList.toggle('active', !item.audioMuted);
+      audioBtn.textContent = item.audioMuted ? '🔇' : '🔊';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // In-Browser Video Clip Recording (MediaRecorder)
+  // -------------------------------------------------------------
+
+  function toggleRecord(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+
+    if (item.recording.active) {
+      stopRecording(slotIndex);
+    } else {
+      startRecording(slotIndex);
+    }
+  }
+
+  function startRecording(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+    const video = slotEl.querySelector('video');
+    if (!video) return;
+
+    try {
+      const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+      if (!stream) {
+        alert('Browser does not support direct stream recording.');
+        return;
+      }
+
+      let mimeType = 'video/webm;codecs=vp8,opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm';
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      item.recording.chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          item.recording.chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(item.recording.chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const title = getCameraTitle(item.nvrId, item.channel);
+        const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
+        a.download = `${title.replace(/\s+/g, '_')}_${dateStr}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      recorder.start(1000); // 1-second timeslices
+      item.recording.active = true;
+      item.recording.recorder = recorder;
+      item.recording.seconds = 0;
+
+      // Update UI: pulsating red badge & button
+      const recBadge = slotEl.querySelector('.gpu-rec-badge');
+      const recTimer = slotEl.querySelector('.gpu-rec-timer');
+      const recBtn = slotEl.querySelector('.hud-record');
+
+      if (recBadge) recBadge.classList.remove('hidden');
+      if (recBtn) recBtn.classList.add('recording');
+
+      item.recording.timer = setInterval(() => {
+        item.recording.seconds++;
+        const mins = Math.floor(item.recording.seconds / 60).toString().padStart(2, '0');
+        const secs = (item.recording.seconds % 60).toString().padStart(2, '0');
+        if (recTimer) recTimer.textContent = `${mins}:${secs}`;
+      }, 1000);
+    } catch (err) {
+      console.warn('[GPU Wall] Clip recording error:', err);
+    }
+  }
+
+  function stopRecording(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item || !item.recording.active) return;
+
+    if (item.recording.recorder && item.recording.recorder.state !== 'inactive') {
+      item.recording.recorder.stop();
+    }
+    if (item.recording.timer) {
+      clearInterval(item.recording.timer);
+      item.recording.timer = null;
+    }
+    item.recording.active = false;
+
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (slotEl) {
+      const recBadge = slotEl.querySelector('.gpu-rec-badge');
+      const recBtn = slotEl.querySelector('.hud-record');
+      if (recBadge) recBadge.classList.add('hidden');
+      if (recBtn) recBtn.classList.remove('recording');
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Touring / Carousel Mode
+  // -------------------------------------------------------------
+
+  function toggleTour() {
+    state.tour.active = !state.tour.active;
+    const tourBtn = document.getElementById('gpu-tour-btn');
+    if (tourBtn) tourBtn.classList.toggle('active', state.tour.active);
+
+    if (state.tour.active) {
+      runTourCycle();
+      state.tour.timer = setInterval(runTourCycle, state.tour.intervalMs);
+    } else {
+      if (state.tour.timer) {
+        clearInterval(state.tour.timer);
+        state.tour.timer = null;
+      }
+    }
+  }
+
+  function runTourCycle() {
+    const totalSlots = state.focusedSlotIndex !== null ? 1 : state.split;
+    // Total available cameras: 32 on NVR 1 + 32 on NVR 2 = 64
+    for (let i = 0; i < totalSlots; i++) {
+      const camNum = ((state.tour.offset + i) % 64) + 1;
+      const nvrId = camNum <= 32 ? 'nvr1' : 'nvr2';
+      const channel = camNum <= 32 ? camNum : camNum - 32;
+      assignCameraToSlot(i, nvrId, channel, 'sub');
+    }
+    state.tour.offset = (state.tour.offset + totalSlots) % 64;
+  }
+
+  // -------------------------------------------------------------
+  // View Presets (Favorites)
+  // -------------------------------------------------------------
+
+  function updatePresetDropdown() {
+    const select = document.getElementById('gpu-view-select');
+    if (!select) return;
+    select.innerHTML = '';
+
+    Object.keys(state.viewPresets).forEach((id) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `View: ${state.viewPresets[id].name}`;
+      if (id === state.currentPresetId) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  function saveCurrentViewPreset() {
+    const name = prompt('Enter a name for this custom view layout:');
+    if (!name || !name.trim()) return;
+
+    const id = 'view_' + Date.now();
+    const serializableSlots = {};
+    Object.keys(state.slots).forEach((idx) => {
+      const item = state.slots[idx];
+      if (item) {
+        serializableSlots[idx] = {
+          nvrId: item.nvrId,
+          channel: item.channel,
+          subtype: item.subtype || 'sub',
+          aspect: item.aspect || null
+        };
+      }
+    });
+
+    state.viewPresets[id] = {
+      name: name.trim(),
+      split: state.split,
+      globalAspect: state.globalAspect,
+      slots: serializableSlots
+    };
+
+    state.currentPresetId = id;
+    try {
+      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(state.viewPresets));
+    } catch (e) {}
+
+    updatePresetDropdown();
+  }
+
+  function loadViewPreset(id) {
+    const preset = state.viewPresets[id];
+    if (!preset) return;
+
+    state.currentPresetId = id;
+    clearAll();
+
+    state.split = preset.split || 4;
+    state.globalAspect = preset.globalAspect || 'contain';
+    updateGlobalAspectUI();
+
+    if (preset.slots) {
+      Object.keys(preset.slots).forEach((idx) => {
+        const item = preset.slots[idx];
+        if (item) {
+          assignCameraToSlot(parseInt(idx, 10), item.nvrId, item.channel, item.subtype);
+        }
+      });
+    }
+
+    renderGrid();
+  }
+
+  // -------------------------------------------------------------
+  // Slot Rendering (100% Full-Bleed Video + Floating Glass HUD)
+  // -------------------------------------------------------------
 
   function renderSlotContent(slotIndex) {
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
@@ -415,39 +918,113 @@
       return;
     }
 
-    // Active Playing Slot State
+    // Active Playing Slot State: 100% Edge-to-Edge Pure Video Canvas
     const isNvr1 = item.nvrId === 'nvr1';
     const title = getCameraTitle(item.nvrId, item.channel);
     const streamKey = `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
+    const effectiveAspect = item.aspect || state.globalAspect;
 
     slotEl.className = `gpu-slot playing ${slotIndex === state.selectedSlotIndex ? 'selected' : ''}`;
     slotEl.innerHTML = `
-      <div class="gpu-slot-header">
-        <div class="gpu-slot-info">
-          <span class="gpu-slot-badge ${isNvr1 ? 'badge-nvr1' : 'badge-nvr2'}">${isNvr1 ? 'NVR 1' : 'NVR 2'}</span>
-          <span class="gpu-slot-ch">CH ${item.channel.toString().padStart(2, '0')}</span>
-          <span class="gpu-slot-title" title="${title}">${title}</span>
-        </div>
-        <div class="gpu-slot-actions">
-          <button class="gpu-slot-action-btn ${item.subtype === 'hd' ? 'active-hd' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleSubtype(${slotIndex})" title="Toggle Sub/HD Stream">${item.subtype.toUpperCase()}</button>
-          <button class="gpu-slot-action-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.takeSnapshot(${slotIndex})" title="Snapshot">📷</button>
-          <button class="gpu-slot-action-btn btn-close" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.clearSlot(${slotIndex})" title="Close Camera Feed">✕</button>
-        </div>
-      </div>
-      <div class="gpu-slot-body" id="body-slot-${slotIndex}">
+      <!-- 100% Full-Bleed Video Wrapper -->
+      <div class="gpu-video-wrapper aspect-${effectiveAspect}" id="video-wrap-${slotIndex}">
         <div class="gpu-slot-spinner" id="spinner-slot-${slotIndex}">
           <div class="spinner-ring"></div>
           <span>Connecting GPU Stream...</span>
         </div>
       </div>
+
+      <!-- Minimalist Top-Left Floating OSD Pill -->
+      <div class="gpu-slot-osd" id="osd-slot-${slotIndex}">
+        <span class="dot online" style="margin-right:2px;"></span>
+        <span class="gpu-osd-badge ${isNvr1 ? 'badge-nvr1' : 'badge-nvr2'}">${isNvr1 ? 'NVR 1' : 'NVR 2'}</span>
+        <span class="gpu-osd-ch">CH ${item.channel.toString().padStart(2, '0')}</span>
+        <span class="gpu-osd-name" title="${title}">${title}</span>
+        <span class="gpu-osd-quality ${item.subtype === 'hd' ? 'hd' : ''}">${item.subtype.toUpperCase()}</span>
+      </div>
+
+      <!-- Live Recording Pulsating Indicator (Top-Right) -->
+      <div class="gpu-rec-badge hidden" id="rec-badge-${slotIndex}">
+        <span class="gpu-rec-dot"></span>
+        <span class="gpu-rec-timer">00:00</span>
+      </div>
+
+      <!-- Floating Glass Action HUD (Bottom-Center, appears on Hover / Tap) -->
+      <div class="gpu-slot-hud" id="hud-slot-${slotIndex}">
+        <button class="gpu-hud-btn hud-quality ${item.subtype === 'hd' ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleSubtype(${slotIndex})" title="Toggle Main HD / Sub-Stream">${item.subtype.toUpperCase()}</button>
+        <button class="gpu-hud-btn hud-aspect" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.cycleSlotAspect(${slotIndex})" title="Aspect: Fit / Stretch / Crop">${effectiveAspect.toUpperCase()}</button>
+        <button class="gpu-hud-btn hud-zoom ${item.digitalZoom && item.digitalZoom.active ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleDigitalZoom(${slotIndex})" title="Digital Zoom (Scroll/Drag)">🔍</button>
+        <button class="gpu-hud-btn hud-ptz ${item.ptzOpen ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.togglePtz(${slotIndex})" title="PTZ Camera Controls">🎮</button>
+        <button class="gpu-hud-btn hud-audio ${!item.audioMuted ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleAudio(${slotIndex})" title="Listen to Audio">${item.audioMuted ? '🔇' : '🔊'}</button>
+        <button class="gpu-hud-btn hud-record" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleRecord(${slotIndex})" title="Record Live Video Clip">⏺</button>
+        <button class="gpu-hud-btn hud-snapshot" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.takeSnapshot(${slotIndex})" title="Snapshot JPEG">📷</button>
+        <button class="gpu-hud-btn hud-expand" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleSlotZoom(${slotIndex})" title="1x1 Zoom / Full Grid">⛶</button>
+        <button class="gpu-hud-btn btn-close" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.clearSlot(${slotIndex})" title="Close Camera Feed">✕</button>
+      </div>
+
+      <!-- Floating PTZ Joystick Dial Panel Overlay -->
+      <div class="gpu-ptz-panel ${item.ptzOpen ? '' : 'hidden'}" id="ptz-panel-${slotIndex}">
+        <div class="gpu-ptz-header">
+          <span>🎮 PTZ CH ${item.channel.toString().padStart(2, '0')}</span>
+          <button class="gpu-ptz-close" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.togglePtz(${slotIndex}, false)">✕</button>
+        </div>
+        <div class="gpu-ptz-dpad">
+          <button class="ptz-btn" data-code="LeftUp">↖</button>
+          <button class="ptz-btn" data-code="Up">▲</button>
+          <button class="ptz-btn" data-code="RightUp">↗</button>
+          <button class="ptz-btn" data-code="Left">◀</button>
+          <div class="ptz-center">PTZ</div>
+          <button class="ptz-btn" data-code="Right">▶</button>
+          <button class="ptz-btn" data-code="LeftDown">↙</button>
+          <button class="ptz-btn" data-code="Down">▼</button>
+          <button class="ptz-btn" data-code="RightDown">↘</button>
+        </div>
+        <div class="gpu-ptz-zoom-ctrls">
+          <button class="ptz-zoom-btn" data-code="ZoomTele">Zoom +</button>
+          <button class="ptz-zoom-btn" data-code="ZoomWide">Zoom -</button>
+        </div>
+        <div class="gpu-ptz-presets">
+          <span>Preset:</span>
+          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 1)">1</button>
+          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 2)">2</button>
+          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 3)">3</button>
+          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 4)">4</button>
+        </div>
+      </div>
     `;
 
-    // Double-click to toggle full 1x1 screen
-    const bodyEl = slotEl.querySelector('.gpu-slot-body');
-    bodyEl.addEventListener('dblclick', (e) => {
+    const wrapper = slotEl.querySelector('.gpu-video-wrapper');
+    setupDigitalZoomListeners(slotIndex, wrapper);
+
+    const ptzPanel = slotEl.querySelector('.gpu-ptz-panel');
+    if (ptzPanel) setupPtzButtons(slotIndex, ptzPanel);
+
+    // Desktop: Double-click to toggle full 1x1 screen
+    wrapper.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       toggleSlotZoom(slotIndex);
     });
+
+    // Touch Devices: Single tap reveals HUD for 3s; double tap zooms to 1x1
+    slotEl.addEventListener('touchstart', (e) => {
+      const now = Date.now();
+      const timeSinceLast = now - (item.lastTapTime || 0);
+
+      if (timeSinceLast > 0 && timeSinceLast < 300) {
+        // Double Tap: Toggle 1x1 zoom
+        e.preventDefault();
+        toggleSlotZoom(slotIndex);
+        return;
+      }
+      item.lastTapTime = now;
+
+      // Single Tap: Reveal HUD for 3 seconds
+      slotEl.classList.add('touch-active');
+      if (item.touchTimeout) clearTimeout(item.touchTimeout);
+      item.touchTimeout = setTimeout(() => {
+        slotEl.classList.remove('touch-active');
+      }, 3000);
+    }, { passive: true });
 
     // Mount VideoRTC hardware-accelerated video element
     const host = window.location.host;
@@ -456,18 +1033,12 @@
 
     const player = document.createElement('video-rtc');
     player.className = 'gpu-player-el';
-    player.style.width = '100%';
-    player.style.height = '100%';
-    player.style.display = 'block';
 
-    bodyEl.appendChild(player);
+    wrapper.appendChild(player);
     player.src = wsUrl;
 
     if (player.video) {
-      player.video.style.width = '100%';
-      player.video.style.height = '100%';
-      player.video.style.objectFit = 'contain';
-      player.video.muted = true;
+      player.video.muted = item.audioMuted;
       player.video.autoplay = true;
       player.video.playsInline = true;
 
@@ -503,7 +1074,7 @@
       slotEl.id = `gpu-slot-${slotIndex}`;
       slotEl.dataset.slotIndex = slotIndex;
 
-      // Click to select this slot as the active assignment target
+      // Click to select this slot as active assignment target
       slotEl.addEventListener('click', () => {
         selectSlot(slotIndex);
       });
@@ -542,6 +1113,8 @@
       const splitVal = parseInt(btn.dataset.split, 10);
       btn.classList.toggle('active', splitVal === state.split && state.focusedSlotIndex === null);
     });
+
+    updateGlobalAspectUI();
   }
 
   function setSplit(split) {
@@ -587,6 +1160,15 @@
   }
 
   function stopAll() {
+    // Stop recordings & tour
+    if (state.tour.active) toggleTour();
+    Object.keys(state.slots).forEach((idx) => {
+      const item = state.slots[idx];
+      if (item && item.recording && item.recording.active) {
+        stopRecording(idx);
+      }
+    });
+
     document.querySelectorAll('.gpu-slot video-rtc').forEach((el) => {
       try { el.src = ''; el.remove(); } catch (e) {}
     });
@@ -610,7 +1192,18 @@
     clearAll,
     openAll,
     toggleSubtype,
+    toggleSlotZoom,
+    setGlobalAspect,
+    cycleSlotAspect,
+    toggleDigitalZoom,
+    togglePtz,
+    ptzGotoPreset,
+    toggleAudio,
+    toggleRecord,
     takeSnapshot,
+    toggleTour,
+    saveCurrentViewPreset,
+    loadViewPreset,
     toggleDrawer,
     filterTree,
     stop: stopAll

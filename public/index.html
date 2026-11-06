@@ -143,9 +143,27 @@
               <button class="gpu-split-btn" data-split="25" onclick="window.VOSCCTV_GPU_WALL.setSplit(25)">25</button>
               <button class="gpu-split-btn" data-split="32" onclick="window.VOSCCTV_GPU_WALL.setSplit(32)">32</button>
             </div>
+
+            <div class="gpu-toolbar-group" title="Video Aspect Ratio Mode">
+              <span class="gpu-group-label">ASPECT:</span>
+              <button class="gpu-aspect-btn active" data-aspect="contain" onclick="window.VOSCCTV_GPU_WALL.setGlobalAspect('contain')" title="Fit (Original 16:9)">Fit</button>
+              <button class="gpu-aspect-btn" data-aspect="fill" onclick="window.VOSCCTV_GPU_WALL.setGlobalAspect('fill')" title="Stretch to Fill Slot">Stretch</button>
+              <button class="gpu-aspect-btn" data-aspect="cover" onclick="window.VOSCCTV_GPU_WALL.setGlobalAspect('cover')" title="Crop to Fill Slot">Crop</button>
+            </div>
+
+            <button class="gpu-tour-btn" id="gpu-tour-btn" onclick="window.VOSCCTV_GPU_WALL.toggleTour()" title="Auto-cycle cameras across slots">
+              <span>▶ Tour</span>
+            </button>
           </div>
 
           <div class="gpu-toolbar-right">
+            <div class="gpu-view-dropdown-wrap">
+              <select class="gpu-view-select" id="gpu-view-select" onchange="window.VOSCCTV_GPU_WALL.loadViewPreset(this.value)">
+                <option value="default">View: Default</option>
+              </select>
+              <button class="gpu-view-save-btn" onclick="window.VOSCCTV_GPU_WALL.saveCurrentViewPreset()" title="Save current camera arrangement">💾 Save View</button>
+            </div>
+
             <div class="gpu-active-slot-pill" id="gpu-active-slot-pill" title="Next camera click assigns here">
               Target: <span id="gpu-active-slot-num">Slot 1</span>
             </div>
