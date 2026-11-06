@@ -1093,6 +1093,39 @@ video::-webkit-media-controls-fullscreen-button {
   border-color: #ef4444;
 }
 
+/* Disabled / Greyed-out state for buttons and controls */
+.gpu-dock-btn:disabled,
+.gpu-dock-btn.disabled {
+  opacity: 0.28 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  filter: grayscale(1) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  background: #0f172a !important;
+  color: #64748b !important;
+  box-shadow: none !important;
+}
+
+.gpu-menu-item.disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  color: #64748b !important;
+}
+
+/* Subtle PTZ Badge in Camera Tree */
+.gpu-tree-ptz-badge {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  margin-left: auto;
+  letter-spacing: 0.5px;
+}
+
 /* -------------------------------------------------------------
  * PTZ Side Drawer (Docked to Right, Completely Outside Video Grid)
  * ------------------------------------------------------------- */

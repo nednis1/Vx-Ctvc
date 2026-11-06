@@ -773,6 +773,67 @@ app.post('/api/camera-names', (req, res) => {
   res.json({ success: true, names: data[nvrId] });
 });
 
+// -------------------------------------------------------------
+// Camera Hardware Capabilities (PTZ, Audio) Probing & Cache
+// -------------------------------------------------------------
+let cameraCapabilitiesCache = null;
+let lastCapsCheck = 0;
+
+async function probeCameraCapabilities() {
+  const caps = { nvr1: {}, nvr2: {} };
+  for (const nvr of CONFIG.nvrs) {
+    caps[nvr.id] = {};
+
+    // 1. Probe audio enable table
+    const audioMap = {};
+    try {
+      const encodeRes = await dahuaDigestRequest(`http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=getConfig&name=Encode`, nvr.username, nvr.password);
+      if (encodeRes.body) {
+        encodeRes.body.split('\n').forEach(line => {
+          const m = line.trim().match(/table\.Encode\[(\d+)\]\.MainFormat\[0\]\.AudioEnable=(.*)/);
+          if (m) {
+            const ch = parseInt(m[1], 10) + 1;
+            audioMap[ch] = m[2].trim().toLowerCase() === 'true';
+          }
+        });
+      }
+    } catch(e) {}
+
+    // 2. Probe PTZ protocol caps
+    for (let ch = 1; ch <= 32; ch++) {
+      let isPtz = false;
+      try {
+        const ptzRes = await dahuaDigestRequest(`http://${nvr.ip}:${nvr.port}/cgi-bin/ptz.cgi?action=getCurrentProtocolCaps&channel=${ch - 1}`, nvr.username, nvr.password);
+        if (ptzRes.status === 200 && ptzRes.body && ptzRes.body.includes('caps.Pan=true')) {
+          isPtz = true;
+        }
+      } catch(e) {}
+
+      caps[nvr.id][ch] = {
+        ptz: isPtz,
+        audio: audioMap[ch] !== undefined ? audioMap[ch] : true
+      };
+    }
+    const ptzCount = Object.values(caps[nvr.id]).filter(c => c.ptz).length;
+    console.log(`[VOSCTV] Probed ${nvr.name} capabilities: ${ptzCount} PTZ-capable channels detected.`);
+  }
+  cameraCapabilitiesCache = caps;
+  lastCapsCheck = Date.now();
+  return caps;
+}
+
+// API: Camera Capabilities (PTZ, Audio)
+app.get('/api/camera-capabilities', async (req, res) => {
+  try {
+    if (!cameraCapabilitiesCache || Date.now() - lastCapsCheck > 3600000) {
+      await probeCameraCapabilities();
+    }
+    res.json(cameraCapabilitiesCache);
+  } catch(err) {
+    res.status(500).json({ error: 'Failed to inspect capabilities', details: err.message });
+  }
+});
+
 // API: Force refresh camera names directly from NVRs
 app.post('/api/sync-nvr-names', async (req, res) => {
   try {
@@ -842,6 +903,7 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   console.log(`- WebRTC GPU Stream Gateway: Enabled via go2rtc`);
   console.log(`====================================================`);
   syncOfficialNvrNames().catch(() => {});
+  probeCameraCapabilities().catch(() => {});
 
   // Setup go2rtc WebRTC GPU Bridge
   try {
