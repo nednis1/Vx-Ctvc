@@ -4,3 +4,4 @@ node_modules/
 .DS_Store
 cctv server issues.md
 camera_names.json
+go2rtc.yaml

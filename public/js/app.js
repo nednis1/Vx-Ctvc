@@ -155,7 +155,7 @@ function ensureFrameLoaded(id) {
 }
 
 /**
- * Switch active session tab ('nvr1' | 'nvr2' | 'split')
+ * Switch active session tab ('nvr1' | 'nvr2' | 'split' | 'gpu')
  */
 function switchTab(tabId) {
   currentTab = tabId;
@@ -165,10 +165,15 @@ function switchTab(tabId) {
   const activeTab = document.getElementById(`tab-${tabId}`);
   if (activeTab) activeTab.classList.add('active');
 
-  // Update shared viewport layout mode ('nvr1' | 'nvr2' | 'split')
+  // Update shared viewport layout mode ('nvr1' | 'nvr2' | 'split' | 'gpu')
   const viewportArea = document.getElementById('viewport-area');
   if (viewportArea) {
     viewportArea.setAttribute('data-view', tabId);
+  }
+
+  // Stop GPU streams when leaving GPU tab to conserve bandwidth & NVR sockets
+  if (tabId !== 'gpu' && window.VOSCCTV_GPU_WALL) {
+    window.VOSCCTV_GPU_WALL.stop();
   }
 
   // Lazy load persistent frames so single & split views share the exact same session
@@ -179,6 +184,10 @@ function switchTab(tabId) {
   } else if (tabId === 'split') {
     ensureFrameLoaded('nvr1');
     ensureFrameLoaded('nvr2');
+  } else if (tabId === 'gpu') {
+    if (window.VOSCCTV_GPU_WALL) {
+      window.VOSCCTV_GPU_WALL.init();
+    }
   }
 }
 
@@ -193,6 +202,10 @@ function reloadActive() {
   } else if (currentTab === 'split') {
     retryPane('nvr1');
     retryPane('nvr2');
+  } else if (currentTab === 'gpu') {
+    if (window.VOSCCTV_GPU_WALL) {
+      window.VOSCCTV_GPU_WALL.init();
+    }
   }
 }
 

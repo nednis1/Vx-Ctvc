@@ -37,6 +37,11 @@
           <span class="split-icon">⬚⬚</span>
           <span>Split View</span>
         </button>
+
+        <button class="session-tab" id="tab-gpu" onclick="switchTab('gpu')">
+          <span class="gpu-badge">GPU</span>
+          <span>Live Wall (GPU)</span>
+        </button>
       </nav>
     </div>
 
@@ -88,8 +93,47 @@
 
       <iframe id="frame-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
     </div>
+
+    <!-- GPU Live Wall Session Pane (100% Client GPU Hardware Accelerated) -->
+    <div class="nvr-pane gpu-pane" id="pane-gpu">
+      <div class="gpu-header-bar">
+        <div class="gpu-bar-left">
+          <div class="gpu-control-group">
+            <span class="gpu-group-label">NVR SOURCE:</span>
+            <button class="gpu-btn gpu-source-btn active" data-nvr="nvr1" onclick="window.VOSCCTV_GPU_WALL.setNvr('nvr1')">NVR 1 (1–32)</button>
+            <button class="gpu-btn gpu-source-btn" data-nvr="nvr2" onclick="window.VOSCCTV_GPU_WALL.setNvr('nvr2')">NVR 2 (1–32)</button>
+            <button class="gpu-btn gpu-source-btn" data-nvr="both" onclick="window.VOSCCTV_GPU_WALL.setNvr('both')">Dual (Both)</button>
+          </div>
+
+          <div class="gpu-control-group">
+            <span class="gpu-group-label">GRID:</span>
+            <button class="gpu-btn gpu-split-btn" data-split="1" onclick="window.VOSCCTV_GPU_WALL.setSplit(1)">1x1</button>
+            <button class="gpu-btn gpu-split-btn active" data-split="4" onclick="window.VOSCCTV_GPU_WALL.setSplit(4)">2x2 (4)</button>
+            <button class="gpu-btn gpu-split-btn" data-split="9" onclick="window.VOSCCTV_GPU_WALL.setSplit(9)">3x3 (9)</button>
+            <button class="gpu-btn gpu-split-btn" data-split="16" onclick="window.VOSCCTV_GPU_WALL.setSplit(16)">4x4 (16)</button>
+          </div>
+        </div>
+
+        <div class="gpu-bar-right">
+          <div class="gpu-control-group gpu-pager">
+            <button class="gpu-btn gpu-pager-btn" onclick="window.VOSCCTV_GPU_WALL.prevPage()" title="Previous Channels">◀</button>
+            <span class="gpu-page-text" id="gpu-page-indicator">Channels 1–4 of 32</span>
+            <button class="gpu-btn gpu-pager-btn" onclick="window.VOSCCTV_GPU_WALL.nextPage()" title="Next Channels">▶</button>
+          </div>
+
+          <div class="gpu-badge-indicator">
+            <span class="dot online"></span>
+            <span>CLIENT GPU ACCELERATED</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic Camera Grid Container -->
+      <div class="gpu-grid-container" id="gpu-grid-container"></div>
+    </div>
   </main>
 
-  <script src="/js/app.js?v=vosctv7"></script>
+  <script src="/js/gpu-wall.js?v=vosctv1"></script>
+  <script src="/js/app.js?v=vosctv8"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const httpProxy = require('http-proxy');
 const net = require('net');
 const path = require('path');
 const zlib = require('zlib');
+const go2rtcManager = require('./go2rtc-manager');
 
 // Custom Camera Names file persistence
 const CAMERA_NAMES_FILE = path.join(__dirname, 'camera_names.json');
@@ -838,13 +839,23 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   console.log(`[VOSCTV NVR DASHBOARD] Running at http://localhost:${CONFIG.dashboardPort}`);
   console.log(`- NVR 1 (${CONFIG.nvrs[0].ip}) Proxy: http://localhost:${CONFIG.nvrs[0].proxyPort}`);
   console.log(`- NVR 2 (${CONFIG.nvrs[1].ip}) Proxy: http://localhost:${CONFIG.nvrs[1].proxyPort}`);
+  console.log(`- WebRTC GPU Stream Gateway: Enabled via go2rtc`);
   console.log(`====================================================`);
   syncOfficialNvrNames().catch(() => {});
+
+  // Setup go2rtc WebRTC GPU Bridge
+  try {
+    go2rtcManager.setupGo2rtcProxy(app, dashboardServer);
+    go2rtcManager.startGo2rtc(CONFIG.nvrs);
+  } catch (err) {
+    console.warn('[go2rtc] Initialization warning:', err.message);
+  }
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nGracefully shutting down servers...');
+  try { go2rtcManager.stopGo2rtc(); } catch (e) {}
   dashboardServer.close();
   proxyServers.forEach(s => s.close());
   process.exit(0);

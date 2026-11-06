@@ -334,3 +334,336 @@ body {
 @keyframes spinSimple {
   to { transform: rotate(360deg); }
 }
+
+
+/* =========================================================
+ * GPU Live Wall Styles (100% Client GPU Hardware Decoding)
+ * ========================================================= */
+
+.gpu-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+/* Viewport visibility for GPU tab */
+#pane-gpu {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #020617;
+  overflow: hidden;
+}
+
+.viewport-area[data-view="gpu"] #pane-gpu {
+  display: flex;
+  flex: 1 1 100%;
+  position: relative;
+  visibility: visible;
+  z-index: 3;
+}
+
+.viewport-area[data-view="gpu"] #pane-nvr1,
+.viewport-area[data-view="gpu"] #pane-nvr2 {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* GPU Header Bar */
+.gpu-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #090d16;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 5px 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+  z-index: 5;
+}
+
+.gpu-bar-left, .gpu-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gpu-control-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gpu-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+.gpu-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.gpu-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+}
+
+.gpu-btn.active {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+}
+
+.gpu-pager {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.gpu-pager-btn {
+  padding: 2px 7px;
+  font-size: 10px;
+}
+
+.gpu-page-text {
+  font-size: 11px;
+  color: #cbd5e1;
+  font-weight: 500;
+  padding: 0 6px;
+  min-width: 105px;
+  text-align: center;
+}
+
+.gpu-badge-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* GPU Video Grid Container */
+.gpu-grid-container {
+  flex: 1;
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  background: #020617;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+/* Split Layouts */
+.gpu-grid.split-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.gpu-grid.split-4 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.gpu-grid.split-9 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.gpu-grid.split-16 {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+.gpu-grid.split-32 {
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+}
+
+/* Camera Card */
+.gpu-card {
+  background: #080c14;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: border-color 0.15s ease;
+  min-height: 120px;
+}
+
+.gpu-card:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+/* Card Header */
+.gpu-card-header {
+  height: 24px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+  z-index: 2;
+}
+
+.gpu-cam-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.gpu-cam-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.badge-nvr1 {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.badge-nvr2 {
+  background: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+.gpu-cam-ch {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.gpu-cam-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.gpu-cam-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.gpu-action-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 10px;
+  transition: all 0.15s ease;
+}
+
+.gpu-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.gpu-action-btn.active-hd {
+  color: #38bdf8;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.15);
+}
+
+/* Card Video Area */
+.gpu-card-body {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.gpu-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000000;
+}
+
+/* Spinner Overlay */
+.gpu-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #020617;
+  color: #64748b;
+  font-size: 11px;
+  z-index: 1;
+}
+
+.spinner-ring {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spinSimple 0.8s linear infinite;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .gpu-header-bar {
+    padding: 6px;
+    gap: 6px;
+  }
+  .gpu-grid.split-4, .gpu-grid.split-9, .gpu-grid.split-16 {
+    grid-template-columns: repeat(1, 1fr) !important;
+  }
+  .gpu-badge-indicator {
+    display: none;
+  }
+  .gpu-page-text {
+    min-width: 80px;
+    font-size: 10px;
+  }
+}
