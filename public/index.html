@@ -175,9 +175,102 @@
           </div>
         </div>
 
-        <!-- Central Modifiable Grid Container -->
+        <!-- Central Modifiable Grid Container (100% Unobstructed Video) -->
         <div class="gpu-grid-container" id="gpu-grid-container">
           <!-- Dynamic slots 1..32 with active selection and VideoRTC players -->
+        </div>
+
+        <!-- Dedicated Bottom Control Dock (Dahua VMS Architecture: OUTSIDE Video) -->
+        <div class="gpu-dock-bar" id="gpu-dock-bar">
+          <div class="gpu-dock-left">
+            <span class="gpu-dock-slot-pill" id="gpu-dock-slot-pill">Slot 1</span>
+            <span class="gpu-dock-cam-title" id="gpu-dock-cam-title">No Camera Assigned</span>
+          </div>
+
+          <div class="gpu-dock-center">
+            <button class="gpu-dock-btn" id="dock-btn-quality" onclick="window.VOSCCTV_GPU_WALL.dockToggleQuality()" title="Toggle Main HD / Sub-Stream">
+              <span class="dock-btn-icon">⚡</span>
+              <span class="dock-btn-label" id="dock-quality-label">SUB</span>
+            </button>
+            <button class="gpu-dock-btn" id="dock-btn-aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()" title="Cycle Aspect: Fit / Stretch / Crop">
+              <span class="dock-btn-icon">🔲</span>
+              <span class="dock-btn-label" id="dock-aspect-label">FIT</span>
+            </button>
+            <button class="gpu-dock-btn" id="dock-btn-zoom" onclick="window.VOSCCTV_GPU_WALL.dockToggleDigitalZoom()" title="Digital Zoom (Mouse wheel or drag to pan)">
+              <span class="dock-btn-icon">🔍</span>
+              <span class="dock-btn-label">Zoom</span>
+            </button>
+            <button class="gpu-dock-btn" id="dock-btn-ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()" title="Open Dahua PTZ Camera Controls">
+              <span class="dock-btn-icon">🎮</span>
+              <span class="dock-btn-label">PTZ</span>
+            </button>
+            <button class="gpu-dock-btn" id="dock-btn-audio" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio()" title="Listen to Live Audio">
+              <span class="dock-btn-icon" id="dock-audio-icon">🔇</span>
+              <span class="dock-btn-label">Audio</span>
+            </button>
+            <button class="gpu-dock-btn" id="dock-btn-record" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord()" title="Record Video Clip to PC">
+              <span class="dock-btn-icon" id="dock-rec-icon">⏺</span>
+              <span class="dock-btn-label" id="dock-rec-label">Record</span>
+            </button>
+            <button class="gpu-dock-btn" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot()" title="Capture High-Res Snapshot">
+              <span class="dock-btn-icon">📷</span>
+              <span class="dock-btn-label">Snapshot</span>
+            </button>
+            <button class="gpu-dock-btn" id="dock-btn-1x1" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1()" title="Toggle 1x1 Full Screen View">
+              <span class="dock-btn-icon">⛶</span>
+              <span class="dock-btn-label">1x1</span>
+            </button>
+            <button class="gpu-dock-btn danger" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot()" title="Close Active Camera Feed">
+              <span class="dock-btn-icon">✕</span>
+              <span class="dock-btn-label">Close</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dedicated PTZ Side Flyout (Docked on Right Side, Completely Outside Video Grid) -->
+        <div class="gpu-ptz-drawer hidden" id="gpu-ptz-drawer">
+          <div class="gpu-ptz-drawer-header">
+            <span id="gpu-ptz-drawer-title">🎮 PTZ CONTROLLER</span>
+            <button class="gpu-ptz-drawer-close" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz(false)">✕</button>
+          </div>
+          <div class="gpu-ptz-drawer-body">
+            <div class="gpu-ptz-dpad">
+              <button class="ptz-btn" data-code="LeftUp">↖</button>
+              <button class="ptz-btn" data-code="Up">▲</button>
+              <button class="ptz-btn" data-code="RightUp">↗</button>
+              <button class="ptz-btn" data-code="Left">◀</button>
+              <div class="ptz-center">PTZ</div>
+              <button class="ptz-btn" data-code="Right">▶</button>
+              <button class="ptz-btn" data-code="LeftDown">↙</button>
+              <button class="ptz-btn" data-code="Down">▼</button>
+              <button class="ptz-btn" data-code="RightDown">↘</button>
+            </div>
+            <div class="gpu-ptz-zoom-ctrls">
+              <button class="ptz-zoom-btn" data-code="ZoomTele">Zoom +</button>
+              <button class="ptz-zoom-btn" data-code="ZoomWide">Zoom -</button>
+            </div>
+            <div class="gpu-ptz-presets">
+              <span>Preset:</span>
+              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(1)">1</button>
+              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(2)">2</button>
+              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(3)">3</button>
+              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(4)">4</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom VMS Right-Click Context Menu -->
+        <div class="gpu-context-menu hidden" id="gpu-context-menu">
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1()"><span>⛶</span> Toggle 1x1 Focus</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockToggleQuality()"><span>⚡</span> Toggle HD / Sub-Stream</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()"><span>🔲</span> Cycle Aspect Ratio</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockToggleDigitalZoom()"><span>🔍</span> Digital Zoom</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()"><span>🎮</span> PTZ Controller</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio()"><span>🔊</span> Toggle Audio</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot()"><span>📷</span> Take Snapshot</div>
+          <div class="gpu-menu-item" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord()"><span>⏺</span> Record Clip</div>
+          <div class="gpu-menu-sep"></div>
+          <div class="gpu-menu-item danger" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot()"><span>✕</span> Close Camera Feed</div>
         </div>
       </section>
     </div>

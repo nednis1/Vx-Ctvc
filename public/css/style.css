@@ -619,6 +619,7 @@ body {
   background: #020617;
   overflow: hidden;
   min-width: 0;
+  position: relative;
 }
 
 /* GPU Toolbar */
@@ -975,245 +976,190 @@ body {
   cursor: grabbing;
 }
 
-/* Minimalist Top-Left Floating OSD Pill */
-.gpu-slot-osd {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  z-index: 5;
-  display: inline-flex;
+/* -------------------------------------------------------------
+ * Browser Native Controls Suppression (No Native Play/Scrubber/Mute Bars)
+ * ------------------------------------------------------------- */
+video::-webkit-media-controls,
+video::-webkit-media-controls-enclosure,
+video::-webkit-media-controls-panel,
+video::-webkit-media-controls-play-button,
+video::-webkit-media-controls-timeline,
+video::-webkit-media-controls-current-time-display,
+video::-webkit-media-controls-time-remaining-display,
+video::-webkit-media-controls-mute-button,
+video::-webkit-media-controls-toggle-closed-captions-button,
+video::-webkit-media-controls-volume-slider,
+video::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  -webkit-appearance: none !important;
+}
+
+/* -------------------------------------------------------------
+ * Dedicated Bottom Control Dock (Dahua VMS Architecture: OUTSIDE Video)
+ * ------------------------------------------------------------- */
+.gpu-dock-bar {
+  height: 38px;
+  background: #090e1a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 10px;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(15, 23, 42, 0.78);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  pointer-events: none;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  justify-content: space-between;
+  gap: 8px;
+  z-index: 10;
+  box-sizing: border-box;
 }
 
-.gpu-osd-badge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 4px;
-  border-radius: 2px;
+.gpu-dock-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
 }
 
-.badge-nvr1 {
-  background: rgba(16, 185, 129, 0.25);
-  color: #34d399;
-}
-
-.badge-nvr2 {
-  background: rgba(56, 189, 248, 0.25);
+.gpu-dock-slot-pill {
+  background: rgba(56, 189, 248, 0.2);
   color: #38bdf8;
-}
-
-.gpu-osd-ch {
-  font-size: 10px;
-  font-weight: 700;
-  color: #94a3b8;
-}
-
-.gpu-osd-name {
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 4px;
+  padding: 2px 7px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.gpu-dock-cam-title {
   color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  max-width: 220px;
 }
 
-.gpu-osd-quality {
-  font-size: 8px;
-  font-weight: 800;
-  padding: 1px 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #e2e8f0;
+.gpu-dock-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.gpu-osd-quality.hd {
-  background: #38bdf8;
-  color: #020617;
-}
-
-/* Pulsating Recording Indicator Badge (Top-Right) */
-.gpu-rec-badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 5;
+.gpu-dock-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(220, 38, 38, 0.85);
-  backdrop-filter: blur(4px);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #ffffff;
-  pointer-events: none;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.5);
-}
-
-.gpu-rec-badge.hidden {
-  display: none !important;
-}
-
-.gpu-rec-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ffffff;
-  animation: blinkRec 1s ease-in-out infinite;
-}
-
-@keyframes blinkRec {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
-}
-
-/* Floating Glass Action HUD (Bottom-Center, appears on Hover / Tap) */
-.gpu-slot-hud {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  z-index: 8;
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 20px;
-  padding: 3px 6px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.gpu-slot:hover .gpu-slot-hud,
-.gpu-slot.touch-active .gpu-slot-hud {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(-50%) translateY(0);
-}
-
-.gpu-hud-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: #cbd5e1;
-  cursor: pointer;
-  padding: 2px 5px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   transition: all 0.15s;
-  min-width: 20px;
-  height: 20px;
+  user-select: none;
 }
 
-.gpu-hud-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+.gpu-dock-btn:hover {
+  background: #334155;
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-.gpu-hud-btn.active {
+.gpu-dock-btn.active {
   background: #38bdf8;
   color: #020617;
   border-color: #38bdf8;
   font-weight: 700;
 }
 
-.gpu-hud-btn.recording {
-  background: #ef4444 !important;
-  color: #ffffff !important;
-  border-color: #ef4444 !important;
-  animation: pulseRec 1s infinite alternate;
+.gpu-dock-btn.recording {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  animation: pulseDockRec 1s infinite alternate;
 }
 
-@keyframes pulseRec {
+@keyframes pulseDockRec {
   0% { transform: scale(1); }
-  100% { transform: scale(1.1); }
+  100% { transform: scale(1.05); }
 }
 
-.gpu-hud-btn.btn-close:hover {
-  background: rgba(239, 68, 68, 0.8);
+.gpu-dock-btn.danger:hover {
+  background: #ef4444;
   color: #ffffff;
   border-color: #ef4444;
 }
 
-/* Floating PTZ Joystick Dial Panel */
-.gpu-ptz-panel {
+/* -------------------------------------------------------------
+ * PTZ Side Drawer (Docked to Right, Completely Outside Video Grid)
+ * ------------------------------------------------------------- */
+.gpu-ptz-drawer {
   position: absolute;
-  right: 8px;
-  bottom: 40px;
-  z-index: 10;
-  background: rgba(15, 23, 42, 0.95);
+  right: 0;
+  top: 38px;
+  bottom: 38px;
+  width: 170px;
+  background: rgba(15, 23, 42, 0.98);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 8px;
-  padding: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  border-left: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 140px;
+  z-index: 25;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.gpu-ptz-panel.hidden {
-  display: none !important;
+.gpu-ptz-drawer.hidden {
+  transform: translateX(100%);
+  pointer-events: none;
 }
 
-.gpu-ptz-header {
+.gpu-ptz-drawer-header {
+  padding: 8px 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
   font-weight: 700;
   color: #38bdf8;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 4px;
 }
 
-.gpu-ptz-close {
+.gpu-ptz-drawer-close {
   background: none;
   border: none;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
 }
 
-.gpu-ptz-close:hover {
-  color: #f1f5f9;
+.gpu-ptz-drawer-close:hover {
+  color: #ffffff;
+}
+
+.gpu-ptz-drawer-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .gpu-ptz-dpad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
+  gap: 3px;
 }
 
 .ptz-btn {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #f1f5f9;
-  border-radius: 3px;
-  height: 26px;
-  font-size: 11px;
+  border-radius: 4px;
+  height: 30px;
+  font-size: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1233,7 +1179,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   color: #64748b;
 }
@@ -1248,6 +1194,88 @@ body {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #38bdf8;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px;
+  cursor: pointer;
+}
+
+.ptz-zoom-btn:active {
+  background: #38bdf8;
+  color: #020617;
+}
+
+.gpu-ptz-presets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.ptz-preset-btn {
+  flex: 1;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.ptz-preset-btn:hover {
+  background: #38bdf8;
+  color: #020617;
+}
+
+/* -------------------------------------------------------------
+ * Custom VMS Right-Click Context Menu
+ * ------------------------------------------------------------- */
+.gpu-context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+  padding: 4px;
+  min-width: 175px;
+}
+
+.gpu-context-menu.hidden {
+  display: none !important;
+}
+
+.gpu-menu-item {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.1s;
+}
+
+.gpu-menu-item:hover {
+  background: #38bdf8;
+  color: #020617;
+  font-weight: 600;
+}
+
+.gpu-menu-item.danger:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.gpu-menu-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 3px 0;
+}
   border-radius: 3px;
   font-size: 9px;
   font-weight: 700;
@@ -1382,6 +1410,17 @@ body {
     padding: 2px 6px;
     font-size: 9px;
   }
+
+  .gpu-dock-bar {
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .gpu-dock-left,
+  .gpu-dock-center {
+    flex-shrink: 0;
+  }
 }
 
 /* Phone Landscape Auto-Immersion */
@@ -1391,10 +1430,14 @@ body {
     padding: 0 6px;
   }
 
+  .gpu-dock-bar {
+    height: 30px;
+    padding: 0 6px;
+  }
+
   .gpu-group-label {
     display: none;
   }
-
 
   .gpu-grid-container.split-4 {
     grid-template-columns: repeat(2, 1fr) !important;

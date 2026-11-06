@@ -1,7 +1,7 @@
 /**
  * VOSCCTV Enterprise Dahua-Style Dynamic GPU Live Wall Engine
- * Modifiable Central Grid (1..32) + 100% Full-Bleed Video + Floating Glass HUD
- * Deep VMS Capabilities: PTZ, Digital Zoom, Smart HD Autoscaler, Audio, Clip Recording, Tour, Presets
+ * Modifiable Central Grid (1..32) + 100% Full-Bleed Video (0% Video Obstruction)
+ * Controls Docked in Dedicated Bottom Bar (Dahua VMS Architecture)
  * 100% Client GPU Hardware Accelerated via VideoRTC (WebRTC/MSE)
  */
 
@@ -240,8 +240,8 @@
         if (!state.cameraNames[nvrId]) state.cameraNames[nvrId] = {};
         state.cameraNames[nvrId][channel] = newName;
 
-        // Update any active grid slots displaying this camera
-        updateActiveSlotTitles(nvrId, channel, newName);
+        // Update bottom dock if this camera is selected
+        updateBottomDock();
 
         // Push directly to Dahua NVR Firmware via backend CGI Digest Auth
         try {
@@ -275,9 +275,6 @@
     input.addEventListener('blur', commitRename);
   }
 
-  /**
-   * Filter camera tree in real-time as user types in search box
-   */
   function filterTree(query) {
     const q = (query || '').toLowerCase().trim();
     const items = document.querySelectorAll('.gpu-tree-item');
@@ -298,7 +295,7 @@
   function selectSlot(slotIndex) {
     state.selectedSlotIndex = slotIndex;
 
-    // Update glowing border outline
+    // Update glowing border outline on slot
     document.querySelectorAll('.gpu-slot').forEach((el) => {
       const idx = parseInt(el.dataset.slotIndex, 10);
       el.classList.toggle('selected', idx === slotIndex);
@@ -309,6 +306,9 @@
     if (pill) {
       pill.textContent = `Slot ${slotIndex + 1}`;
     }
+
+    // Update the Dedicated Bottom Control Dock
+    updateBottomDock();
   }
 
   function advanceSelectedSlot() {
@@ -325,30 +325,16 @@
     selectSlot((state.selectedSlotIndex + 1) % total);
   }
 
-  function updateActiveSlotTitles(nvrId, channel, newName) {
-    Object.keys(state.slots).forEach((idx) => {
-      const item = state.slots[idx];
-      if (item && item.nvrId === nvrId && item.channel == channel) {
-        const slotEl = document.getElementById(`gpu-slot-${idx}`);
-        if (slotEl) {
-          const titleEl = slotEl.querySelector('.gpu-osd-name');
-          if (titleEl) titleEl.textContent = newName;
-        }
-      }
-    });
-  }
-
   function assignCameraToSelectedSlot(nvrId, channel, optSubtype) {
     assignCameraToSlot(state.selectedSlotIndex, nvrId, channel, optSubtype);
     advanceSelectedSlot();
   }
 
   function assignCameraToSlot(slotIndex, nvrId, channel, optSubtype) {
-    // When in single 1x1 zoomed focus, default to HD; otherwise default to Sub
     const defaultSub = state.focusedSlotIndex !== null ? 'hd' : 'sub';
     const subtype = optSubtype || defaultSub;
 
-    clearSlot(slotIndex, false); // Clear old player in this slot if any
+    clearSlot(slotIndex, false);
 
     state.slots[slotIndex] = {
       nvrId,
@@ -356,15 +342,16 @@
       subtype,
       aspect: null,
       digitalZoom: { active: false, scale: 1, x: 0, y: 0, startX: 0, startY: 0, isDragging: false },
-      ptzOpen: false,
       recording: { active: false, recorder: null, timer: null, seconds: 0, chunks: [] },
       audioMuted: true,
-      touchTimeout: null,
       lastTapTime: 0
     };
 
     saveLayout();
     renderSlotContent(slotIndex);
+    if (slotIndex === state.selectedSlotIndex) {
+      updateBottomDock();
+    }
   }
 
   function clearSlot(slotIndex, updateStore = true) {
@@ -387,6 +374,10 @@
     delete state.slots[slotIndex];
     if (updateStore) saveLayout();
     renderSlotContent(slotIndex);
+
+    if (slotIndex === state.selectedSlotIndex) {
+      updateBottomDock();
+    }
   }
 
   function clearAll() {
@@ -417,6 +408,9 @@
     item.subtype = item.subtype === 'sub' ? 'hd' : 'sub';
     saveLayout();
     renderSlotContent(slotIndex);
+    if (slotIndex === state.selectedSlotIndex) {
+      updateBottomDock();
+    }
   }
 
   /**
@@ -452,7 +446,6 @@
     state.globalAspect = aspect;
     updateGlobalAspectUI();
 
-    // Apply to all active slots that don't have a manual override
     Object.keys(state.slots).forEach((idx) => {
       const item = state.slots[idx];
       if (item && !item.aspect) {
@@ -460,6 +453,7 @@
       }
     });
     saveLayout();
+    updateBottomDock();
   }
 
   function updateGlobalAspectUI() {
@@ -475,14 +469,10 @@
     const nextMap = { contain: 'fill', fill: 'cover', cover: 'contain' };
     item.aspect = nextMap[current] || 'contain';
     applyAspectToSlot(slotIndex, item.aspect);
-
-    // Update HUD button label
-    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
-    if (slotEl) {
-      const btn = slotEl.querySelector('.hud-aspect');
-      if (btn) btn.textContent = item.aspect.toUpperCase();
-    }
     saveLayout();
+    if (slotIndex === state.selectedSlotIndex) {
+      updateBottomDock();
+    }
   }
 
   function applyAspectToSlot(slotIndex, aspect) {
@@ -507,19 +497,19 @@
     if (!slotEl) return;
 
     const wrapper = slotEl.querySelector('.gpu-video-wrapper');
-    const zoomBtn = slotEl.querySelector('.hud-zoom');
 
     if (item.digitalZoom.active) {
       if (wrapper) wrapper.classList.add('zoom-active');
-      if (zoomBtn) zoomBtn.classList.add('active');
     } else {
-      // Reset zoom
       item.digitalZoom.scale = 1;
       item.digitalZoom.x = 0;
       item.digitalZoom.y = 0;
       applyVideoTransform(slotIndex);
       if (wrapper) wrapper.classList.remove('zoom-active');
-      if (zoomBtn) zoomBtn.classList.remove('active');
+    }
+
+    if (slotIndex === state.selectedSlotIndex) {
+      updateBottomDock();
     }
   }
 
@@ -573,22 +563,128 @@
   }
 
   // -------------------------------------------------------------
-  // Dahua PTZ Camera Controller
+  // Dedicated Bottom Control Dock (Dahua VMS Architecture)
   // -------------------------------------------------------------
 
-  function togglePtz(slotIndex, forceState) {
+  function updateBottomDock() {
+    const slotIndex = state.selectedSlotIndex;
     const item = state.slots[slotIndex];
-    if (!item) return;
 
-    item.ptzOpen = typeof forceState === 'boolean' ? forceState : !item.ptzOpen;
-    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
-    if (!slotEl) return;
+    const slotPill = document.getElementById('gpu-dock-slot-pill');
+    const camTitle = document.getElementById('gpu-dock-cam-title');
+    const qualityLabel = document.getElementById('dock-quality-label');
+    const aspectLabel = document.getElementById('dock-aspect-label');
+    const zoomBtn = document.getElementById('dock-btn-zoom');
+    const audioBtn = document.getElementById('dock-btn-audio');
+    const audioIcon = document.getElementById('dock-audio-icon');
+    const recBtn = document.getElementById('dock-btn-record');
+    const recIcon = document.getElementById('dock-rec-icon');
+    const recLabel = document.getElementById('dock-rec-label');
+    const btn1x1 = document.getElementById('dock-btn-1x1');
 
-    const ptzPanel = slotEl.querySelector('.gpu-ptz-panel');
-    const ptzBtn = slotEl.querySelector('.hud-ptz');
+    if (slotPill) slotPill.textContent = `Slot ${slotIndex + 1}`;
 
-    if (ptzPanel) ptzPanel.classList.toggle('hidden', !item.ptzOpen);
-    if (ptzBtn) ptzBtn.classList.toggle('active', item.ptzOpen);
+    if (!item) {
+      if (camTitle) camTitle.textContent = 'Empty Slot · Click a camera in tree to assign';
+      if (qualityLabel) qualityLabel.textContent = 'SUB';
+      if (aspectLabel) aspectLabel.textContent = (state.globalAspect || 'contain').toUpperCase();
+      if (zoomBtn) zoomBtn.classList.remove('active');
+      if (audioBtn) audioBtn.classList.remove('active');
+      if (audioIcon) audioIcon.textContent = '🔇';
+      if (recBtn) recBtn.classList.remove('recording');
+      if (recIcon) recIcon.textContent = '⏺';
+      if (recLabel) recLabel.textContent = 'Record';
+      if (btn1x1) btn1x1.classList.toggle('active', state.focusedSlotIndex !== null);
+      return;
+    }
+
+    const title = getCameraTitle(item.nvrId, item.channel);
+    if (camTitle) {
+      camTitle.textContent = `${item.nvrId === 'nvr1' ? 'NVR 1' : 'NVR 2'} · CH ${item.channel.toString().padStart(2, '0')} · ${title}`;
+    }
+
+    if (qualityLabel) qualityLabel.textContent = (item.subtype || 'sub').toUpperCase();
+    if (aspectLabel) aspectLabel.textContent = (item.aspect || state.globalAspect || 'contain').toUpperCase();
+
+    if (zoomBtn) zoomBtn.classList.toggle('active', !!(item.digitalZoom && item.digitalZoom.active));
+    if (audioBtn) audioBtn.classList.toggle('active', !item.audioMuted);
+    if (audioIcon) audioIcon.textContent = item.audioMuted ? '🔇' : '🔊';
+
+    if (recBtn) recBtn.classList.toggle('recording', !!(item.recording && item.recording.active));
+    if (recIcon) recIcon.textContent = item.recording && item.recording.active ? '⏹' : '⏺';
+    if (recLabel) {
+      if (item.recording && item.recording.active) {
+        const mins = Math.floor(item.recording.seconds / 60).toString().padStart(2, '0');
+        const secs = (item.recording.seconds % 60).toString().padStart(2, '0');
+        recLabel.textContent = `REC ${mins}:${secs}`;
+      } else {
+        recLabel.textContent = 'Record';
+      }
+    }
+
+    if (btn1x1) btn1x1.classList.toggle('active', state.focusedSlotIndex !== null);
+  }
+
+  function dockToggleQuality() {
+    toggleSubtype(state.selectedSlotIndex);
+  }
+
+  function dockCycleAspect() {
+    cycleSlotAspect(state.selectedSlotIndex);
+  }
+
+  function dockToggleDigitalZoom() {
+    toggleDigitalZoom(state.selectedSlotIndex);
+  }
+
+  function dockTogglePtz(forceState) {
+    togglePtzDrawer(forceState);
+  }
+
+  function dockToggleAudio() {
+    toggleAudio(state.selectedSlotIndex);
+  }
+
+  function dockToggleRecord() {
+    toggleRecord(state.selectedSlotIndex);
+  }
+
+  function dockTakeSnapshot() {
+    takeSnapshot(state.selectedSlotIndex);
+  }
+
+  function dockToggleZoom1x1() {
+    toggleSlotZoom(state.selectedSlotIndex);
+  }
+
+  function dockClearSlot() {
+    clearSlot(state.selectedSlotIndex);
+  }
+
+  // -------------------------------------------------------------
+  // Dahua PTZ Camera Controller (Side Flyout Drawer)
+  // -------------------------------------------------------------
+
+  function togglePtzDrawer(forceState) {
+    const drawer = document.getElementById('gpu-ptz-drawer');
+    const ptzBtn = document.getElementById('dock-btn-ptz');
+    if (!drawer) return;
+
+    const isHidden = drawer.classList.contains('hidden');
+    const shouldOpen = typeof forceState === 'boolean' ? forceState : isHidden;
+
+    drawer.classList.toggle('hidden', !shouldOpen);
+    if (ptzBtn) ptzBtn.classList.toggle('active', shouldOpen);
+
+    const titleEl = document.getElementById('gpu-ptz-drawer-title');
+    const item = state.slots[state.selectedSlotIndex];
+    if (titleEl) {
+      if (item) {
+        titleEl.textContent = `🎮 PTZ CH ${item.channel.toString().padStart(2, '0')} (${item.nvrId.toUpperCase()})`;
+      } else {
+        titleEl.textContent = '🎮 PTZ CONTROLLER';
+      }
+    }
   }
 
   async function sendPtzCommand(slotIndex, code, action = 'start', arg1 = 0, arg2 = 5) {
@@ -613,26 +709,29 @@
     }
   }
 
-  function ptzGotoPreset(slotIndex, presetNum) {
-    sendPtzCommand(slotIndex, 'GotoPreset', 'start', 0, presetNum);
+  function ptzGotoPreset(presetNum) {
+    sendPtzCommand(state.selectedSlotIndex, 'GotoPreset', 'start', 0, presetNum);
   }
 
-  function setupPtzButtons(slotIndex, ptzPanel) {
-    ptzPanel.querySelectorAll('[data-code]').forEach((btn) => {
+  function setupPtzButtons() {
+    const drawer = document.getElementById('gpu-ptz-drawer');
+    if (!drawer) return;
+
+    drawer.querySelectorAll('[data-code]').forEach((btn) => {
       const code = btn.dataset.code;
 
       const start = (e) => {
         e.preventDefault();
         e.stopPropagation();
         btn.classList.add('active');
-        sendPtzCommand(slotIndex, code, 'start');
+        sendPtzCommand(state.selectedSlotIndex, code, 'start');
       };
 
       const stop = (e) => {
         e.preventDefault();
         e.stopPropagation();
         btn.classList.remove('active');
-        sendPtzCommand(slotIndex, code, 'stop');
+        sendPtzCommand(state.selectedSlotIndex, code, 'stop');
       };
 
       btn.addEventListener('mousedown', start);
@@ -654,7 +753,6 @@
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
     if (!slotEl) return;
     const video = slotEl.querySelector('video');
-    const audioBtn = slotEl.querySelector('.hud-audio');
 
     item.audioMuted = !item.audioMuted;
 
@@ -667,11 +765,6 @@
           if (otherEl) {
             const otherVid = otherEl.querySelector('video');
             if (otherVid) otherVid.muted = true;
-            const otherBtn = otherEl.querySelector('.hud-audio');
-            if (otherBtn) {
-              otherBtn.classList.remove('active');
-              otherBtn.textContent = '🔇';
-            }
           }
         }
       });
@@ -681,10 +774,7 @@
       video.muted = item.audioMuted;
     }
 
-    if (audioBtn) {
-      audioBtn.classList.toggle('active', !item.audioMuted);
-      audioBtn.textContent = item.audioMuted ? '🔇' : '🔊';
-    }
+    updateBottomDock();
   }
 
   // -------------------------------------------------------------
@@ -743,25 +833,19 @@
         URL.revokeObjectURL(url);
       };
 
-      recorder.start(1000); // 1-second timeslices
+      recorder.start(1000);
       item.recording.active = true;
       item.recording.recorder = recorder;
       item.recording.seconds = 0;
 
-      // Update UI: pulsating red badge & button
-      const recBadge = slotEl.querySelector('.gpu-rec-badge');
-      const recTimer = slotEl.querySelector('.gpu-rec-timer');
-      const recBtn = slotEl.querySelector('.hud-record');
-
-      if (recBadge) recBadge.classList.remove('hidden');
-      if (recBtn) recBtn.classList.add('recording');
-
       item.recording.timer = setInterval(() => {
         item.recording.seconds++;
-        const mins = Math.floor(item.recording.seconds / 60).toString().padStart(2, '0');
-        const secs = (item.recording.seconds % 60).toString().padStart(2, '0');
-        if (recTimer) recTimer.textContent = `${mins}:${secs}`;
+        if (slotIndex === state.selectedSlotIndex) {
+          updateBottomDock();
+        }
       }, 1000);
+
+      updateBottomDock();
     } catch (err) {
       console.warn('[GPU Wall] Clip recording error:', err);
     }
@@ -779,14 +863,7 @@
       item.recording.timer = null;
     }
     item.recording.active = false;
-
-    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
-    if (slotEl) {
-      const recBadge = slotEl.querySelector('.gpu-rec-badge');
-      const recBtn = slotEl.querySelector('.hud-record');
-      if (recBadge) recBadge.classList.add('hidden');
-      if (recBtn) recBtn.classList.remove('recording');
-    }
+    updateBottomDock();
   }
 
   // -------------------------------------------------------------
@@ -811,7 +888,6 @@
 
   function runTourCycle() {
     const totalSlots = state.focusedSlotIndex !== null ? 1 : state.split;
-    // Total available cameras: 32 on NVR 1 + 32 on NVR 2 = 64
     for (let i = 0; i < totalSlots; i++) {
       const camNum = ((state.tour.offset + i) % 64) + 1;
       const nvrId = camNum <= 32 ? 'nvr1' : 'nvr2';
@@ -896,7 +972,37 @@
   }
 
   // -------------------------------------------------------------
-  // Slot Rendering (100% Full-Bleed Video + Floating Glass HUD)
+  // Context Menu Handling
+  // -------------------------------------------------------------
+
+  function setupContextMenu() {
+    const menu = document.getElementById('gpu-context-menu');
+    if (!menu) return;
+
+    window.addEventListener('click', () => {
+      menu.classList.add('hidden');
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') menu.classList.add('hidden');
+    });
+  }
+
+  function openContextMenu(e, slotIndex) {
+    e.preventDefault();
+    e.stopPropagation();
+    selectSlot(slotIndex);
+
+    const menu = document.getElementById('gpu-context-menu');
+    if (!menu) return;
+
+    menu.style.left = `${Math.min(window.innerWidth - 190, e.clientX)}px`;
+    menu.style.top = `${Math.min(window.innerHeight - 320, e.clientY)}px`;
+    menu.classList.remove('hidden');
+  }
+
+  // -------------------------------------------------------------
+  // Slot Rendering (100% Full-Bleed Video - ZERO UI OBSTRUCTION!)
   // -------------------------------------------------------------
 
   function renderSlotContent(slotIndex) {
@@ -912,83 +1018,22 @@
         <span class="gpu-slot-watermark">${(slotIndex + 1).toString().padStart(2, '0')}</span>
         <div class="gpu-slot-empty-prompt">
           <span class="gpu-slot-plus">+</span>
-          <span>Click Camera to Assign</span>
+          <span>Slot ${slotIndex + 1}</span>
         </div>
       `;
       return;
     }
 
-    // Active Playing Slot State: 100% Edge-to-Edge Pure Video Canvas
-    const isNvr1 = item.nvrId === 'nvr1';
-    const title = getCameraTitle(item.nvrId, item.channel);
-    const streamKey = `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
+    // Active Playing Slot State: 100% Edge-to-Edge Pure Video, ZERO UI Overlays!
     const effectiveAspect = item.aspect || state.globalAspect;
 
     slotEl.className = `gpu-slot playing ${slotIndex === state.selectedSlotIndex ? 'selected' : ''}`;
     slotEl.innerHTML = `
-      <!-- 100% Full-Bleed Video Wrapper -->
+      <!-- 100% Full-Bleed Video Wrapper (Zero obstruction!) -->
       <div class="gpu-video-wrapper aspect-${effectiveAspect}" id="video-wrap-${slotIndex}">
         <div class="gpu-slot-spinner" id="spinner-slot-${slotIndex}">
           <div class="spinner-ring"></div>
           <span>Connecting GPU Stream...</span>
-        </div>
-      </div>
-
-      <!-- Minimalist Top-Left Floating OSD Pill -->
-      <div class="gpu-slot-osd" id="osd-slot-${slotIndex}">
-        <span class="dot online" style="margin-right:2px;"></span>
-        <span class="gpu-osd-badge ${isNvr1 ? 'badge-nvr1' : 'badge-nvr2'}">${isNvr1 ? 'NVR 1' : 'NVR 2'}</span>
-        <span class="gpu-osd-ch">CH ${item.channel.toString().padStart(2, '0')}</span>
-        <span class="gpu-osd-name" title="${title}">${title}</span>
-        <span class="gpu-osd-quality ${item.subtype === 'hd' ? 'hd' : ''}">${item.subtype.toUpperCase()}</span>
-      </div>
-
-      <!-- Live Recording Pulsating Indicator (Top-Right) -->
-      <div class="gpu-rec-badge hidden" id="rec-badge-${slotIndex}">
-        <span class="gpu-rec-dot"></span>
-        <span class="gpu-rec-timer">00:00</span>
-      </div>
-
-      <!-- Floating Glass Action HUD (Bottom-Center, appears on Hover / Tap) -->
-      <div class="gpu-slot-hud" id="hud-slot-${slotIndex}">
-        <button class="gpu-hud-btn hud-quality ${item.subtype === 'hd' ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleSubtype(${slotIndex})" title="Toggle Main HD / Sub-Stream">${item.subtype.toUpperCase()}</button>
-        <button class="gpu-hud-btn hud-aspect" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.cycleSlotAspect(${slotIndex})" title="Aspect: Fit / Stretch / Crop">${effectiveAspect.toUpperCase()}</button>
-        <button class="gpu-hud-btn hud-zoom ${item.digitalZoom && item.digitalZoom.active ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleDigitalZoom(${slotIndex})" title="Digital Zoom (Scroll/Drag)">🔍</button>
-        <button class="gpu-hud-btn hud-ptz ${item.ptzOpen ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.togglePtz(${slotIndex})" title="PTZ Camera Controls">🎮</button>
-        <button class="gpu-hud-btn hud-audio ${!item.audioMuted ? 'active' : ''}" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleAudio(${slotIndex})" title="Listen to Audio">${item.audioMuted ? '🔇' : '🔊'}</button>
-        <button class="gpu-hud-btn hud-record" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleRecord(${slotIndex})" title="Record Live Video Clip">⏺</button>
-        <button class="gpu-hud-btn hud-snapshot" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.takeSnapshot(${slotIndex})" title="Snapshot JPEG">📷</button>
-        <button class="gpu-hud-btn hud-expand" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.toggleSlotZoom(${slotIndex})" title="1x1 Zoom / Full Grid">⛶</button>
-        <button class="gpu-hud-btn btn-close" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.clearSlot(${slotIndex})" title="Close Camera Feed">✕</button>
-      </div>
-
-      <!-- Floating PTZ Joystick Dial Panel Overlay -->
-      <div class="gpu-ptz-panel ${item.ptzOpen ? '' : 'hidden'}" id="ptz-panel-${slotIndex}">
-        <div class="gpu-ptz-header">
-          <span>🎮 PTZ CH ${item.channel.toString().padStart(2, '0')}</span>
-          <button class="gpu-ptz-close" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.togglePtz(${slotIndex}, false)">✕</button>
-        </div>
-        <div class="gpu-ptz-dpad">
-          <button class="ptz-btn" data-code="LeftUp">↖</button>
-          <button class="ptz-btn" data-code="Up">▲</button>
-          <button class="ptz-btn" data-code="RightUp">↗</button>
-          <button class="ptz-btn" data-code="Left">◀</button>
-          <div class="ptz-center">PTZ</div>
-          <button class="ptz-btn" data-code="Right">▶</button>
-          <button class="ptz-btn" data-code="LeftDown">↙</button>
-          <button class="ptz-btn" data-code="Down">▼</button>
-          <button class="ptz-btn" data-code="RightDown">↘</button>
-        </div>
-        <div class="gpu-ptz-zoom-ctrls">
-          <button class="ptz-zoom-btn" data-code="ZoomTele">Zoom +</button>
-          <button class="ptz-zoom-btn" data-code="ZoomWide">Zoom -</button>
-        </div>
-        <div class="gpu-ptz-presets">
-          <span>Preset:</span>
-          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 1)">1</button>
-          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 2)">2</button>
-          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 3)">3</button>
-          <button class="ptz-preset-btn" onclick="event.stopPropagation(); window.VOSCCTV_GPU_WALL.ptzGotoPreset(${slotIndex}, 4)">4</button>
         </div>
       </div>
     `;
@@ -996,37 +1041,33 @@
     const wrapper = slotEl.querySelector('.gpu-video-wrapper');
     setupDigitalZoomListeners(slotIndex, wrapper);
 
-    const ptzPanel = slotEl.querySelector('.gpu-ptz-panel');
-    if (ptzPanel) setupPtzButtons(slotIndex, ptzPanel);
-
     // Desktop: Double-click to toggle full 1x1 screen
     wrapper.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       toggleSlotZoom(slotIndex);
     });
 
-    // Touch Devices: Single tap reveals HUD for 3s; double tap zooms to 1x1
+    // Right-Click Context Menu (like Dahua SmartPSS desktop app)
+    slotEl.addEventListener('contextmenu', (e) => {
+      openContextMenu(e, slotIndex);
+    });
+
+    // Touch Devices: Double-tap to toggle 1x1 zoom
     slotEl.addEventListener('touchstart', (e) => {
       const now = Date.now();
       const timeSinceLast = now - (item.lastTapTime || 0);
 
       if (timeSinceLast > 0 && timeSinceLast < 300) {
-        // Double Tap: Toggle 1x1 zoom
         e.preventDefault();
         toggleSlotZoom(slotIndex);
         return;
       }
       item.lastTapTime = now;
-
-      // Single Tap: Reveal HUD for 3 seconds
-      slotEl.classList.add('touch-active');
-      if (item.touchTimeout) clearTimeout(item.touchTimeout);
-      item.touchTimeout = setTimeout(() => {
-        slotEl.classList.remove('touch-active');
-      }, 3000);
+      selectSlot(slotIndex);
     }, { passive: true });
 
     // Mount VideoRTC hardware-accelerated video element
+    const streamKey = `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
     const host = window.location.host;
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${proto}//${host}/api/go2rtc/ws?src=${streamKey}`;
@@ -1038,6 +1079,7 @@
     player.src = wsUrl;
 
     if (player.video) {
+      player.video.controls = false;
       player.video.muted = item.audioMuted;
       player.video.autoplay = true;
       player.video.playsInline = true;
@@ -1160,7 +1202,6 @@
   }
 
   function stopAll() {
-    // Stop recordings & tour
     if (state.tour.active) toggleTour();
     Object.keys(state.slots).forEach((idx) => {
       const item = state.slots[idx];
@@ -1182,7 +1223,10 @@
       await loadCameraNames();
       renderTree();
       restoreSavedLayout();
+      setupContextMenu();
+      setupPtzButtons();
       renderGrid();
+      updateBottomDock();
     },
     setSplit,
     selectSlot,
@@ -1196,8 +1240,6 @@
     setGlobalAspect,
     cycleSlotAspect,
     toggleDigitalZoom,
-    togglePtz,
-    ptzGotoPreset,
     toggleAudio,
     toggleRecord,
     takeSnapshot,
@@ -1206,6 +1248,17 @@
     loadViewPreset,
     toggleDrawer,
     filterTree,
+    ptzGotoPreset,
+    // Bottom Dock Bridge Methods
+    dockToggleQuality,
+    dockCycleAspect,
+    dockToggleDigitalZoom,
+    dockTogglePtz,
+    dockToggleAudio,
+    dockToggleRecord,
+    dockTakeSnapshot,
+    dockToggleZoom1x1,
+    dockClearSlot,
     stop: stopAll
   };
 })();
