@@ -94,42 +94,74 @@
       <iframe id="frame-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
     </div>
 
-    <!-- GPU Live Wall Session Pane (100% Client GPU Hardware Accelerated) -->
+    <!-- GPU Live Wall Session Pane (Dahua-Style Interactive Grid with 100% Client GPU) -->
     <div class="nvr-pane gpu-pane" id="pane-gpu">
-      <div class="gpu-header-bar">
-        <div class="gpu-bar-left">
-          <div class="gpu-control-group">
-            <span class="gpu-group-label">NVR SOURCE:</span>
-            <button class="gpu-btn gpu-source-btn active" data-nvr="nvr1" onclick="window.VOSCCTV_GPU_WALL.setNvr('nvr1')">NVR 1 (1–32)</button>
-            <button class="gpu-btn gpu-source-btn" data-nvr="nvr2" onclick="window.VOSCCTV_GPU_WALL.setNvr('nvr2')">NVR 2 (1–32)</button>
-            <button class="gpu-btn gpu-source-btn" data-nvr="both" onclick="window.VOSCCTV_GPU_WALL.setNvr('both')">Dual (Both)</button>
-          </div>
+      <!-- Backdrop overlay for mobile drawer -->
+      <div class="gpu-drawer-backdrop" id="gpu-drawer-backdrop" onclick="window.VOSCCTV_GPU_WALL.toggleDrawer(false)"></div>
 
-          <div class="gpu-control-group">
-            <span class="gpu-group-label">GRID:</span>
-            <button class="gpu-btn gpu-split-btn" data-split="1" onclick="window.VOSCCTV_GPU_WALL.setSplit(1)">1x1</button>
-            <button class="gpu-btn gpu-split-btn active" data-split="4" onclick="window.VOSCCTV_GPU_WALL.setSplit(4)">2x2 (4)</button>
-            <button class="gpu-btn gpu-split-btn" data-split="9" onclick="window.VOSCCTV_GPU_WALL.setSplit(9)">3x3 (9)</button>
-            <button class="gpu-btn gpu-split-btn" data-split="16" onclick="window.VOSCCTV_GPU_WALL.setSplit(16)">4x4 (16)</button>
+      <!-- Left Device & Camera Tree Sidebar -->
+      <aside class="gpu-sidebar" id="gpu-sidebar">
+        <div class="gpu-sidebar-header">
+          <div class="gpu-sidebar-title">
+            <span>📹 DEVICES & CAMERAS</span>
+            <button class="gpu-sidebar-close-btn" onclick="window.VOSCCTV_GPU_WALL.toggleDrawer(false)" title="Close Camera List">✕</button>
+          </div>
+          <div class="gpu-search-box">
+            <span class="gpu-search-icon">🔍</span>
+            <input type="text" id="gpu-cam-search" placeholder="Search cameras..." autocomplete="off" spellcheck="false" oninput="window.VOSCCTV_GPU_WALL.filterTree(this.value)">
           </div>
         </div>
 
-        <div class="gpu-bar-right">
-          <div class="gpu-control-group gpu-pager">
-            <button class="gpu-btn gpu-pager-btn" onclick="window.VOSCCTV_GPU_WALL.prevPage()" title="Previous Channels">◀</button>
-            <span class="gpu-page-text" id="gpu-page-indicator">Channels 1–4 of 32</span>
-            <button class="gpu-btn gpu-pager-btn" onclick="window.VOSCCTV_GPU_WALL.nextPage()" title="Next Channels">▶</button>
+        <!-- Camera Tree Container -->
+        <div class="gpu-tree-container" id="gpu-tree-container">
+          <!-- Populated dynamically: NVR 1 & NVR 2 with clean items (Double-click/Long-press to rename) -->
+        </div>
+
+        <!-- Batch Action Footer -->
+        <div class="gpu-sidebar-footer">
+          <button class="gpu-tree-action-btn" onclick="window.VOSCCTV_GPU_WALL.openAll('nvr1')">▶ NVR 1 All</button>
+          <button class="gpu-tree-action-btn" onclick="window.VOSCCTV_GPU_WALL.openAll('nvr2')">▶ NVR 2 All</button>
+          <button class="gpu-tree-action-btn danger" onclick="window.VOSCCTV_GPU_WALL.clearAll()">⏹ Clear</button>
+        </div>
+      </aside>
+
+      <!-- Central Modifiable Grid Area -->
+      <section class="gpu-main-area">
+        <!-- Top Control Bar -->
+        <div class="gpu-toolbar">
+          <div class="gpu-toolbar-left">
+            <button class="gpu-drawer-toggle-btn" id="gpu-drawer-toggle" onclick="window.VOSCCTV_GPU_WALL.toggleDrawer()" title="Toggle Camera List">
+              <span>📹 Cameras</span>
+            </button>
+
+            <div class="gpu-toolbar-group">
+              <span class="gpu-group-label">SPLIT:</span>
+              <button class="gpu-split-btn" data-split="1" onclick="window.VOSCCTV_GPU_WALL.setSplit(1)">1</button>
+              <button class="gpu-split-btn active" data-split="4" onclick="window.VOSCCTV_GPU_WALL.setSplit(4)">4</button>
+              <button class="gpu-split-btn" data-split="9" onclick="window.VOSCCTV_GPU_WALL.setSplit(9)">9</button>
+              <button class="gpu-split-btn" data-split="16" onclick="window.VOSCCTV_GPU_WALL.setSplit(16)">16</button>
+              <button class="gpu-split-btn" data-split="25" onclick="window.VOSCCTV_GPU_WALL.setSplit(25)">25</button>
+              <button class="gpu-split-btn" data-split="32" onclick="window.VOSCCTV_GPU_WALL.setSplit(32)">32</button>
+            </div>
           </div>
 
-          <div class="gpu-badge-indicator">
-            <span class="dot online"></span>
-            <span>CLIENT GPU ACCELERATED</span>
+          <div class="gpu-toolbar-right">
+            <div class="gpu-active-slot-pill" id="gpu-active-slot-pill" title="Next camera click assigns here">
+              Target: <span id="gpu-active-slot-num">Slot 1</span>
+            </div>
+
+            <div class="gpu-badge-indicator">
+              <span class="dot online"></span>
+              <span class="gpu-badge-text">CLIENT GPU</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Dynamic Camera Grid Container -->
-      <div class="gpu-grid-container" id="gpu-grid-container"></div>
+        <!-- Central Modifiable Grid Container -->
+        <div class="gpu-grid-container" id="gpu-grid-container">
+          <!-- Dynamic slots 1..32 with active selection and VideoRTC players -->
+        </div>
+      </section>
     </div>
   </main>
 

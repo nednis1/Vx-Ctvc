@@ -337,7 +337,8 @@ body {
 
 
 /* =========================================================
- * GPU Live Wall Styles (100% Client GPU Hardware Decoding)
+ * Dahua-Style GPU Live Wall (100% Client GPU Hardware Decoding)
+ * Modifiable Grid (1..32 Slots) + Camera Tree + Inline NVR Rename
  * ========================================================= */
 
 .gpu-badge {
@@ -354,11 +355,12 @@ body {
 /* Viewport visibility for GPU tab */
 #pane-gpu {
   display: none;
-  flex-direction: column;
+  flex-direction: row;
   width: 100%;
   height: 100%;
   background: #020617;
   overflow: hidden;
+  position: relative;
 }
 
 .viewport-area[data-view="gpu"] #pane-gpu {
@@ -378,102 +380,351 @@ body {
   z-index: 1;
 }
 
-/* GPU Header Bar */
-.gpu-header-bar {
+/* -------------------------------------------------------------
+ * 1. Left Device & Camera Tree Sidebar
+ * ------------------------------------------------------------- */
+.gpu-sidebar {
+  width: 270px;
+  min-width: 270px;
+  max-width: 270px;
+  height: 100%;
+  background: #090d16;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.gpu-sidebar-header {
+  padding: 10px 10px 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0b1120;
+}
+
+.gpu-sidebar-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.gpu-sidebar-close-btn {
+  display: none; /* Only visible on mobile drawer */
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.gpu-search-box {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.gpu-search-icon {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.gpu-search-box input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f1f5f9;
+  font-size: 11px;
+  width: 100%;
+  font-family: inherit;
+}
+
+.gpu-search-box input::placeholder {
+  color: #64748b;
+}
+
+/* Tree Container */
+.gpu-tree-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.gpu-tree-container::-webkit-scrollbar {
+  width: 5px;
+}
+.gpu-tree-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+/* NVR Group Accordion Header */
+.gpu-tree-group {
+  margin-bottom: 8px;
+}
+
+.gpu-tree-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.gpu-tree-group-header:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.gpu-tree-group-arrow {
+  font-size: 9px;
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+
+.gpu-tree-group.collapsed .gpu-tree-group-arrow {
+  transform: rotate(-90deg);
+}
+
+.gpu-tree-group.collapsed .gpu-tree-group-items {
+  display: none;
+}
+
+.gpu-tree-group-items {
+  padding-left: 8px;
+  margin-top: 2px;
+}
+
+/* Individual Camera Item in Tree */
+.gpu-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+  position: relative;
+  min-height: 28px;
+  box-sizing: border-box;
+}
+
+.gpu-tree-item:hover {
+  background: rgba(56, 189, 248, 0.1);
+  color: #f8fafc;
+}
+
+.gpu-tree-item.active-in-grid {
+  border-left: 2px solid #10b981;
+}
+
+.gpu-tree-item-icon {
+  font-size: 11px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.gpu-tree-ch-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
+.gpu-tree-name-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* Clean Inline Rename Input (No pencil icon clutter!) */
+.gpu-rename-input {
+  flex: 1;
+  background: #020617;
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 2px 6px;
+  border-radius: 3px;
+  outline: none;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+}
+
+/* Sidebar Batch Action Footer */
+.gpu-sidebar-footer {
+  padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0b1120;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+.gpu-tree-action-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.gpu-tree-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.gpu-tree-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* -------------------------------------------------------------
+ * 2. Central Viewing Grid Area
+ * ------------------------------------------------------------- */
+.gpu-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #020617;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* GPU Toolbar */
+.gpu-toolbar {
+  height: 38px;
   background: #090d16;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 5px 12px;
-  gap: 12px;
-  flex-wrap: wrap;
-  z-index: 5;
-}
-
-.gpu-bar-left, .gpu-bar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0 10px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.gpu-control-group {
+.gpu-toolbar-left, .gpu-toolbar-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+}
+
+.gpu-drawer-toggle-btn {
+  display: none; /* Shown on mobile/tablet */
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gpu-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .gpu-group-label {
   font-size: 10px;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #64748b;
   letter-spacing: 0.5px;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
-.gpu-btn {
-  background: rgba(255, 255, 255, 0.05);
+/* Split Buttons */
+.gpu-split-btn {
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
   font-size: 11px;
-  font-weight: 500;
-  padding: 4px 9px;
+  font-weight: 600;
+  padding: 3px 8px;
   border-radius: 3px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
+  transition: all 0.15s;
+  min-width: 26px;
+  text-align: center;
 }
 
-.gpu-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #f8fafc;
+.gpu-split-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
-.gpu-btn.active {
+.gpu-split-btn.active {
   background: #1e293b;
   border-color: #38bdf8;
   color: #38bdf8;
-  font-weight: 600;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
 }
 
-.gpu-pager {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  padding: 2px 4px;
-}
-
-.gpu-pager-btn {
-  padding: 2px 7px;
+/* Target Slot Indicator Pill */
+.gpu-active-slot-pill {
   font-size: 10px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
 }
 
-.gpu-page-text {
-  font-size: 11px;
-  color: #cbd5e1;
-  font-weight: 500;
-  padding: 0 6px;
-  min-width: 105px;
-  text-align: center;
+.gpu-active-slot-pill span {
+  color: #38bdf8;
+  font-weight: 700;
 }
 
 .gpu-badge-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 10px;
   font-weight: 700;
   color: #10b981;
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.25);
-  padding: 3px 8px;
+  padding: 3px 7px;
   border-radius: 4px;
-  letter-spacing: 0.5px;
 }
 
-/* GPU Video Grid Container */
+/* -------------------------------------------------------------
+ * 3. Central Grid Container & Slot Tiles
+ * ------------------------------------------------------------- */
 .gpu-grid-container {
   flex: 1;
   display: grid;
@@ -484,69 +735,122 @@ body {
   box-sizing: border-box;
 }
 
-/* Split Layouts */
-.gpu-grid.split-1 {
+/* Split Layouts: 1, 4, 9, 16, 25, 32 */
+.gpu-grid-container.split-1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
 }
 
-.gpu-grid.split-4 {
+.gpu-grid-container.split-4 {
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
 }
 
-.gpu-grid.split-9 {
+.gpu-grid-container.split-9 {
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
 }
 
-.gpu-grid.split-16 {
+.gpu-grid-container.split-16 {
   grid-template-columns: repeat(4, 1fr);
   grid-template-rows: repeat(4, 1fr);
 }
 
-.gpu-grid.split-32 {
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(6, 1fr);
+.gpu-grid-container.split-25 {
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
 }
 
-/* Camera Card */
-.gpu-card {
-  background: #080c14;
+.gpu-grid-container.split-32 {
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+/* Slot Tile (Base) */
+.gpu-slot {
+  background: #060910;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
-  transition: border-color 0.15s ease;
-  min-height: 120px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 80px;
+  box-sizing: border-box;
 }
 
-.gpu-card:hover {
-  border-color: rgba(56, 189, 248, 0.5);
+.gpu-slot:hover {
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
-/* Card Header */
-.gpu-card-header {
+/* Active Selected Slot (Glowing Cyan Outline) */
+.gpu-slot.selected {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  z-index: 2;
+}
+
+/* Empty Slot State */
+.gpu-slot.empty {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gpu-slot-watermark {
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.08);
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  pointer-events: none;
+}
+
+.gpu-slot-empty-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+  font-size: 11px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.gpu-slot.selected .gpu-slot-empty-prompt {
+  color: #38bdf8;
+}
+
+.gpu-slot-plus {
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+/* Playing Slot Header Overlay */
+.gpu-slot-header {
   height: 24px;
   background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 6px;
-  z-index: 2;
+  z-index: 3;
 }
 
-.gpu-cam-info {
+.gpu-slot-info {
   display: flex;
   align-items: center;
   gap: 5px;
   overflow: hidden;
 }
 
-.gpu-cam-badge {
+.gpu-slot-badge {
   font-size: 9px;
   font-weight: 700;
   padding: 1px 4px;
@@ -563,52 +867,51 @@ body {
   color: #38bdf8;
 }
 
-.gpu-cam-ch {
+.gpu-slot-ch {
   font-size: 10px;
   font-weight: 700;
   color: #94a3b8;
 }
 
-.gpu-cam-title {
+.gpu-slot-title {
   font-size: 11px;
   font-weight: 600;
   color: #f1f5f9;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  max-width: 130px;
 }
 
-.gpu-cam-actions {
+.gpu-slot-actions {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
 }
 
-.gpu-action-btn {
+.gpu-slot-action-btn {
   background: transparent;
   border: none;
   color: #94a3b8;
   cursor: pointer;
-  padding: 1px 4px;
+  padding: 2px 4px;
   border-radius: 2px;
   font-size: 10px;
-  transition: all 0.15s ease;
+  transition: all 0.15s;
 }
 
-.gpu-action-btn:hover {
+.gpu-slot-action-btn:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
 }
 
-.gpu-action-btn.active-hd {
-  color: #38bdf8;
-  font-weight: 700;
-  background: rgba(56, 189, 248, 0.15);
+.gpu-slot-action-btn.btn-close:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #ef4444;
 }
 
-/* Card Video Area */
-.gpu-card-body {
+/* Slot Body & VideoRTC Player */
+.gpu-slot-body {
   flex: 1;
   position: relative;
   background: #000000;
@@ -616,10 +919,9 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  cursor: pointer;
 }
 
-.gpu-video, .gpu-player-el {
+.gpu-player-el {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -634,44 +936,122 @@ body {
   background: #000000;
 }
 
-/* Spinner Overlay */
-.gpu-spinner {
+/* Spinner */
+.gpu-slot-spinner {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   background: #020617;
   color: #64748b;
   font-size: 11px;
-  z-index: 1;
+  z-index: 2;
 }
 
 .spinner-ring {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-top-color: #38bdf8;
   border-radius: 50%;
   animation: spinSimple 0.8s linear infinite;
 }
 
-/* Mobile Responsiveness */
+/* -------------------------------------------------------------
+ * 4. Responsive Dynamics (Phone, Tablet & Landscape)
+ * ------------------------------------------------------------- */
+.gpu-drawer-backdrop {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  z-index: 15;
+}
+
+@media (max-width: 1024px) {
+  /* Sidebar becomes off-canvas drawer */
+  .gpu-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6);
+  }
+
+  .gpu-sidebar.drawer-open {
+    transform: translateX(0);
+  }
+
+  .gpu-sidebar.drawer-open ~ .gpu-drawer-backdrop {
+    display: block;
+  }
+
+  .gpu-drawer-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .gpu-sidebar-close-btn {
+    display: block;
+  }
+
+  /* Split 25 and 32 wrap sensibly on tablet */
+  .gpu-grid-container.split-25 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .gpu-grid-container.split-32 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .gpu-header-bar {
-    padding: 6px;
-    gap: 6px;
-  }
-  .gpu-grid.split-4, .gpu-grid.split-9, .gpu-grid.split-16 {
-    grid-template-columns: repeat(1, 1fr) !important;
-  }
   .gpu-badge-indicator {
     display: none;
   }
-  .gpu-page-text {
-    min-width: 80px;
-    font-size: 10px;
+
+  /* Single column or 2-column on mobile phones */
+  .gpu-grid-container.split-4,
+  .gpu-grid-container.split-9,
+  .gpu-grid-container.split-16,
+  .gpu-grid-container.split-25,
+  .gpu-grid-container.split-32 {
+    grid-template-columns: repeat(1, 1fr);
+  }
+
+  .gpu-tree-item {
+    padding: 8px; /* Larger tap targets for touch */
+    min-height: 40px;
+  }
+
+  .gpu-active-slot-pill {
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+}
+
+/* Phone Landscape Auto-Immersion */
+@media (max-width: 900px) and (orientation: landscape) {
+  .gpu-toolbar {
+    height: 30px;
+    padding: 0 6px;
+  }
+
+  .gpu-group-label {
+    display: none;
+  }
+
+  .gpu-slot-header {
+    height: 20px;
+  }
+
+  .gpu-grid-container.split-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 }
