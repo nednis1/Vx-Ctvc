@@ -619,7 +619,15 @@ body {
   cursor: pointer;
 }
 
-.gpu-video {
+.gpu-video, .gpu-player-el {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000000;
+  display: block;
+}
+
+.gpu-player-el video {
   width: 100%;
   height: 100%;
   object-fit: contain;

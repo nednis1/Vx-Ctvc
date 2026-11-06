@@ -1,15 +1,15 @@
 /**
  * VOSCCTV GPU Live Wall
- * Client-side WebRTC Video Grid with 100% Client GPU Hardware Acceleration
+ * Client-side WebRTC / MSE Video Grid with 100% Client GPU Hardware Acceleration
  */
 
 (function () {
   const state = {
     currentNvr: 'nvr1',       // 'nvr1' | 'nvr2' | 'both'
-    currentSplit: 4,          // 1, 4, 9, 16, 32
+    currentSplit: 4,          // 1, 4, 9, 16
     currentSubtype: 'sub',     // 'sub' (fast low-cpu) | 'hd' (1080p/4K)
     page: 0,                  // For pagination (e.g., channels 1-16 or 17-32)
-    peerConnections: new Map(), // channelKey -> RTCPeerConnection
+    activePlayers: new Map(), // streamKey -> video-rtc element
     cameraNames: { nvr1: {}, nvr2: {} },
     focusedChannel: null,
     previousSplit: 4
@@ -38,80 +38,91 @@
   }
 
   /**
-   * Close all active WebRTC peer connections
+   * Close all active players
    */
   function disconnectAll() {
-    state.peerConnections.forEach((pc, key) => {
+    state.activePlayers.forEach((player) => {
       try {
-        pc.close();
+        player.src = '';
+        player.remove();
       } catch (e) {}
     });
-    state.peerConnections.clear();
+    state.activePlayers.clear();
   }
 
   /**
    * Disconnect a single channel
    */
   function disconnectChannel(streamKey) {
-    const pc = state.peerConnections.get(streamKey);
-    if (pc) {
-      try { pc.close(); } catch (e) {}
-      state.peerConnections.delete(streamKey);
+    const player = state.activePlayers.get(streamKey);
+    if (player) {
+      try {
+        player.src = '';
+        player.remove();
+      } catch (e) {}
+      state.activePlayers.delete(streamKey);
     }
   }
 
   /**
-   * Connect a video element to a go2rtc WebRTC stream
+   * Connect a video-rtc player to go2rtc
    */
-  async function connectWebRtc(streamKey, videoEl, spinnerEl) {
+  function connectChannel(streamKey, containerEl, spinnerEl) {
     disconnectChannel(streamKey);
 
-    try {
-      if (spinnerEl) spinnerEl.style.display = 'flex';
-
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      });
-      state.peerConnections.set(streamKey, pc);
-
-      pc.addTransceiver('video', { direction: 'recvonly' });
-      pc.addTransceiver('audio', { direction: 'recvonly' });
-
-      pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          videoEl.srcObject = event.streams[0];
-          videoEl.play().catch(() => {});
-          if (spinnerEl) spinnerEl.style.display = 'none';
-        }
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-          console.warn(`[GPU Wall] WebRTC ${streamKey} state: ${pc.iceConnectionState}`);
-        }
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const res = await fetch(`/api/go2rtc/webrtc?src=${streamKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/sdp' },
-        body: offer.sdp
-      });
-
-      if (!res.ok) {
-        throw new Error(`Gateway returned HTTP ${res.status}`);
-      }
-
-      const answerSdp = await res.text();
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-    } catch (err) {
-      console.warn(`[GPU Wall] Connection error for ${streamKey}:`, err.message);
-      if (spinnerEl) {
-        spinnerEl.innerHTML = `<span style="color:#ef4444;font-size:11px;">Feed Offline</span>`;
-      }
+    if (spinnerEl) {
+      spinnerEl.style.display = 'flex';
+      spinnerEl.innerHTML = `
+        <div class="spinner-ring"></div>
+        <span>Connecting GPU Stream...</span>
+      `;
     }
+
+    const host = window.location.host;
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${proto}//${host}/api/go2rtc/ws?src=${streamKey}`;
+
+    // Create the hardware-accelerated VideoRTC element
+    const player = document.createElement('video-rtc');
+    player.className = 'gpu-player-el';
+    player.style.width = '100%';
+    player.style.height = '100%';
+    player.style.display = 'block';
+
+    state.activePlayers.set(streamKey, player);
+    containerEl.appendChild(player);
+
+    // Set src to begin WebSocket signaling
+    player.src = wsUrl;
+
+    if (player.video) {
+      player.video.style.width = '100%';
+      player.video.style.height = '100%';
+      player.video.style.objectFit = 'contain';
+      player.video.muted = true;
+      player.video.autoplay = true;
+      player.video.playsInline = true;
+
+      const hideSpinner = () => {
+        if (spinnerEl) spinnerEl.style.display = 'none';
+      };
+
+      player.video.addEventListener('playing', hideSpinner, { once: true });
+      player.video.addEventListener('loadeddata', hideSpinner, { once: true });
+    }
+
+    // Diagnostic fallback: if still not loaded after 7 seconds
+    setTimeout(() => {
+      if (spinnerEl && spinnerEl.style.display !== 'none') {
+        spinnerEl.innerHTML = `
+          <div style="font-size:11px;color:#cbd5e1;text-align:center;">
+            <div class="spinner-ring" style="margin: 0 auto 6px auto;"></div>
+            <span style="color:#f59e0b;">Waiting for NVR feed...</span><br>
+            <span style="font-size:10px;color:#64748b;">${streamKey}</span>
+          </div>
+        `;
+      }
+    }, 7000);
   }
 
   /**
@@ -124,11 +135,9 @@
       return [state.focusedChannel];
     }
 
-    const nvrList = state.currentNvr === 'both' ? ['nvr1', 'nvr2'] : [state.currentNvr];
     const totalSlots = state.currentSplit;
 
     if (state.currentNvr === 'both') {
-      // Split between NVR 1 and NVR 2
       const perNvr = Math.max(1, Math.floor(totalSlots / 2));
       for (let ch = 1; ch <= perNvr && ch <= 32; ch++) {
         channels.push({ nvrId: 'nvr1', channel: ch });
@@ -160,7 +169,6 @@
     const channels = getVisibleChannels();
     const split = state.focusedChannel ? 1 : state.currentSplit;
 
-    // Apply grid class based on split
     gridContainer.className = `gpu-grid split-${split}`;
 
     channels.forEach((item) => {
@@ -186,28 +194,27 @@
             <button class="gpu-action-btn" data-act="focus" title="Expand Camera">⛶</button>
           </div>
         </div>
-        <div class="gpu-card-body">
-          <div class="gpu-spinner">
+        <div class="gpu-card-body" id="body-${streamKey}">
+          <div class="gpu-spinner" id="spinner-${streamKey}">
             <div class="spinner-ring"></div>
             <span>Connecting GPU Stream...</span>
           </div>
-          <video class="gpu-video" autoplay playsinline muted></video>
         </div>
       `;
 
-      // Double-click to toggle 1x1 full-grid focus
-      card.querySelector('.gpu-card-body').addEventListener('dblclick', () => {
+      // Actions
+      const cardBody = card.querySelector('.gpu-card-body');
+      cardBody.addEventListener('dblclick', () => {
         toggleFocus(item);
       });
 
-      // Actions
       card.querySelector('[data-act="focus"]').addEventListener('click', () => {
         toggleFocus(item);
       });
 
       card.querySelector('[data-act="snapshot"]').addEventListener('click', (e) => {
         e.stopPropagation();
-        takeSnapshot(card.querySelector('.gpu-video'), title);
+        takeSnapshot(cardBody, title);
       });
 
       card.querySelector('[data-act="toggle-hd"]').addEventListener('click', (e) => {
@@ -218,10 +225,9 @@
 
       gridContainer.appendChild(card);
 
-      // Connect WebRTC stream
-      const videoEl = card.querySelector('.gpu-video');
-      const spinnerEl = card.querySelector('.gpu-spinner');
-      connectWebRtc(streamKey, videoEl, spinnerEl);
+      // Connect video stream using VideoRTC
+      const spinnerEl = card.querySelector(`#spinner-${streamKey}`);
+      connectChannel(streamKey, cardBody, spinnerEl);
     });
 
     updateControlBar();
@@ -239,7 +245,8 @@
     renderGrid();
   }
 
-  function takeSnapshot(videoEl, title) {
+  function takeSnapshot(cardBodyEl, title) {
+    const videoEl = cardBodyEl ? cardBodyEl.querySelector('video') : null;
     if (!videoEl || !videoEl.videoWidth) return;
     const canvas = document.createElement('canvas');
     canvas.width = videoEl.videoWidth;

@@ -5,8 +5,7 @@
 
 const { spawn } = require('child_process');
 const fs = require('fs');
-const http = require('http');
-const https = require('https');
+const httpProxy = require('http-proxy');
 const path = require('path');
 
 let go2rtcProcess = null;
@@ -14,6 +13,21 @@ const GO2RTC_PORT = 1984;
 const GO2RTC_WEBRTC_PORT = 8555;
 const CONFIG_PATH = path.join(__dirname, 'go2rtc.yaml');
 const BIN_DIR = path.join(__dirname, 'bin');
+
+// Dedicated proxy instance for go2rtc
+const go2rtcProxy = httpProxy.createProxyServer({
+  target: `http://127.0.0.1:${GO2RTC_PORT}`,
+  ws: true
+});
+
+go2rtcProxy.on('error', (err, req, res) => {
+  if (err.code === 'ECONNRESET' || err.code === 'EPIPE') return;
+  console.warn('[go2rtc:proxy] Gateway error:', err.message);
+  if (res && res.writeHead && !res.headersSent) {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'go2rtc gateway unavailable', details: err.message }));
+  }
+});
 
 /**
  * Determine the correct go2rtc binary for the current operating system
@@ -142,70 +156,16 @@ function stopGo2rtc() {
  */
 function setupGo2rtcProxy(app, server) {
   // 1. Relay HTTP endpoints (/api/go2rtc/* -> http://127.0.0.1:1984/api/*)
-  app.all('/api/go2rtc/*', (req, res) => {
-    const targetPath = req.url.replace(/^\/api\/go2rtc/, '/api');
-    const options = {
-      hostname: '127.0.0.1',
-      port: GO2RTC_PORT,
-      path: targetPath,
-      method: req.method,
-      headers: { ...req.headers, host: `127.0.0.1:${GO2RTC_PORT}` }
-    };
-
-    const proxyReq = http.request(options, (proxyRes) => {
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res);
-    });
-
-    proxyReq.on('error', (err) => {
-      if (!res.headersSent) {
-        res.status(502).json({ error: 'go2rtc gateway not responding', details: err.message });
-      }
-    });
-
-    if (req.body && (req.method === 'POST' || req.method === 'PUT')) {
-      if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
-        proxyReq.write(req.body);
-      } else {
-        proxyReq.write(JSON.stringify(req.body));
-      }
-    } else {
-      req.pipe(proxyReq);
-    }
+  app.all('/api/go2rtc*', (req, res) => {
+    req.url = req.url.replace(/^\/api\/go2rtc/, '/api');
+    go2rtcProxy.web(req, res);
   });
 
   // 2. Handle WebSocket upgrades for MSE or WebRTC data channels (/api/go2rtc/ws)
   server.on('upgrade', (req, socket, head) => {
-    if (req.url && req.url.startsWith('/api/go2rtc/ws')) {
-      const targetPath = req.url.replace(/^\/api\/go2rtc/, '/api');
-      const proxyReq = http.request({
-        hostname: '127.0.0.1',
-        port: GO2RTC_PORT,
-        path: targetPath,
-        method: 'GET',
-        headers: {
-          ...req.headers,
-          host: `127.0.0.1:${GO2RTC_PORT}`
-        }
-      });
-
-      proxyReq.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
-        socket.write(
-          `HTTP/1.1 101 Switching Protocols\r\n` +
-          Object.keys(proxyRes.headers).map(k => `${k}: ${proxyRes.headers[k]}`).join('\r\n') +
-          '\r\n\r\n'
-        );
-        if (proxyHead && proxyHead.length) socket.write(proxyHead);
-        if (head && head.length) proxySocket.write(head);
-        proxySocket.pipe(socket);
-        socket.pipe(proxySocket);
-      });
-
-      proxyReq.on('error', () => {
-        socket.destroy();
-      });
-
-      proxyReq.end();
+    if (req.url && (req.url.startsWith('/api/go2rtc') || req.url.startsWith('/api/ws'))) {
+      req.url = req.url.replace(/^\/api\/go2rtc/, '/api');
+      go2rtcProxy.ws(req, socket, head);
     }
   });
 }
