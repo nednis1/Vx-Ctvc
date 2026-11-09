@@ -1172,13 +1172,72 @@ body {
   object-fit: cover !important;
 }
 
-/* Digital Zoom Mode Cursor */
+/* Digital Zoom Mode Cursor & Dragging */
 .gpu-video-wrapper.zoom-active {
   cursor: grab;
+  touch-action: none;
 }
 
-.gpu-video-wrapper.zoom-active:active {
-  cursor: grabbing;
+.gpu-video-wrapper.zoom-active:active,
+.gpu-video-wrapper.is-dragging {
+  cursor: grabbing !important;
+}
+
+.gpu-video-wrapper.is-dragging video {
+  transition: none !important;
+}
+
+/* Shutter Flash Animation for Snapshot Feedback */
+.gpu-slot.shutter-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  pointer-events: none;
+  z-index: 50;
+  animation: shutter-flash-anim 0.22s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+
+@keyframes shutter-flash-anim {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+/* Minimalist HUD Toast Notifications */
+.gpu-toast-container {
+  position: fixed;
+  bottom: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.gpu-toast {
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 0 10px rgba(56, 189, 248, 0.15);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.gpu-toast.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 /* -------------------------------------------------------------
@@ -2334,5 +2393,11 @@ video::-webkit-media-controls-fullscreen-button {
   .simple-retry-btn:hover {
     background: #e2e8f0;
     color: #000000;
+  }
+  .gpu-toast {
+    background: rgba(255, 255, 255, 0.96);
+    color: #0f172a;
+    border-color: rgba(2, 132, 199, 0.4);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 10px rgba(2, 132, 199, 0.15);
   }
 }

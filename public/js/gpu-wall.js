@@ -444,12 +444,16 @@
   function toggleSubtype(slotIndex) {
     const item = state.slots[slotIndex];
     if (!item) return;
+    if (item.recording && item.recording.active) {
+      stopRecording(slotIndex);
+    }
     item.subtype = item.subtype === 'sub' ? 'hd' : 'sub';
     saveLayout();
     renderSlotContent(slotIndex);
     if (slotIndex === state.selectedSlotIndex) {
       updateBottomDock();
     }
+    showToast(`⚡ Stream quality: ${item.subtype === 'hd' ? 'Main HD (1080p)' : 'Sub-Stream (SD)'}`);
   }
 
   /**
@@ -598,8 +602,66 @@
   }
 
   // -------------------------------------------------------------
-  // Digital Zoom & ROI Pan Engine
+  // HUD Toast Notification System
   // -------------------------------------------------------------
+
+  function showToast(message, duration = 3000) {
+    let container = document.getElementById('gpu-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'gpu-toast-container';
+      container.className = 'gpu-toast-container';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'gpu-toast';
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.add('show');
+    });
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        try { toast.remove(); } catch (e) {}
+      }, 250);
+    }, duration);
+  }
+
+  function triggerShutterFlash(slotEl) {
+    if (!slotEl) return;
+    slotEl.classList.remove('shutter-flash');
+    void slotEl.offsetWidth; // Force DOM reflow to re-trigger CSS keyframes
+    slotEl.classList.add('shutter-flash');
+    setTimeout(() => {
+      slotEl.classList.remove('shutter-flash');
+    }, 250);
+  }
+
+  // -------------------------------------------------------------
+  // Digital Zoom & ROI Pan Engine (Hardware Bounded & Leak-Free)
+  // -------------------------------------------------------------
+
+  function clampPan(slotIndex, rawX, rawY) {
+    const item = state.slots[slotIndex];
+    if (!item || !item.digitalZoom) return { x: 0, y: 0 };
+    const scale = item.digitalZoom.scale || 1;
+    if (scale <= 1.0) return { x: 0, y: 0 };
+
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    const wrapper = slotEl ? slotEl.querySelector('.gpu-video-wrapper') : null;
+    const rect = wrapper ? wrapper.getBoundingClientRect() : { width: 640, height: 360 };
+
+    const maxPanX = Math.max(0, (rect.width * (scale - 1)) / 2);
+    const maxPanY = Math.max(0, (rect.height * (scale - 1)) / 2);
+
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, rawX)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, rawY))
+    };
+  }
 
   function toggleDigitalZoom(slotIndex) {
     const item = state.slots[slotIndex];
@@ -613,12 +675,16 @@
 
     if (item.digitalZoom.active) {
       if (wrapper) wrapper.classList.add('zoom-active');
+      showToast('🔍 Digital Zoom active: Scroll to zoom, drag to pan');
     } else {
       item.digitalZoom.scale = 1;
       item.digitalZoom.x = 0;
       item.digitalZoom.y = 0;
       applyVideoTransform(slotIndex);
-      if (wrapper) wrapper.classList.remove('zoom-active');
+      if (wrapper) {
+        wrapper.classList.remove('zoom-active', 'is-dragging');
+      }
+      showToast('🔍 Digital Zoom turned off');
     }
 
     updateSlotBadges(slotIndex);
@@ -635,24 +701,33 @@
     const video = slotEl.querySelector('video');
     if (video) {
       const { scale, x, y } = item.digitalZoom;
+      video.style.transformOrigin = 'center center';
       video.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     }
   }
 
   function setupDigitalZoomListeners(slotIndex, wrapper) {
     const item = state.slots[slotIndex];
-    if (!item) return;
+    if (!item || !wrapper) return;
 
-    // Mouse wheel zoom
+    // Mouse wheel zoom with boundary-aware clamping
     wrapper.addEventListener('wheel', (e) => {
       if (!item.digitalZoom.active) return;
       e.preventDefault();
       const delta = e.deltaY < 0 ? 0.25 : -0.25;
-      item.digitalZoom.scale = Math.min(8.0, Math.max(1.0, item.digitalZoom.scale + delta));
-      if (item.digitalZoom.scale === 1.0) {
+      const newScale = Math.min(8.0, Math.max(1.0, Math.round((item.digitalZoom.scale + delta) * 100) / 100));
+      item.digitalZoom.scale = newScale;
+
+      if (item.digitalZoom.scale <= 1.0) {
+        item.digitalZoom.scale = 1.0;
         item.digitalZoom.x = 0;
         item.digitalZoom.y = 0;
+      } else {
+        const clamped = clampPan(slotIndex, item.digitalZoom.x, item.digitalZoom.y);
+        item.digitalZoom.x = clamped.x;
+        item.digitalZoom.y = clamped.y;
       }
+
       applyVideoTransform(slotIndex);
       updateSlotBadges(slotIndex);
       if (slotIndex === state.selectedSlotIndex) {
@@ -660,24 +735,92 @@
       }
     }, { passive: false });
 
-    // Drag to pan
-    wrapper.addEventListener('mousedown', (e) => {
+    // Pointer-captured drag to pan (works seamlessly across mouse, stylus, and touch without window listener leaks)
+    wrapper.addEventListener('pointerdown', (e) => {
       if (!item.digitalZoom.active || item.digitalZoom.scale <= 1) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      e.preventDefault();
+      try {
+        wrapper.setPointerCapture(e.pointerId);
+      } catch (err) {}
       item.digitalZoom.isDragging = true;
       item.digitalZoom.startX = e.clientX - item.digitalZoom.x;
       item.digitalZoom.startY = e.clientY - item.digitalZoom.y;
+      wrapper.classList.add('is-dragging');
     });
 
-    window.addEventListener('mousemove', (e) => {
+    wrapper.addEventListener('pointermove', (e) => {
       if (!item.digitalZoom.active || !item.digitalZoom.isDragging) return;
-      item.digitalZoom.x = e.clientX - item.digitalZoom.startX;
-      item.digitalZoom.y = e.clientY - item.digitalZoom.startY;
+      const rawX = e.clientX - item.digitalZoom.startX;
+      const rawY = e.clientY - item.digitalZoom.startY;
+      const clamped = clampPan(slotIndex, rawX, rawY);
+      item.digitalZoom.x = clamped.x;
+      item.digitalZoom.y = clamped.y;
       applyVideoTransform(slotIndex);
     });
 
-    window.addEventListener('mouseup', () => {
-      if (item.digitalZoom) item.digitalZoom.isDragging = false;
-    });
+    const endDrag = (e) => {
+      if (item.digitalZoom && item.digitalZoom.isDragging) {
+        item.digitalZoom.isDragging = false;
+        wrapper.classList.remove('is-dragging');
+        try {
+          if (wrapper.hasPointerCapture(e.pointerId)) {
+            wrapper.releasePointerCapture(e.pointerId);
+          }
+        } catch (err) {}
+      }
+    };
+
+    wrapper.addEventListener('pointerup', endDrag);
+    wrapper.addEventListener('pointercancel', endDrag);
+
+    // Touch pinch-to-zoom on multi-touch mobile devices
+    let touchInitialDist = 0;
+    let touchInitialScale = 1;
+
+    wrapper.addEventListener('touchstart', (e) => {
+      if (!item.digitalZoom.active) return;
+      if (e.touches.length === 2) {
+        touchInitialDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchInitialScale = item.digitalZoom.scale;
+      }
+    }, { passive: true });
+
+    wrapper.addEventListener('touchmove', (e) => {
+      if (!item.digitalZoom.active) return;
+      if (e.touches.length === 2 && touchInitialDist > 0) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / touchInitialDist;
+        const newScale = Math.min(8.0, Math.max(1.0, Math.round(touchInitialScale * factor * 100) / 100));
+        item.digitalZoom.scale = newScale;
+        if (newScale <= 1.0) {
+          item.digitalZoom.x = 0;
+          item.digitalZoom.y = 0;
+        } else {
+          const clamped = clampPan(slotIndex, item.digitalZoom.x, item.digitalZoom.y);
+          item.digitalZoom.x = clamped.x;
+          item.digitalZoom.y = clamped.y;
+        }
+        applyVideoTransform(slotIndex);
+        updateSlotBadges(slotIndex);
+        if (slotIndex === state.selectedSlotIndex) {
+          updateBottomDock();
+        }
+      }
+    }, { passive: false });
+
+    wrapper.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        touchInitialDist = 0;
+      }
+    }, { passive: true });
   }
 
   // -------------------------------------------------------------
@@ -1143,19 +1286,31 @@
     if (!video) return;
 
     try {
-      const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+      const stream = video.captureStream ? video.captureStream(30) : (video.mozCaptureStream ? video.mozCaptureStream(30) : null);
       if (!stream) {
-        alert('Browser does not support direct stream recording.');
+        showToast('⚠️ Browser does not support direct stream recording');
         return;
       }
 
-      let mimeType = 'video/webm;codecs=vp8,opus';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'video/webm';
+      const candidates = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=h264,opus',
+        'video/webm',
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4'
+      ];
+      let mimeType = '';
+      for (const c of candidates) {
+        if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(c)) {
+          mimeType = c;
+          break;
+        }
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       item.recording.chunks = [];
+      item.recording.mimeType = mimeType;
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
@@ -1164,15 +1319,25 @@
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(item.recording.chunks, { type: mimeType });
+        const type = item.recording.mimeType || 'video/webm';
+        const ext = type.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(item.recording.chunks, { type });
+        if (blob.size === 0) {
+          showToast('⚠️ Recording contained no data or was too short');
+          return;
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         const title = getCameraTitle(item.nvrId, item.channel);
-        const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
-        a.download = `${title.replace(/\s+/g, '_')}_${dateStr}.webm`;
+        const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `${title.replace(/\s+/g, '_')}_${dateStr}.${ext}`;
+        a.download = filename;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        showToast(`💾 Clip saved (${Math.round(blob.size / 1024)} KB): ${filename}`);
       };
 
       recorder.start(1000);
@@ -1190,8 +1355,10 @@
 
       updateSlotBadges(slotIndex);
       updateBottomDock();
+      showToast('🔴 Recording live clip started...');
     } catch (err) {
       console.warn('[GPU Wall] Clip recording error:', err);
+      showToast(`⚠️ Clip recording error: ${err.message || 'Failed'}`);
     }
   }
 
@@ -1199,12 +1366,12 @@
     const item = state.slots[slotIndex];
     if (!item || !item.recording.active) return;
 
-    if (item.recording.recorder && item.recording.recorder.state !== 'inactive') {
-      item.recording.recorder.stop();
-    }
     if (item.recording.timer) {
       clearInterval(item.recording.timer);
       item.recording.timer = null;
+    }
+    if (item.recording.recorder && item.recording.recorder.state !== 'inactive') {
+      item.recording.recorder.stop();
     }
     item.recording.active = false;
     updateSlotBadges(slotIndex);
@@ -1536,10 +1703,26 @@
 
     const wrapper = slotEl.querySelector('.gpu-video-wrapper');
     setupDigitalZoomListeners(slotIndex, wrapper);
+    if (item.digitalZoom && item.digitalZoom.active) {
+      wrapper.classList.add('zoom-active');
+      applyVideoTransform(slotIndex);
+    }
 
-    // Desktop: Double-click to toggle full 1x1 screen
+    // Desktop: Double-click to reset digital zoom if zoomed, or toggle full 1x1 screen
     wrapper.addEventListener('dblclick', (e) => {
       e.stopPropagation();
+      if (item.digitalZoom && item.digitalZoom.active && item.digitalZoom.scale > 1.05) {
+        item.digitalZoom.scale = 1.0;
+        item.digitalZoom.x = 0;
+        item.digitalZoom.y = 0;
+        applyVideoTransform(slotIndex);
+        updateSlotBadges(slotIndex);
+        if (slotIndex === state.selectedSlotIndex) {
+          updateBottomDock();
+        }
+        showToast('🔍 Digital Zoom reset to 1.0x');
+        return;
+      }
       toggleSlotZoom(slotIndex);
     });
 
@@ -1609,6 +1792,10 @@
       }, { once: true });
       player.video.addEventListener('error', onStreamFailed);
       player.video.addEventListener('ended', onStreamFailed);
+
+      if (player.video.readyState >= 2 || player.video.currentTime > 0) {
+        onStreamReady();
+      }
     }
 
     updateSlotBadges(slotIndex);
@@ -1617,6 +1804,14 @@
   function renderGrid() {
     const gridContainer = document.getElementById('gpu-grid-container');
     if (!gridContainer) return;
+
+    // Safely stop any active recordings before rebuilding grid to prevent corrupted files
+    Object.keys(state.slots).forEach((idx) => {
+      const it = state.slots[idx];
+      if (it && it.recording && it.recording.active) {
+        stopRecording(Number(idx));
+      }
+    });
 
     // Disconnect old players immediately when building grid to release NVR sockets
     document.querySelectorAll('.gpu-slot video-rtc').forEach((el) => {
@@ -1872,22 +2067,66 @@
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
     if (!slotEl) return;
     const videoEl = slotEl.querySelector('video');
-    if (!videoEl || !videoEl.videoWidth) return;
+    if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+      showToast('⚠️ Video feed is not ready for snapshot');
+      return;
+    }
 
     const item = state.slots[slotIndex];
     const title = item ? getCameraTitle(item.nvrId, item.channel) : `Slot_${slotIndex + 1}`;
+    const isZoomed = Boolean(item && item.digitalZoom && item.digitalZoom.active && item.digitalZoom.scale > 1.05);
+
+    triggerShutterFlash(slotEl);
 
     const canvas = document.createElement('canvas');
-    canvas.width = videoEl.videoWidth;
-    canvas.height = videoEl.videoHeight;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    const vidW = videoEl.videoWidth;
+    const vidH = videoEl.videoHeight;
 
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/jpeg', 0.95);
-    const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
-    a.download = `${title.replace(/\s+/g, '_')}_${dateStr}.jpg`;
-    a.click();
+    if (isZoomed) {
+      const scale = item.digitalZoom.scale;
+      const wrapper = slotEl.querySelector('.gpu-video-wrapper');
+      const wrapRect = wrapper ? wrapper.getBoundingClientRect() : { width: vidW, height: vidH };
+
+      const cropW = vidW / scale;
+      const cropH = vidH / scale;
+
+      const normPanX = item.digitalZoom.x / (wrapRect.width || 1);
+      const normPanY = item.digitalZoom.y / (wrapRect.height || 1);
+
+      let cropX = (vidW - cropW) / 2 - (normPanX * vidW);
+      let cropY = (vidH - cropH) / 2 - (normPanY * vidH);
+
+      cropX = Math.max(0, Math.min(vidW - cropW, cropX));
+      cropY = Math.max(0, Math.min(vidH - cropH, cropY));
+
+      canvas.width = Math.round(cropW);
+      canvas.height = Math.round(cropH);
+      ctx.drawImage(videoEl, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+    } else {
+      canvas.width = vidW;
+      canvas.height = vidH;
+      ctx.drawImage(videoEl, 0, 0, vidW, vidH);
+    }
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        showToast('⚠️ Could not export snapshot image');
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const zoomSuffix = isZoomed ? `_zoom${Math.round(item.digitalZoom.scale * 10) / 10}x` : '';
+      const filename = `${title.replace(/\s+/g, '_')}${zoomSuffix}_${dateStr}.jpg`;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      showToast(`📸 Snapshot saved: ${filename}`);
+    }, 'image/jpeg', 0.95);
   }
 
   function toggleDrawer(forceState) {
@@ -2001,6 +2240,7 @@
     adjustGridLayout,
     filterTree,
     ptzGotoPreset,
+    showToast,
     // Bottom Dock Bridge Methods
     dockToggleQuality,
     dockCycleAspect,
