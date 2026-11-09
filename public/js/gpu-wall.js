@@ -652,13 +652,13 @@
 
     // Capability Check: PTZ Control
     const caps = state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel];
-    const isPtzSupported = caps ? caps.ptz === true : true;
+    const isPtzSupported = Boolean(caps && caps.ptz === true);
 
     if (ptzBtn) {
       if (!isPtzSupported) {
         ptzBtn.disabled = true;
         ptzBtn.classList.remove('active');
-        ptzBtn.title = "PTZ motor control not supported on this camera model";
+        ptzBtn.title = "PTZ motor control not supported on this camera model (Fixed Lens)";
         togglePtzDrawer(false);
       } else {
         ptzBtn.disabled = false;
@@ -777,8 +777,9 @@
 
     const item = state.slots[state.selectedSlotIndex];
     const caps = item ? (state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel]) : null;
-    if (item && caps && caps.ptz === false) {
-      // Force closed if not supported
+    const isPtzSupported = Boolean(caps && caps.ptz === true);
+    if (!item || !isPtzSupported) {
+      // Force closed if not supported or no camera selected
       drawer.classList.add('hidden');
       if (ptzBtn) ptzBtn.classList.remove('active');
       return;
@@ -1111,7 +1112,7 @@
 
     const item = state.slots[slotIndex];
     const caps = item ? (state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel]) : null;
-    const isPtzSupported = item && (!caps || caps.ptz !== false);
+    const isPtzSupported = Boolean(item && caps && caps.ptz === true);
     const isAudioSupported = item && (!caps || caps.audio !== false);
     const isFeedReady = item && !!item.videoPlaying;
 

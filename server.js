@@ -799,23 +799,31 @@ async function probeCameraCapabilities() {
       }
     } catch(e) {}
 
-    // 2. Probe PTZ protocol caps
-    for (let ch = 1; ch <= 32; ch++) {
-      let isPtz = false;
-      try {
-        const ptzRes = await dahuaDigestRequest(`http://${nvr.ip}:${nvr.port}/cgi-bin/ptz.cgi?action=getCurrentProtocolCaps&channel=${ch - 1}`, nvr.username, nvr.password);
-        if (ptzRes.status === 200 && ptzRes.body && ptzRes.body.includes('caps.Pan=true')) {
-          isPtz = true;
-        }
-      } catch(e) {}
+    // 2. Probe true PTZ hardware protocol configuration (ProtocolName !== 'NONE')
+    const ptzMap = {};
+    try {
+      const ptzRes = await dahuaDigestRequest(`http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=getConfig&name=Ptz`, nvr.username, nvr.password);
+      if (ptzRes.body) {
+        ptzRes.body.split('\n').forEach(line => {
+          const m = line.trim().match(/table\.Ptz\[(\d+)\]\.ProtocolName=(.*)/);
+          if (m) {
+            const ch = parseInt(m[1], 10) + 1;
+            const proto = m[2].trim().toUpperCase();
+            // A channel is only a true PTZ camera if it has an active PTZ protocol configured (not NONE or empty)
+            ptzMap[ch] = proto !== 'NONE' && proto !== '';
+          }
+        });
+      }
+    } catch(e) {}
 
+    for (let ch = 1; ch <= 32; ch++) {
       caps[nvr.id][ch] = {
-        ptz: isPtz,
+        ptz: ptzMap[ch] === true,
         audio: audioMap[ch] !== undefined ? audioMap[ch] : true
       };
     }
     const ptzCount = Object.values(caps[nvr.id]).filter(c => c.ptz).length;
-    console.log(`[VOSCTV] Probed ${nvr.name} capabilities: ${ptzCount} PTZ-capable channels detected.`);
+    console.log(`[VOSCTV] Probed ${nvr.name} capabilities: ${ptzCount} true PTZ-configured channels detected.`);
   }
   cameraCapabilitiesCache = caps;
   lastCapsCheck = Date.now();
@@ -825,7 +833,7 @@ async function probeCameraCapabilities() {
 // API: Camera Capabilities (PTZ, Audio)
 app.get('/api/camera-capabilities', async (req, res) => {
   try {
-    if (!cameraCapabilitiesCache || Date.now() - lastCapsCheck > 3600000) {
+    if (req.query.refresh === 'true' || !cameraCapabilitiesCache || Date.now() - lastCapsCheck > 3600000) {
       await probeCameraCapabilities();
     }
     res.json(cameraCapabilitiesCache);
