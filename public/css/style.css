@@ -872,6 +872,27 @@ body {
   box-sizing: border-box;
   justify-content: center;
   align-content: center;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+}
+
+.gpu-grid-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.gpu-grid-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gpu-grid-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+
+.gpu-grid-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.5);
 }
 
 /* Split Layouts: 1, 2, 4, 6, 9, 16, 25, 32 (CSS Fallbacks) */
@@ -2089,6 +2110,13 @@ video::-webkit-media-controls-fullscreen-button {
   }
   .gpu-grid-container {
     background: #f1f5f9;
+    scrollbar-color: rgba(2, 132, 199, 0.35) transparent;
+  }
+  .gpu-grid-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .gpu-grid-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(2, 132, 199, 0.6);
   }
   .gpu-slot.empty {
     background: #ffffff;

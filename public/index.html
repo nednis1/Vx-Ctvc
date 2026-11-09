@@ -171,8 +171,23 @@
               <div class="gpu-select-wrapper">
                 <select class="gpu-toolbar-select" id="gpu-col-select" name="cols" onchange="window.VOSCCTV_GPU_WALL.setColumnMode(this.value === 'auto' ? 'auto' : parseInt(this.value, 10))">
                   <option value="auto" selected>Auto</option>
+                  <option value="1">1 Col</option>
                   <option value="2">2 Cols</option>
                   <option value="3">3 Cols</option>
+                  <option value="4">4 Cols</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- SIZE Dropdown -->
+            <div class="gpu-toolbar-group" title="Slot Size & Scroll Mode">
+              <label for="gpu-size-select" class="gpu-group-label">SIZE:</label>
+              <div class="gpu-select-wrapper">
+                <select class="gpu-toolbar-select" id="gpu-size-select" name="size" onchange="window.VOSCCTV_GPU_WALL.setSlotSize(this.value)">
+                  <option value="large" selected>Large</option>
+                  <option value="xl">Extra Large</option>
+                  <option value="medium">Medium</option>
+                  <option value="fit">Fit Screen</option>
                 </select>
               </div>
             </div>

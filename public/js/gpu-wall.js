@@ -13,7 +13,8 @@
   const state = {
     split: 4,                  // 1, 2, 4, 6, 9, 16, 25, 32
     previousSplit: 4,          // For double-click 1x1 zoom toggle
-    columnMode: 'auto',        // 'auto', 2, 3
+    columnMode: 'auto',        // 'auto', 1, 2, 3, 4
+    slotSize: 'large',         // 'large' (default), 'xl', 'medium', 'fit'
     streamEngine: 'auto',      // 'auto' (MSE + WebRTC), 'mse' (instant websocket), 'webrtc' (direct UDP)
     focusedSlotIndex: null,    // If zoomed to single slot (0..31)
     selectedSlotIndex: 0,      // Which slot receives next camera click
@@ -85,6 +86,7 @@
       const data = {
         split: state.split,
         columnMode: state.columnMode,
+        slotSize: state.slotSize,
         streamEngine: state.streamEngine,
         globalAspect: state.globalAspect,
         slots: serializableSlots
@@ -107,8 +109,11 @@
         if (parsed.split && [1, 2, 4, 6, 9, 16, 25, 32].includes(parsed.split)) {
           state.split = parsed.split;
         }
-        if (parsed.columnMode && ['auto', 2, 3].includes(parsed.columnMode)) {
+        if (parsed.columnMode && ['auto', 1, 2, 3, 4].includes(parsed.columnMode)) {
           state.columnMode = parsed.columnMode;
+        }
+        if (parsed.slotSize && ['large', 'xl', 'medium', 'fit'].includes(parsed.slotSize)) {
+          state.slotSize = parsed.slotSize;
         }
         if (parsed.streamEngine && ['auto', 'mse', 'webrtc'].includes(parsed.streamEngine)) {
           state.streamEngine = parsed.streamEngine;
@@ -519,16 +524,35 @@
   }
 
   function setColumnMode(mode) {
-    if (mode === 2 || mode === '2') {
+    if (mode === 1 || mode === '1') {
+      state.columnMode = 1;
+    } else if (mode === 2 || mode === '2') {
       state.columnMode = 2;
     } else if (mode === 3 || mode === '3') {
       state.columnMode = 3;
+    } else if (mode === 4 || mode === '4') {
+      state.columnMode = 4;
     } else {
       state.columnMode = 'auto';
     }
     updateColumnModeUI();
     saveLayout();
     renderGrid();
+  }
+
+  function updateSlotSizeUI() {
+    const select = document.getElementById('gpu-size-select');
+    if (select) {
+      select.value = state.slotSize;
+    }
+  }
+
+  function setSlotSize(size) {
+    if (!['large', 'xl', 'medium', 'fit'].includes(size)) return;
+    state.slotSize = size;
+    updateSlotSizeUI();
+    saveLayout();
+    adjustGridLayout();
   }
 
   function updateStreamEngineUI() {
@@ -1261,6 +1285,7 @@
       name: name.trim(),
       split: state.split,
       columnMode: state.columnMode,
+      slotSize: state.slotSize,
       globalAspect: state.globalAspect,
       slots: serializableSlots
     };
@@ -1282,9 +1307,11 @@
 
     state.split = preset.split || 4;
     state.columnMode = preset.columnMode || 'auto';
+    state.slotSize = preset.slotSize || 'large';
     state.globalAspect = preset.globalAspect || 'contain';
     updateGlobalAspectUI();
     updateColumnModeUI();
+    updateSlotSizeUI();
 
     if (preset.slots) {
       Object.keys(preset.slots).forEach((idx) => {
@@ -1664,6 +1691,7 @@
 
     updateGlobalAspectUI();
     updateColumnModeUI();
+    updateSlotSizeUI();
     updateStreamEngineUI();
     adjustGridLayout();
   }
@@ -1680,8 +1708,8 @@
   };
 
   /**
-   * Adjust grid columns and slot dimensions so CCTV feeds perfectly fit slot space
-   * without letterboxing or pillarboxing (strictly adhering to 16:9 Dahua camera aspect).
+   * Adjust grid columns and slot dimensions so CCTV feeds perfectly fit slot space.
+   * Auto columns are scrollable so feeds remain large and do not shrink when the window shrinks.
    */
   function adjustGridLayout() {
     const gridContainer = document.getElementById('gpu-grid-container');
@@ -1704,72 +1732,102 @@
     let bestCols = 1;
     let bestSlotW = 0;
     let bestSlotH = 0;
-    let bestArea = -1;
 
-    let candidateCols = [];
-
+    // Focused 1x1 mode: single slot maximizes on screen without scrolling
     if (state.focusedSlotIndex !== null || effectiveSplit === 1) {
-      candidateCols = [1];
+      bestCols = 1;
+      bestSlotW = Math.min(availW, availH * targetAspect);
+      bestSlotH = bestSlotW / targetAspect;
+    } else if (state.columnMode === 1) {
+      bestCols = 1;
+      bestSlotW = availW;
+      bestSlotH = bestSlotW / targetAspect;
     } else if (state.columnMode === 2) {
-      candidateCols = [2];
+      bestCols = 2;
+      bestSlotW = Math.floor((availW - gap) / 2);
+      bestSlotH = Math.floor(bestSlotW / targetAspect);
     } else if (state.columnMode === 3) {
-      candidateCols = [3];
-    } else {
-      // 'auto' mode: evaluate aspect-fitting candidate columns
-      if (PREFERRED_COLS[effectiveSplit]) {
-        candidateCols = PREFERRED_COLS[effectiveSplit];
-      } else {
-        for (let c = 1; c <= Math.min(totalSlots, 12); c++) {
-          candidateCols.push(c);
+      bestCols = 3;
+      bestSlotW = Math.floor((availW - 2 * gap) / 3);
+      bestSlotH = Math.floor(bestSlotW / targetAspect);
+    } else if (state.columnMode === 4) {
+      bestCols = 4;
+      bestSlotW = Math.floor((availW - 3 * gap) / 4);
+      bestSlotH = Math.floor(bestSlotW / targetAspect);
+    } else if (state.slotSize === 'fit') {
+      // Fit Screen: strictly fit inside viewport without scrolling
+      const candidates = PREFERRED_COLS[effectiveSplit] || [1, 2, 3, 4];
+      let bestArea = -1;
+
+      for (const c of candidates) {
+        const r = Math.ceil(totalSlots / c);
+        const maxW_fromWidth = (availW - (c - 1) * gap) / c;
+        const maxH_fromHeight = (availH - (r - 1) * gap) / r;
+        if (maxW_fromWidth <= 0 || maxH_fromHeight <= 0) continue;
+
+        const maxW_fromHeight = maxH_fromHeight * targetAspect;
+        const slotW = Math.min(maxW_fromWidth, maxW_fromHeight);
+        const slotH = slotW / targetAspect;
+        const area = slotW * slotH;
+
+        if (area > bestArea) {
+          bestArea = area;
+          bestCols = c;
+          bestSlotW = slotW;
+          bestSlotH = slotH;
         }
       }
-    }
-
-    // Evaluate candidate columns to find the one maximizing 16:9 CCTV video area
-    for (const c of candidateCols) {
-      const r = Math.ceil(totalSlots / c);
-      const maxW_fromWidth = (availW - (c - 1) * gap) / c;
-      const maxH_fromHeight = (availH - (r - 1) * gap) / r;
-
-      if (maxW_fromWidth <= 0 || maxH_fromHeight <= 0) continue;
-
-      // Constrain slot dimensions so it is exactly targetAspect (16:9)
-      // and fits within available container width and height
-      const maxW_fromHeight = maxH_fromHeight * targetAspect;
-      const slotW = Math.min(maxW_fromWidth, maxW_fromHeight);
-      const slotH = slotW / targetAspect;
-
-      const area = slotW * slotH;
-
-      if (area > bestArea) {
-        bestArea = area;
-        bestCols = c;
-        bestSlotW = slotW;
-        bestSlotH = slotH;
+    } else {
+      // AUTO COLUMNS (Scrollable, Slots Don't Shrink, Slots Can Be Bigger)
+      // Determine target/minimum slot width based on slotSize setting
+      let minSlotW = 380; // default for 'large': ensures generous, readable feeds
+      if (state.slotSize === 'xl') {
+        minSlotW = 640; // Extra Large: giant feeds
+      } else if (state.slotSize === 'medium') {
+        minSlotW = 260; // Medium: dense overview
       }
+
+      // Calculate maximum columns that fit across available width while maintaining minSlotW
+      let maxColsByWidth = Math.floor((availW + gap) / (minSlotW + gap));
+      maxColsByWidth = Math.max(1, Math.min(totalSlots, maxColsByWidth));
+
+      // Balance columns for standard surveillance splits:
+      let c = maxColsByWidth;
+      if (totalSlots === 4 && c >= 3) {
+        c = 2; // Clean 2x2 for 4 feeds
+      } else if (totalSlots === 6 && c === 4) {
+        c = 3; // Clean 3x2 for 6 feeds
+      } else if (totalSlots === 9 && c >= 4) {
+        c = 3; // Clean 3x3 for 9 feeds
+      } else if (totalSlots === 16 && c > 4) {
+        c = 4; // Clean 4x4 for 16 feeds
+      } else if (totalSlots === 25 && c > 5) {
+        c = 5; // Clean 5x5 for 25 feeds
+      } else if (totalSlots === 32 && c > 8) {
+        c = 8; // Clean 8x4 for 32 feeds
+      }
+
+      bestCols = c;
+      bestSlotW = Math.floor((availW - (c - 1) * gap) / c);
+      bestSlotH = Math.floor(bestSlotW / targetAspect);
     }
 
     // Fallback if container is extremely constrained
     if (bestSlotW <= 0 || bestSlotH <= 0) {
-      bestCols = state.columnMode === 2 ? 2 : state.columnMode === 3 ? 3 : Math.min(totalSlots, 4);
-      bestSlotW = Math.max((availW - (bestCols - 1) * gap) / bestCols, 120);
-      bestSlotH = bestSlotW / targetAspect;
+      bestCols = 2;
+      bestSlotW = Math.max(Math.floor((availW - gap) / 2), 120);
+      bestSlotH = Math.floor(bestSlotW / targetAspect);
     }
 
     const totalRows = Math.ceil(totalSlots / bestCols);
     const totalGridHeight = totalRows * bestSlotH + (totalRows - 1) * gap;
     const overflowsY = totalGridHeight > availH + 2;
 
-    if (overflowsY && (state.columnMode === 2 || state.columnMode === 3 || totalSlots >= 16)) {
-      // When scrolling is required, slot width fills the column width,
-      // and slot height is exactly slotW / targetAspect (16:9)
-      const scrollSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
-      if (scrollSlotW > 100) {
-        bestSlotW = scrollSlotW;
-        bestSlotH = bestSlotW / targetAspect;
-      }
+    if (overflowsY) {
+      // When content overflows height, align to start for smooth natural scrolling
       gridContainer.style.setProperty('align-content', 'start', 'important');
     } else {
+      // When content fits vertically, center vertically
       gridContainer.style.setProperty('align-content', 'center', 'important');
     }
 
@@ -1887,6 +1945,7 @@
       // 1. Immediate synchronous UI & grid render (0ms zero-latency stream start)
       restoreSavedLayout();
       updateColumnModeUI();
+      updateSlotSizeUI();
       updateStreamEngineUI();
       updateGlobalAspectUI();
       setupContextMenu();
@@ -1919,6 +1978,7 @@
     },
     setSplit,
     setColumnMode,
+    setSlotSize,
     setStreamEngine,
     selectSlot,
     assignCameraToSlot,
