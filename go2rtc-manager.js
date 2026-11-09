@@ -60,10 +60,10 @@ function generateGo2rtcConfig(nvrs) {
     const port = nvr.rtspPort || 554;
 
     for (let ch = 1; ch <= 32; ch++) {
-      // Sub Stream (default for multi-channel GPU wall, low bandwidth & near-zero CPU)
-      const subUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=1`;
+      // Sub Stream (default for multi-channel GPU wall, low bandwidth & near-zero CPU, fast start with backchannel=0)
+      const subUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=1#backchannel=0`;
       // Main Stream (for HD full-screen expansion)
-      const mainUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=0`;
+      const mainUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=0#backchannel=0`;
 
       streamsYaml += `  ${nvr.id}_ch${ch}:\n    - ${subUrl}\n`;
       streamsYaml += `  ${nvr.id}_ch${ch}_hd:\n    - ${mainUrl}\n`;
@@ -78,7 +78,7 @@ rtsp:
   listen: ""
 
 webrtc:
-  listen: "127.0.0.1:${GO2RTC_WEBRTC_PORT}"
+  listen: ":${GO2RTC_WEBRTC_PORT}"
 
 streams:
 ${streamsYaml}

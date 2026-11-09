@@ -14,6 +14,7 @@
     split: 4,                  // 1, 2, 4, 6, 9, 16, 25, 32
     previousSplit: 4,          // For double-click 1x1 zoom toggle
     columnMode: 'auto',        // 'auto', 2, 3
+    streamEngine: 'auto',      // 'auto' (MSE + WebRTC), 'mse' (instant websocket), 'webrtc' (direct UDP)
     focusedSlotIndex: null,    // If zoomed to single slot (0..31)
     selectedSlotIndex: 0,      // Which slot receives next camera click
     globalAspect: 'contain',   // 'contain' (Fit 16:9), 'fill' (Stretch), 'cover' (Crop)
@@ -84,6 +85,7 @@
       const data = {
         split: state.split,
         columnMode: state.columnMode,
+        streamEngine: state.streamEngine,
         globalAspect: state.globalAspect,
         slots: serializableSlots
       };
@@ -107,6 +109,9 @@
         }
         if (parsed.columnMode && ['auto', 2, 3].includes(parsed.columnMode)) {
           state.columnMode = parsed.columnMode;
+        }
+        if (parsed.streamEngine && ['auto', 'mse', 'webrtc'].includes(parsed.streamEngine)) {
+          state.streamEngine = parsed.streamEngine;
         }
         if (parsed.globalAspect && ['contain', 'fill', 'cover'].includes(parsed.globalAspect)) {
           state.globalAspect = parsed.globalAspect;
@@ -393,6 +398,7 @@
       const player = slotEl.querySelector('video-rtc');
       if (player) {
         try {
+          if (typeof player.ondisconnect === 'function') player.ondisconnect();
           player.src = '';
           player.remove();
         } catch (e) {}
@@ -513,6 +519,22 @@
       state.columnMode = 'auto';
     }
     updateColumnModeUI();
+    saveLayout();
+    renderGrid();
+  }
+
+  function updateStreamEngineUI() {
+    document.querySelectorAll('.gpu-engine-btn').forEach((btn) => {
+      const isMatch = btn.dataset.engine === state.streamEngine;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-pressed', String(isMatch));
+    });
+  }
+
+  function setStreamEngine(engine) {
+    if (!['auto', 'mse', 'webrtc'].includes(engine)) return;
+    state.streamEngine = engine;
+    updateStreamEngineUI();
     saveLayout();
     renderGrid();
   }
@@ -1507,8 +1529,12 @@
     const player = document.createElement('video-rtc');
     player.className = 'gpu-player-el';
 
-    wrapper.appendChild(player);
+    // Stream engine mode: 'auto' (MSE fast start + WebRTC) | 'mse' (pure MediaSource WebSocket) | 'webrtc' (direct UDP)
+    const engineMode = state.streamEngine === 'mse' ? 'mse' : (state.streamEngine === 'webrtc' ? 'webrtc' : 'mse,webrtc');
+    player.mode = engineMode;
     player.src = wsUrl;
+
+    wrapper.appendChild(player);
 
     if (player.video) {
       player.video.controls = false;
@@ -1536,6 +1562,9 @@
 
       player.video.addEventListener('playing', onStreamReady, { once: true });
       player.video.addEventListener('loadeddata', onStreamReady, { once: true });
+      player.video.addEventListener('timeupdate', () => {
+        if (player.video.currentTime > 0) onStreamReady();
+      }, { once: true });
       player.video.addEventListener('error', onStreamFailed);
       player.video.addEventListener('ended', onStreamFailed);
     }
@@ -1547,9 +1576,13 @@
     const gridContainer = document.getElementById('gpu-grid-container');
     if (!gridContainer) return;
 
-    // Disconnect old players when building grid
+    // Disconnect old players immediately when building grid to release NVR sockets
     document.querySelectorAll('.gpu-slot video-rtc').forEach((el) => {
-      try { el.src = ''; el.remove(); } catch (e) {}
+      try {
+        if (typeof el.ondisconnect === 'function') el.ondisconnect();
+        el.src = '';
+        el.remove();
+      } catch (e) {}
     });
 
     gridContainer.innerHTML = '';
@@ -1678,7 +1711,11 @@
     });
 
     document.querySelectorAll('.gpu-slot video-rtc').forEach((el) => {
-      try { el.src = ''; el.remove(); } catch (e) {}
+      try {
+        if (typeof el.ondisconnect === 'function') el.ondisconnect();
+        el.src = '';
+        el.remove();
+      } catch (e) {}
     });
   }
 
@@ -1687,22 +1724,40 @@
    */
   window.VOSCCTV_GPU_WALL = {
     init: async function () {
-      await Promise.all([loadCameraNames(), loadCameraCapabilities()]);
-      renderTree();
+      // 1. Immediate synchronous UI & grid render (0ms zero-latency stream start)
       restoreSavedLayout();
       updateColumnModeUI();
+      updateStreamEngineUI();
       setupContextMenu();
       setupPtzButtons();
       renderGrid();
       updateBottomDock();
+
       const toggleBtn = document.getElementById('gpu-drawer-toggle');
       if (toggleBtn) {
         toggleBtn.classList.toggle('active', state.drawerOpen);
         toggleBtn.setAttribute('aria-expanded', String(state.drawerOpen));
       }
+
+      // 2. Fetch metadata asynchronously in background without blocking stream startup
+      loadCameraNames().then(() => {
+        renderTree();
+        Object.keys(state.slots).forEach((idx) => updateSlotBadges(parseInt(idx, 10)));
+        updateBottomDock();
+      });
+
+      loadCameraCapabilities().then(() => {
+        updateBottomDock();
+        const activeItem = state.slots[state.selectedSlotIndex];
+        const isPtz = activeItem && state.capabilities[activeItem.nvrId] && state.capabilities[activeItem.nvrId][activeItem.channel]
+          ? state.capabilities[activeItem.nvrId][activeItem.channel].ptz === true
+          : false;
+        updatePtzDrawerControls(isPtz);
+      });
     },
     setSplit,
     setColumnMode,
+    setStreamEngine,
     selectSlot,
     assignCameraToSlot,
     assignCameraToSelectedSlot,

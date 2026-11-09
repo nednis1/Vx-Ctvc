@@ -154,6 +154,13 @@
               <button class="gpu-col-btn" data-cols="3" onclick="window.VOSCCTV_GPU_WALL.setColumnMode(3)" title="Force 3 Columns Dynamic Grid">3 Cols</button>
             </div>
 
+            <div class="gpu-toolbar-group" title="Stream Acceleration Engine">
+              <span class="gpu-group-label">STREAM:</span>
+              <button class="gpu-engine-btn active" data-engine="auto" onclick="window.VOSCCTV_GPU_WALL.setStreamEngine('auto')" title="Auto: MSE Fast Start + WebRTC Low Latency" aria-pressed="true">Auto</button>
+              <button class="gpu-engine-btn" data-engine="mse" onclick="window.VOSCCTV_GPU_WALL.setStreamEngine('mse')" title="MediaSource WebSocket: Instant Start (&lt;100ms), Ultra-Reliable" aria-pressed="false">MSE</button>
+              <button class="gpu-engine-btn" data-engine="webrtc" onclick="window.VOSCCTV_GPU_WALL.setStreamEngine('webrtc')" title="WebRTC Direct UDP: Real-Time Sub-Second Latency" aria-pressed="false">WebRTC</button>
+            </div>
+
             <div class="gpu-toolbar-group" title="Video Aspect Ratio Mode">
               <span class="gpu-group-label">ASPECT:</span>
               <button class="gpu-aspect-btn active" data-aspect="contain" onclick="window.VOSCCTV_GPU_WALL.setGlobalAspect('contain')" title="Fit (Original 16:9)">Fit</button>

@@ -18,8 +18,8 @@ class VideoRTC extends HTMLElement {
     constructor() {
         super();
 
-        this.DISCONNECT_TIMEOUT = 5000;
-        this.RECONNECT_TIMEOUT = 15000;
+        this.DISCONNECT_TIMEOUT = 500;
+        this.RECONNECT_TIMEOUT = 10000;
 
         this.CODECS = [
             'avc1.640029',      // H.264 high 4.1 (Chromecast 1st and 2nd Gen)
@@ -65,13 +65,25 @@ class VideoRTC extends HTMLElement {
          */
         this.visibilityCheck = true;
 
+        const isPrivate = (
+            typeof location !== 'undefined' && (
+                location.hostname === 'localhost' ||
+                location.hostname === '127.0.0.1' ||
+                location.hostname.startsWith('192.168.') ||
+                location.hostname.startsWith('10.') ||
+                location.hostname.startsWith('100.') ||
+                location.hostname.endsWith('.local')
+            )
+        );
+
         /**
          * [config] WebRTC configuration
          * @type {RTCConfiguration}
          */
         this.pcConfig = {
             bundlePolicy: 'max-bundle',
-            iceServers: [{urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302']}],
+            // On LAN / VPN / Tailscale, avoid hanging on external STUN servers (zero-delay direct host candidates)
+            iceServers: isPrivate ? [] : [{urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302']}],
             sdpSemantics: 'unified-plan',  // important for Chromecast 1
         };
 
@@ -323,6 +335,15 @@ class VideoRTC extends HTMLElement {
     }
 
     ondisconnect() {
+        if (this.disconnectTID) {
+            clearTimeout(this.disconnectTID);
+            this.disconnectTID = 0;
+        }
+        if (this.reconnectTID) {
+            clearTimeout(this.reconnectTID);
+            this.reconnectTID = 0;
+        }
+
         this.wsState = WebSocket.CLOSED;
         if (this.ws) {
             this.ws.close();

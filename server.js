@@ -778,56 +778,74 @@ app.post('/api/camera-names', (req, res) => {
 // -------------------------------------------------------------
 let cameraCapabilitiesCache = null;
 let lastCapsCheck = 0;
+let probingCapabilitiesPromise = null;
 
 async function probeCameraCapabilities() {
-  const caps = { nvr1: {}, nvr2: {} };
-  for (const nvr of CONFIG.nvrs) {
-    caps[nvr.id] = {};
+  if (probingCapabilitiesPromise) return probingCapabilitiesPromise;
 
-    // 1. Probe audio enable table
-    const audioMap = {};
-    try {
-      const encodeRes = await dahuaDigestRequest(`http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=getConfig&name=Encode`, nvr.username, nvr.password);
-      if (encodeRes.body) {
-        encodeRes.body.split('\n').forEach(line => {
-          const m = line.trim().match(/table\.Encode\[(\d+)\]\.MainFormat\[0\]\.AudioEnable=(.*)/);
-          if (m) {
-            const ch = parseInt(m[1], 10) + 1;
-            audioMap[ch] = m[2].trim().toLowerCase() === 'true';
-          }
-        });
-      }
-    } catch(e) {}
+  probingCapabilitiesPromise = (async () => {
+    const caps = { nvr1: {}, nvr2: {} };
 
-    // 2. Probe true PTZ hardware protocol configuration (ProtocolName !== 'NONE')
-    const ptzMap = {};
-    try {
-      const ptzRes = await dahuaDigestRequest(`http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=getConfig&name=Ptz`, nvr.username, nvr.password);
-      if (ptzRes.body) {
-        ptzRes.body.split('\n').forEach(line => {
-          const m = line.trim().match(/table\.Ptz\[(\d+)\]\.ProtocolName=(.*)/);
-          if (m) {
-            const ch = parseInt(m[1], 10) + 1;
-            const proto = m[2].trim().toUpperCase();
-            // A channel is only a true PTZ camera if it has an active PTZ protocol configured (not NONE or empty)
-            ptzMap[ch] = proto !== 'NONE' && proto !== '';
-          }
-        });
-      }
-    } catch(e) {}
+    // Parallelize capabilities probing across both NVRs and requests
+    await Promise.all(
+      CONFIG.nvrs.map(async (nvr) => {
+        caps[nvr.id] = {};
+        const audioMap = {};
+        const ptzMap = {};
 
-    for (let ch = 1; ch <= 32; ch++) {
-      caps[nvr.id][ch] = {
-        ptz: ptzMap[ch] === true,
-        audio: audioMap[ch] !== undefined ? audioMap[ch] : true
-      };
-    }
-    const ptzCount = Object.values(caps[nvr.id]).filter(c => c.ptz).length;
-    console.log(`[VOSCTV] Probed ${nvr.name} capabilities: ${ptzCount} true PTZ-configured channels detected.`);
-  }
-  cameraCapabilitiesCache = caps;
-  lastCapsCheck = Date.now();
-  return caps;
+        const [encodeRes, ptzRes] = await Promise.all([
+          dahuaDigestRequest(
+            `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=getConfig&name=Encode`,
+            nvr.username,
+            nvr.password
+          ).catch(() => ({ body: '' })),
+          dahuaDigestRequest(
+            `http://${nvr.ip}:${nvr.port}/cgi-bin/configManager.cgi?action=getConfig&name=Ptz`,
+            nvr.username,
+            nvr.password
+          ).catch(() => ({ body: '' }))
+        ]);
+
+        if (encodeRes && encodeRes.body) {
+          encodeRes.body.split('\n').forEach(line => {
+            const m = line.trim().match(/table\.Encode\[(\d+)\]\.MainFormat\[0\]\.AudioEnable=(.*)/);
+            if (m) {
+              const ch = parseInt(m[1], 10) + 1;
+              audioMap[ch] = m[2].trim().toLowerCase() === 'true';
+            }
+          });
+        }
+
+        if (ptzRes && ptzRes.body) {
+          ptzRes.body.split('\n').forEach(line => {
+            const m = line.trim().match(/table\.Ptz\[(\d+)\]\.ProtocolName=(.*)/);
+            if (m) {
+              const ch = parseInt(m[1], 10) + 1;
+              const proto = m[2].trim().toUpperCase();
+              ptzMap[ch] = proto !== 'NONE' && proto !== '';
+            }
+          });
+        }
+
+        for (let ch = 1; ch <= 32; ch++) {
+          caps[nvr.id][ch] = {
+            ptz: ptzMap[ch] === true,
+            audio: audioMap[ch] !== undefined ? audioMap[ch] : true
+          };
+        }
+        const ptzCount = Object.values(caps[nvr.id]).filter(c => c.ptz).length;
+        console.log(`[VOSCTV] Probed ${nvr.name} capabilities: ${ptzCount} true PTZ-configured channels detected.`);
+      })
+    );
+
+    cameraCapabilitiesCache = caps;
+    lastCapsCheck = Date.now();
+    return caps;
+  })().finally(() => {
+    probingCapabilitiesPromise = null;
+  });
+
+  return probingCapabilitiesPromise;
 }
 
 // API: Camera Capabilities (PTZ, Audio)

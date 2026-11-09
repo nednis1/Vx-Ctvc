@@ -753,6 +753,7 @@ body {
 
 .gpu-split-btn.active::after,
 .gpu-col-btn.active::after,
+.gpu-engine-btn.active::after,
 .gpu-aspect-btn.active::after {
   content: '';
   position: absolute;
@@ -862,7 +863,8 @@ body {
 }
 
 /* Column Mode Selector Buttons */
-.gpu-col-btn {
+.gpu-col-btn,
+.gpu-engine-btn {
   position: relative;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -875,12 +877,14 @@ body {
   transition: all 0.15s;
 }
 
-.gpu-col-btn:hover {
+.gpu-col-btn:hover,
+.gpu-engine-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
-.gpu-col-btn.active {
+.gpu-col-btn.active,
+.gpu-engine-btn.active {
   background: #1e293b;
   border-color: #38bdf8;
   color: #38bdf8;
