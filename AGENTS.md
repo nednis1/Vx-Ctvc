@@ -83,6 +83,15 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
 - Camera names can be edited inline in the device tree.
 - Edits persist locally in `camera-names.json` and can be pushed directly to the Dahua NVR via `/api/rename-camera` (`configManager.cgi?action=setConfig&ChannelTitle[ch].Name=...`).
 
+### 4. Minimalist UI & Professional VMS Standards
+- **Minimalist & Utility-First**: Keep UI chrome compact, dark-mode, and non-intrusive. Video feeds are always the primary focus. Avoid decorative clutter, unnecessary padding/margins, intrusive popups/modals, or elements that compete with surveillance feeds.
+- **Surveillance UI/UX Standards**: Research and adhere to established industry standards for professional VMS/NVR monitoring consoles (such as Dahua SmartPSS, Milestone XProtect, and Nx Witness):
+  - **High Information Density**: Controls must be sleek, compact, and grouped logically with clear separation between management and monitoring.
+  - **Zero Video Obstruction**: Never render persistent controls, opaque overlays, or heavy banners across active video streams.
+  - **Instant State Feedback**: Toggles and active modes must provide immediate, unambiguous indicators (hardware-style LED dots, subtle glows, active underlines) without layout shifting.
+  - **Dark-Theme Optimization**: Maintain high contrast in low-light control rooms (`#020617` / `#0f172a`) without eye-straining bright panels.
+  - **Non-Destructive Workflows**: Touch targets, drag-and-drop assignments, keyboard shortcuts, and right-click context menus must be responsive, fast, and predictable.
+
 ---
 
 ## 🛠️ Validation Commands
