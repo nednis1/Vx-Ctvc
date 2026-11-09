@@ -738,6 +738,55 @@ body {
   margin-right: 2px;
 }
 
+/* GPU Toolbar Dropdowns (Split, Cols, Stream, Aspect, View) */
+.gpu-select-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.gpu-toolbar-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 3px 20px 3px 8px;
+  outline: none;
+  cursor: pointer;
+  height: 26px;
+  line-height: 18px;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s, color 0.15s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%2338bdf8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 8px 5px;
+}
+
+.gpu-toolbar-select:hover {
+  background-color: #1e293b;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
+}
+
+.gpu-toolbar-select:focus-visible {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+
+.gpu-toolbar-select option {
+  background: #0f172a;
+  color: #f1f5f9;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
 /* Split Buttons */
 .gpu-split-btn {
   position: relative;
@@ -1985,6 +2034,25 @@ video::-webkit-media-controls-fullscreen-button {
     background: #ecfdf5;
     border-color: #10b981;
     color: #047857;
+  }
+  .gpu-toolbar-select {
+    background-color: #ffffff;
+    border-color: rgba(0, 0, 0, 0.16);
+    color: #0f172a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%230284c7' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  }
+  .gpu-toolbar-select:hover {
+    background-color: #f8fafc;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+  .gpu-toolbar-select:focus-visible {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.25);
+  }
+  .gpu-toolbar-select option {
+    background: #ffffff;
+    color: #0f172a;
   }
   .gpu-view-select {
     background: #ffffff;

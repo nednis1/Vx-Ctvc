@@ -492,6 +492,10 @@
   }
 
   function updateGlobalAspectUI() {
+    const select = document.getElementById('gpu-aspect-select');
+    if (select) {
+      select.value = state.globalAspect;
+    }
     document.querySelectorAll('.gpu-aspect-btn').forEach((btn) => {
       const isActive = btn.dataset.aspect === state.globalAspect;
       btn.classList.toggle('active', isActive);
@@ -500,6 +504,10 @@
   }
 
   function updateColumnModeUI() {
+    const select = document.getElementById('gpu-col-select');
+    if (select) {
+      select.value = String(state.columnMode);
+    }
     document.querySelectorAll('.gpu-col-btn').forEach((btn) => {
       const mode = btn.dataset.cols;
       const isMatch = (mode === 'auto' && state.columnMode === 'auto') ||
@@ -524,6 +532,10 @@
   }
 
   function updateStreamEngineUI() {
+    const select = document.getElementById('gpu-engine-select');
+    if (select) {
+      select.value = state.streamEngine;
+    }
     document.querySelectorAll('.gpu-engine-btn').forEach((btn) => {
       const isMatch = btn.dataset.engine === state.streamEngine;
       btn.classList.toggle('active', isMatch);
@@ -1638,7 +1650,11 @@
     const targetSlot = state.focusedSlotIndex !== null ? state.focusedSlotIndex : state.selectedSlotIndex;
     selectSlot(targetSlot >= effectiveSplit ? 0 : targetSlot);
 
-    // Update active state in toolbar buttons
+    // Update active state in toolbar buttons and split select
+    const splitSelect = document.getElementById('gpu-split-select');
+    if (splitSelect) {
+      splitSelect.value = state.focusedSlotIndex !== null ? '1' : String(state.split);
+    }
     document.querySelectorAll('.gpu-split-btn').forEach((btn) => {
       const splitVal = parseInt(btn.dataset.split, 10);
       const isActive = splitVal === state.split && state.focusedSlotIndex === null;
@@ -1648,6 +1664,7 @@
 
     updateGlobalAspectUI();
     updateColumnModeUI();
+    updateStreamEngineUI();
     adjustGridLayout();
   }
 
@@ -1871,6 +1888,7 @@
       restoreSavedLayout();
       updateColumnModeUI();
       updateStreamEngineUI();
+      updateGlobalAspectUI();
       setupContextMenu();
       setupPtzButtons();
       setupGridResizeObserver();
