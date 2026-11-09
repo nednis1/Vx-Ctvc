@@ -9,6 +9,15 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#EF4444">
+  <meta name="color-scheme" content="dark light">
+  <script>
+    try {
+      const theme = localStorage.getItem('voscctv_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+      const meta = document.querySelector('meta[name="color-scheme"]');
+      if (meta) meta.content = theme;
+    } catch(e) {}
+  </script>
   <link rel="stylesheet" href="/css/style.css?v=vosctv7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,6 +55,10 @@
     </div>
 
     <div class="bar-right">
+      <button class="tool-btn theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch Light/Dark Mode" aria-label="Toggle theme">
+        <span class="theme-icon" id="theme-toggle-icon">☀️</span>
+        <span class="theme-label" id="theme-toggle-label">Light</span>
+      </button>
       <button class="tool-btn" onclick="openDirectTab()" title="Open active NVR in direct browser tab">↗ Direct Tab</button>
       <button class="tool-btn" onclick="reloadActive()" title="Reload active session">↻ Reload</button>
       <button class="tool-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶ Fullscreen</button>

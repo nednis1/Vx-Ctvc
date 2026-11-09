@@ -232,6 +232,68 @@ function toggleFullscreen() {
 }
 
 /**
+ * Light / Dark Theme Management
+ */
+function getActiveTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function setTheme(theme) {
+  const targetTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', targetTheme);
+  try {
+    localStorage.setItem('voscctv_theme', targetTheme);
+    const meta = document.querySelector('meta[name="color-scheme"]');
+    if (meta) meta.content = targetTheme;
+  } catch (e) {}
+
+  updateThemeUI(targetTheme);
+}
+
+function toggleTheme() {
+  const current = getActiveTheme();
+  const next = current === 'light' ? 'dark' : 'light';
+  setTheme(next);
+}
+
+function updateThemeUI(theme) {
+  const icon = document.getElementById('theme-toggle-icon');
+  const label = document.getElementById('theme-toggle-label');
+  const btn = document.getElementById('theme-toggle-btn');
+  if (icon) icon.textContent = theme === 'light' ? '🌙' : '☀️';
+  if (label) label.textContent = theme === 'light' ? 'Dark' : 'Light';
+  if (btn) {
+    btn.title = theme === 'light' ? 'Switch to Dark Mode (Alt+T)' : 'Switch to Light Mode (Alt+T)';
+    btn.setAttribute('aria-pressed', String(theme === 'light'));
+  }
+}
+
+function initTheme() {
+  let saved = 'dark';
+  try {
+    saved = localStorage.getItem('voscctv_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  } catch (e) {}
+  setTheme(saved);
+
+  // Sync across tabs
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'voscctv_theme' && e.newValue) {
+      setTheme(e.newValue);
+    }
+  });
+
+  // Listen to OS preference changes if no manual override is saved
+  try {
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    media.addEventListener('change', (e) => {
+      if (!localStorage.getItem('voscctv_theme')) {
+        setTheme(e.matches ? 'light' : 'dark');
+      }
+    });
+  } catch (e) {}
+}
+
+/**
  * Periodic health checker for tab status dots: Solid Green (Online) or Grey (Dead)
  */
 function pollHealth() {
@@ -291,6 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Initialize Light / Dark theme state
+  initTheme();
+
   // Initially load Live Wall as default landing view
   switchTab('gpu');
 
@@ -304,5 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.altKey && e.key === '1') switchTab('nvr1');
     if (e.altKey && e.key === '2') switchTab('nvr2');
     if (e.altKey && e.key.toLowerCase() === 's') switchTab('split');
+    if (e.altKey && e.key.toLowerCase() === 't') toggleTheme();
   });
 });

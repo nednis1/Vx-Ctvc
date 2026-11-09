@@ -6,8 +6,11 @@
 }
 
 :root {
+  color-scheme: dark light;
+
   --bar-height: 38px;
   --bg-dark: #0f172a;
+  --bg-app: #000000;
   --vosctv-red: #ef4444;
   --tab-active: #1e293b;
   --text-main: #f8fafc;
@@ -17,9 +20,21 @@
   --grey: #64748b;
 }
 
+:root[data-theme="light"],
+:root:has(> head > meta[name="color-scheme"][content="light"]) {
+  color-scheme: light;
+
+  --bg-dark: #ffffff;
+  --bg-app: #f1f5f9;
+  --tab-active: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: rgba(0, 0, 0, 0.12);
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: #000000;
+  background-color: var(--bg-app);
   color: var(--text-main);
   height: 100vh;
   width: 100vw;
@@ -1798,5 +1813,441 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-grid-container.cols-auto.split-4,
   .gpu-grid-container.cols-auto.split-6 {
     grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* =============================================================
+ * LIGHT MODE THEME OVERRIDES (Professional VMS Light Console)
+ * ============================================================= */
+:root[data-theme="light"],
+:root:has(> head > meta[name="color-scheme"][content="light"]) {
+  /* Top Bar */
+  .vosctv-bar {
+    background: #ffffff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .vosctv-title {
+    color: #0f172a;
+  }
+  .session-tab {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-bottom: none;
+  }
+  .session-tab:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  .session-tab.active {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.12);
+    border-top: 2px solid var(--vosctv-red);
+  }
+  .tool-btn {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  .tool-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.18);
+  }
+  .tool-btn.theme-toggle-btn {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: rgba(3, 105, 161, 0.25);
+  }
+  .gpu-badge {
+    background: rgba(2, 132, 199, 0.12);
+    color: #0284c7;
+    border-color: rgba(2, 132, 199, 0.25);
+  }
+
+  /* Left Sidebar & Tree */
+  .gpu-sidebar {
+    background: #ffffff;
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .gpu-sidebar-header {
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    color: #0f172a;
+  }
+  .gpu-sidebar-search {
+    background: #ffffff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .gpu-tree-search-input {
+    background: #f1f5f9;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #0f172a;
+  }
+  .gpu-tree-search-input:focus {
+    border-color: #0284c7;
+    background: #ffffff;
+  }
+  .gpu-tree-search-input::placeholder {
+    color: #94a3b8;
+  }
+  .gpu-tree-group-header {
+    background: #f8fafc;
+    color: #334155;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  .gpu-tree-group-header:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+  .gpu-tree-item {
+    color: #475569;
+  }
+  .gpu-tree-item:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+  .gpu-tree-item.playing {
+    background: #e0f2fe;
+    color: #0284c7;
+    font-weight: 600;
+  }
+  .gpu-tree-item.selected-live {
+    background: rgba(2, 132, 199, 0.16);
+    border-left: 2px solid #0284c7;
+    color: #0284c7;
+  }
+  .gpu-tree-actions {
+    background: #f8fafc;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .gpu-tree-action-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+  .gpu-tree-action-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  /* Toolbar */
+  .gpu-toolbar {
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .gpu-group-label {
+    color: #64748b;
+  }
+  .gpu-drawer-toggle-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #475569;
+  }
+  .gpu-drawer-toggle-btn.active {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+  .gpu-drawer-toggle-btn:not(.active) {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #64748b;
+  }
+  .gpu-split-btn,
+  .gpu-col-btn,
+  .gpu-engine-btn,
+  .gpu-aspect-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #475569;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+  .gpu-split-btn:hover,
+  .gpu-col-btn:hover,
+  .gpu-engine-btn:hover,
+  .gpu-aspect-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+  .gpu-split-btn.active,
+  .gpu-col-btn.active,
+  .gpu-engine-btn.active,
+  .gpu-aspect-btn.active {
+    background: #e0f2fe !important;
+    border-color: #0284c7 !important;
+    color: #0284c7 !important;
+    font-weight: 700;
+    box-shadow: 0 0 8px rgba(2, 132, 199, 0.2) !important;
+  }
+  .gpu-tour-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #475569;
+  }
+  .gpu-tour-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+  .gpu-tour-btn.active {
+    background: #ecfdf5;
+    border-color: #10b981;
+    color: #047857;
+  }
+  .gpu-view-select {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    color: #0f172a;
+  }
+  .gpu-view-save-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    color: #334155;
+  }
+  .gpu-view-save-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+  .gpu-active-slot-pill {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #334155;
+  }
+  .gpu-active-slot-pill span {
+    color: #0284c7;
+    font-weight: 700;
+  }
+  .gpu-badge-indicator {
+    background: #f1f5f9;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: #475569;
+  }
+
+  /* Central Grid & Slots */
+  .gpu-main-area {
+    background: #f1f5f9;
+  }
+  .gpu-grid-container {
+    background: #f1f5f9;
+  }
+  .gpu-slot.empty {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+  .gpu-slot.empty:hover {
+    background: #f8fafc;
+    border-color: #0284c7;
+  }
+  .gpu-slot-watermark {
+    color: rgba(0, 0, 0, 0.05);
+  }
+  .gpu-slot-plus {
+    color: #94a3b8;
+  }
+  .gpu-slot-empty-prompt span {
+    color: #64748b;
+  }
+  .gpu-slot.selected {
+    border: 2px solid #0284c7 !important;
+    box-shadow: 0 0 10px rgba(2, 132, 199, 0.25) !important;
+  }
+  /* Note: .gpu-video-wrapper maintains #000000 so video streams render cleanly without glare */
+  .gpu-video-wrapper {
+    background: #000000 !important;
+  }
+
+  /* Bottom Control Dock */
+  .gpu-dock-bar {
+    background: #ffffff;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  .gpu-dock-slot-pill {
+    background: #f1f5f9;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #0f172a;
+  }
+  .gpu-dock-cam-title {
+    color: #0f172a;
+  }
+  .gpu-dock-btn {
+    background: #f8fafc;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #334155;
+  }
+  .gpu-dock-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+  .gpu-dock-btn.active,
+  .gpu-dock-btn[aria-pressed="true"] {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+  .gpu-dock-btn.btn-close:hover {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #b91c1c;
+  }
+  .gpu-dock-btn.recording {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #b91c1c;
+  }
+  .gpu-dock-btn.active.btn-audio {
+    background: #ecfdf5;
+    border-color: #10b981;
+    color: #047857;
+  }
+  .gpu-dock-btn:disabled,
+  .gpu-dock-btn.disabled {
+    background: rgba(0, 0, 0, 0.03) !important;
+    border-color: rgba(0, 0, 0, 0.06) !important;
+    color: #94a3b8 !important;
+    opacity: 0.35 !important;
+  }
+  .dock-btn-dot {
+    background: #94a3b8;
+  }
+  .gpu-dock-btn.active .dock-btn-dot,
+  .gpu-dock-btn[aria-pressed="true"] .dock-btn-dot {
+    background: #0284c7;
+    box-shadow: 0 0 5px #0284c7;
+  }
+
+  /* PTZ Drawer */
+  .gpu-ptz-drawer {
+    background: #ffffff;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  .gpu-ptz-header {
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    color: #0f172a;
+  }
+  .gpu-ptz-channel-badge {
+    background: #e0f2fe;
+    color: #0284c7;
+    border: 1px solid rgba(2, 132, 199, 0.3);
+  }
+  .ptz-section-title {
+    color: #64748b;
+  }
+  .ptz-pad {
+    background: #f8fafc;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  .ptz-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #0f172a;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+  .ptz-btn:hover {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+  .ptz-center-circle {
+    background: #f1f5f9;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: #64748b;
+  }
+  .ptz-zoom-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #0f172a;
+  }
+  .ptz-zoom-btn:hover {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+  .ptz-speed-slider {
+    background: #e2e8f0;
+    accent-color: #0284c7;
+  }
+  .ptz-preset-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #334155;
+  }
+  .ptz-preset-btn:hover {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+  .ptz-btn:disabled,
+  .ptz-btn.disabled,
+  .ptz-zoom-btn:disabled,
+  .ptz-zoom-btn.disabled,
+  .ptz-preset-btn:disabled,
+  .ptz-preset-btn.disabled {
+    background: rgba(0, 0, 0, 0.03) !important;
+    border-color: rgba(0, 0, 0, 0.06) !important;
+    color: #94a3b8 !important;
+    opacity: 0.35 !important;
+  }
+
+  /* Right-Click Context Menu */
+  .gpu-context-menu {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    color: #0f172a;
+  }
+  .gpu-menu-header {
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    color: #64748b;
+  }
+  .gpu-menu-item {
+    color: #1e293b;
+  }
+  .gpu-menu-item:hover {
+    background: #e0f2fe;
+    color: #0284c7;
+  }
+  .gpu-menu-divider {
+    background: rgba(0, 0, 0, 0.08);
+  }
+  .gpu-menu-item.disabled {
+    color: #94a3b8 !important;
+    opacity: 0.45 !important;
+  }
+
+  /* NVR Session Views & Overlays */
+  .nvr-pane {
+    background: #f1f5f9;
+  }
+  .split-title {
+    background: #ffffff;
+    color: #0f172a;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  .nvr-overlay {
+    background-color: #f8fafc;
+  }
+  .simple-spinner {
+    border-color: rgba(0, 0, 0, 0.12);
+    border-top-color: var(--vosctv-red);
+  }
+  .simple-timeout {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+  .simple-retry-btn {
+    background: #f1f5f9;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    color: #0f172a;
+  }
+  .simple-retry-btn:hover {
+    background: #e2e8f0;
+    color: #000000;
   }
 }
