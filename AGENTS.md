@@ -92,6 +92,16 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
   - **Dark-Theme Optimization**: Maintain high contrast in low-light control rooms (`#020617` / `#0f172a`) without eye-straining bright panels.
   - **Non-Destructive Workflows**: Touch targets, drag-and-drop assignments, keyboard shortcuts, and right-click context menus must be responsive, fast, and predictable.
 
+### 5. Feature Capability & UI Greying-Out Policy
+- **Strict Greying-Out**: If a camera cannot use a feature (due to missing hardware, fixed lens, audio absence, offline feed, or empty slot), the control **must be strictly greyed out and disabled**:
+  - Apply `disabled = true`, class `.disabled`, `opacity: 0.28 !important`, `cursor: not-allowed !important`, `pointer-events: none !important`, and `filter: grayscale(1) !important`.
+  - Dim any associated status LED dots and provide an informative tooltip explaining why the feature is unavailable.
+- **Feature Capability Matrix**:
+  - **PTZ**: Greyed out if camera is fixed-lens (`ProtocolName === "NONE"` or empty). Controls in bottom dock, right-click context menu, and PTZ drawer are fully disabled.
+  - **Live Audio**: Greyed out if camera lacks microphone hardware (`caps.audio === false`) or if the live stream is connecting/offline (`!videoPlaying`).
+  - **Digital Zoom, Snapshot, Local Recording**: Greyed out whenever the live video feed is connecting or offline (`!videoPlaying`), or if the client browser lacks `MediaRecorder`/stream capture APIs.
+  - **Empty Slots**: All slot actions (quality, aspect, zoom, PTZ, audio, record, snapshot, 1x1, close) must be completely greyed out and unclickable.
+
 ---
 
 ## 🛠️ Validation Commands

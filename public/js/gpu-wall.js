@@ -445,6 +445,7 @@
    * Double-Click 1x1 Zoom with Smart Resolution Autoscaler
    */
   function toggleSlotZoom(slotIndex) {
+    if (state.focusedSlotIndex === null && !state.slots[slotIndex]) return;
     if (state.focusedSlotIndex !== null) {
       // Restore previous split & downgrade focused slot back to Sub-stream
       const prevFocused = state.slots[state.focusedSlotIndex];
@@ -654,19 +655,20 @@
       if (qualityLabel) qualityLabel.textContent = 'SUB';
       if (aspectLabel) aspectLabel.textContent = (state.globalAspect || 'contain').toUpperCase();
 
-      if (qualityBtn) { qualityBtn.disabled = true; qualityBtn.classList.remove('active', 'btn-hd'); qualityBtn.setAttribute('aria-pressed', 'false'); qualityBtn.title = "No camera assigned to this slot"; }
-      if (aspectBtn) { aspectBtn.disabled = true; aspectBtn.classList.remove('active'); qualityBtn.setAttribute('aria-pressed', 'false'); aspectBtn.title = "No camera assigned to this slot"; }
-      if (zoomBtn) { zoomBtn.disabled = true; zoomBtn.classList.remove('active'); zoomBtn.setAttribute('aria-pressed', 'false'); zoomBtn.title = "No camera assigned to this slot"; }
-      if (ptzBtn) { ptzBtn.disabled = true; ptzBtn.classList.remove('active'); ptzBtn.setAttribute('aria-expanded', 'false'); ptzBtn.title = "No camera assigned to this slot"; }
-      if (audioBtn) { audioBtn.disabled = true; audioBtn.classList.remove('active', 'btn-audio'); audioBtn.setAttribute('aria-pressed', 'false'); audioBtn.title = "No camera assigned to this slot"; }
+      if (qualityBtn) { qualityBtn.disabled = true; qualityBtn.classList.add('disabled'); qualityBtn.classList.remove('active', 'btn-hd'); qualityBtn.setAttribute('aria-pressed', 'false'); qualityBtn.title = "No camera assigned to this slot"; }
+      if (aspectBtn) { aspectBtn.disabled = true; aspectBtn.classList.add('disabled'); aspectBtn.classList.remove('active'); aspectBtn.setAttribute('aria-pressed', 'false'); aspectBtn.title = "No camera assigned to this slot"; }
+      if (zoomBtn) { zoomBtn.disabled = true; zoomBtn.classList.add('disabled'); zoomBtn.classList.remove('active'); zoomBtn.setAttribute('aria-pressed', 'false'); zoomBtn.title = "No camera assigned to this slot"; }
+      if (ptzBtn) { ptzBtn.disabled = true; ptzBtn.classList.add('disabled'); ptzBtn.classList.remove('active'); ptzBtn.setAttribute('aria-expanded', 'false'); ptzBtn.title = "No camera assigned to this slot"; }
+      if (audioBtn) { audioBtn.disabled = true; audioBtn.classList.add('disabled'); audioBtn.classList.remove('active', 'btn-audio'); audioBtn.setAttribute('aria-pressed', 'false'); audioBtn.title = "No camera assigned to this slot"; }
       if (audioIcon) audioIcon.textContent = '🔇';
-      if (recBtn) { recBtn.disabled = true; recBtn.classList.remove('recording'); recBtn.setAttribute('aria-pressed', 'false'); recBtn.title = "No camera assigned to this slot"; }
+      if (recBtn) { recBtn.disabled = true; recBtn.classList.add('disabled'); recBtn.classList.remove('recording'); recBtn.setAttribute('aria-pressed', 'false'); recBtn.title = "No camera assigned to this slot"; }
       if (recIcon) recIcon.textContent = '⏺';
       if (recLabel) recLabel.textContent = 'Record';
-      if (snapBtn) { snapBtn.disabled = true; snapBtn.title = "No camera assigned to this slot"; }
-      if (btn1x1) { btn1x1.disabled = true; btn1x1.classList.remove('active'); btn1x1.setAttribute('aria-pressed', 'false'); }
-      if (closeBtn) { closeBtn.disabled = true; closeBtn.title = "No camera to close"; }
+      if (snapBtn) { snapBtn.disabled = true; snapBtn.classList.add('disabled'); snapBtn.title = "No camera assigned to this slot"; }
+      if (btn1x1) { btn1x1.disabled = true; btn1x1.classList.add('disabled'); btn1x1.classList.remove('active'); btn1x1.setAttribute('aria-pressed', 'false'); btn1x1.title = "No camera assigned to this slot"; }
+      if (closeBtn) { closeBtn.disabled = true; closeBtn.classList.add('disabled'); closeBtn.title = "No camera to close"; }
 
+      updatePtzDrawerControls(false);
       togglePtzDrawer(false);
       return;
     }
@@ -680,6 +682,7 @@
     const isHd = item.subtype === 'hd';
     if (qualityBtn) {
       qualityBtn.disabled = false;
+      qualityBtn.classList.remove('disabled');
       qualityBtn.classList.toggle('active', isHd);
       qualityBtn.classList.toggle('btn-hd', isHd);
       qualityBtn.setAttribute('aria-pressed', String(isHd));
@@ -689,6 +692,7 @@
 
     if (aspectBtn) {
       aspectBtn.disabled = false;
+      aspectBtn.classList.remove('disabled');
       aspectBtn.classList.toggle('active', !!item.aspect);
       aspectBtn.title = "Cycle Aspect: Fit / Stretch / Crop";
     }
@@ -697,11 +701,16 @@
     const is1x1 = state.focusedSlotIndex !== null;
     if (btn1x1) {
       btn1x1.disabled = false;
+      btn1x1.classList.remove('disabled');
       btn1x1.classList.toggle('active', is1x1);
       btn1x1.setAttribute('aria-pressed', String(is1x1));
       btn1x1.title = is1x1 ? "Exit 1x1 Focus View" : "Enter 1x1 Full Screen View";
     }
-    if (closeBtn) { closeBtn.disabled = false; closeBtn.title = "Close Active Camera Feed"; }
+    if (closeBtn) {
+      closeBtn.disabled = false;
+      closeBtn.classList.remove('disabled');
+      closeBtn.title = "Close Active Camera Feed";
+    }
 
     // Capability Check: PTZ Control
     const caps = state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel];
@@ -710,12 +719,14 @@
     if (ptzBtn) {
       if (!isPtzSupported) {
         ptzBtn.disabled = true;
+        ptzBtn.classList.add('disabled');
         ptzBtn.classList.remove('active');
         ptzBtn.setAttribute('aria-expanded', 'false');
         ptzBtn.title = "PTZ motor control not supported on this camera model (Fixed Lens)";
         togglePtzDrawer(false);
       } else {
         ptzBtn.disabled = false;
+        ptzBtn.classList.remove('disabled');
         ptzBtn.title = "Open Dahua PTZ Camera Controls";
         const drawer = document.getElementById('gpu-ptz-drawer');
         const isOpen = drawer && !drawer.classList.contains('hidden');
@@ -723,19 +734,34 @@
         ptzBtn.setAttribute('aria-expanded', String(isOpen));
       }
     }
+    updatePtzDrawerControls(isPtzSupported);
 
-    // Capability Check: Audio Stream
+    // Capability Check: Audio Stream (Requires camera mic + feed playing)
     const isAudioSupported = caps ? caps.audio !== false : true;
+    const isFeedReady = !!item.videoPlaying;
+    const isMediaRecorderSupported = typeof MediaRecorder !== 'undefined' && (
+      HTMLVideoElement.prototype.captureStream || HTMLVideoElement.prototype.mozCaptureStream
+    );
+
     if (audioBtn) {
       if (!isAudioSupported) {
         audioBtn.disabled = true;
+        audioBtn.classList.add('disabled');
         audioBtn.classList.remove('active', 'btn-audio');
         audioBtn.setAttribute('aria-pressed', 'false');
-        audioBtn.title = "Microphone/audio not available on this camera";
+        audioBtn.title = "Microphone/audio not available on this camera model (No Audio Hardware)";
+        if (audioIcon) audioIcon.textContent = '🔇';
+      } else if (!isFeedReady) {
+        audioBtn.disabled = true;
+        audioBtn.classList.add('disabled');
+        audioBtn.classList.remove('active', 'btn-audio');
+        audioBtn.setAttribute('aria-pressed', 'false');
+        audioBtn.title = "Waiting for live video/audio stream to connect...";
         if (audioIcon) audioIcon.textContent = '🔇';
       } else {
         const isAudioActive = !item.audioMuted;
         audioBtn.disabled = false;
+        audioBtn.classList.remove('disabled');
         audioBtn.classList.toggle('active', isAudioActive);
         audioBtn.classList.toggle('btn-audio', isAudioActive);
         audioBtn.setAttribute('aria-pressed', String(isAudioActive));
@@ -745,17 +771,17 @@
     }
 
     // Live Feed Status Check: Digital Zoom, Snapshot, and Local Clip Recording
-    const isFeedReady = !!item.videoPlaying;
-
     if (zoomBtn) {
       if (!isFeedReady) {
         zoomBtn.disabled = true;
+        zoomBtn.classList.add('disabled');
         zoomBtn.classList.remove('active');
         zoomBtn.setAttribute('aria-pressed', 'false');
-        zoomBtn.title = "Waiting for live video feed to connect...";
+        zoomBtn.title = "Waiting for live video feed to connect before enabling digital zoom...";
       } else {
         const isZoomActive = !!(item.digitalZoom && item.digitalZoom.active);
         zoomBtn.disabled = false;
+        zoomBtn.classList.remove('disabled');
         zoomBtn.classList.toggle('active', isZoomActive);
         zoomBtn.setAttribute('aria-pressed', String(isZoomActive));
         zoomBtn.title = isZoomActive
@@ -767,22 +793,32 @@
     if (snapBtn) {
       if (!isFeedReady) {
         snapBtn.disabled = true;
-        snapBtn.title = "Waiting for live video feed to connect...";
+        snapBtn.classList.add('disabled');
+        snapBtn.title = "Waiting for live video feed to connect before capturing snapshot...";
       } else {
         snapBtn.disabled = false;
+        snapBtn.classList.remove('disabled');
         snapBtn.title = "Capture High-Res Snapshot";
       }
     }
 
     if (recBtn) {
-      if (!isFeedReady) {
+      if (!isMediaRecorderSupported) {
         recBtn.disabled = true;
+        recBtn.classList.add('disabled');
         recBtn.classList.remove('recording');
         recBtn.setAttribute('aria-pressed', 'false');
-        recBtn.title = "Waiting for live video feed to connect...";
+        recBtn.title = "In-browser clip recording is not supported on this browser";
+      } else if (!isFeedReady) {
+        recBtn.disabled = true;
+        recBtn.classList.add('disabled');
+        recBtn.classList.remove('recording');
+        recBtn.setAttribute('aria-pressed', 'false');
+        recBtn.title = "Waiting for live video feed to connect before recording...";
       } else {
         const isRecActive = !!(item.recording && item.recording.active);
         recBtn.disabled = false;
+        recBtn.classList.remove('disabled');
         recBtn.classList.toggle('recording', isRecActive);
         recBtn.setAttribute('aria-pressed', String(isRecActive));
         recBtn.title = isRecActive ? "Stop Recording Clip" : "Record Live Clip";
@@ -801,44 +837,76 @@
   }
 
   function dockToggleQuality() {
+    const btn = document.getElementById('dock-btn-quality');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     toggleSubtype(state.selectedSlotIndex);
   }
 
   function dockCycleAspect() {
+    const btn = document.getElementById('dock-btn-aspect');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     cycleSlotAspect(state.selectedSlotIndex);
   }
 
   function dockToggleDigitalZoom() {
+    const btn = document.getElementById('dock-btn-zoom');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     toggleDigitalZoom(state.selectedSlotIndex);
   }
 
   function dockTogglePtz(forceState) {
+    const btn = document.getElementById('dock-btn-ptz');
+    if (btn && (btn.disabled || btn.classList.contains('disabled')) && forceState !== false) return;
     togglePtzDrawer(forceState);
   }
 
   function dockToggleAudio() {
+    const btn = document.getElementById('dock-btn-audio');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     toggleAudio(state.selectedSlotIndex);
   }
 
   function dockToggleRecord() {
+    const btn = document.getElementById('dock-btn-record');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     toggleRecord(state.selectedSlotIndex);
   }
 
   function dockTakeSnapshot() {
+    const btn = document.getElementById('dock-btn-snapshot');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     takeSnapshot(state.selectedSlotIndex);
   }
 
   function dockToggleZoom1x1() {
+    const btn = document.getElementById('dock-btn-1x1');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     toggleSlotZoom(state.selectedSlotIndex);
   }
 
   function dockClearSlot() {
+    const btn = document.getElementById('dock-btn-close');
+    if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     clearSlot(state.selectedSlotIndex);
   }
 
   // -------------------------------------------------------------
   // Dahua PTZ Camera Controller (Side Flyout Drawer)
   // -------------------------------------------------------------
+
+  function updatePtzDrawerControls(isPtzSupported) {
+    const drawer = document.getElementById('gpu-ptz-drawer');
+    if (!drawer) return;
+    drawer.querySelectorAll('.ptz-btn, .ptz-zoom-btn, .ptz-preset-btn').forEach(btn => {
+      btn.disabled = !isPtzSupported;
+      btn.classList.toggle('disabled', !isPtzSupported);
+      if (!isPtzSupported) {
+        btn.setAttribute('title', 'PTZ motor control not supported on this camera model (Fixed Lens)');
+      } else {
+        btn.removeAttribute('title');
+      }
+    });
+  }
 
   function togglePtzDrawer(forceState) {
     const drawer = document.getElementById('gpu-ptz-drawer');
@@ -882,6 +950,12 @@
     const item = state.slots[slotIndex];
     if (!item) return;
 
+    const caps = state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel];
+    if (!caps || caps.ptz !== true) {
+      console.warn('[PTZ] Command blocked: camera is not PTZ capable');
+      return;
+    }
+
     try {
       await fetch('/api/ptz', {
         method: 'POST',
@@ -901,6 +975,10 @@
   }
 
   function ptzGotoPreset(presetNum) {
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) return;
+    const caps = state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel];
+    if (!caps || caps.ptz !== true) return;
     sendPtzCommand(state.selectedSlotIndex, 'GotoPreset', 'start', 0, presetNum);
   }
 
@@ -914,6 +992,7 @@
       const start = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (btn.disabled || btn.classList.contains('disabled')) return;
         btn.classList.add('active');
         sendPtzCommand(state.selectedSlotIndex, code, 'start');
       };
@@ -940,6 +1019,10 @@
   function toggleAudio(slotIndex) {
     const item = state.slots[slotIndex];
     if (!item) return;
+
+    const caps = state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel];
+    if (caps && caps.audio === false) return;
+    if (!item.videoPlaying) return;
 
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
     if (!slotEl) return;
@@ -977,6 +1060,11 @@
   function toggleRecord(slotIndex) {
     const item = state.slots[slotIndex];
     if (!item || !item.videoPlaying) return;
+
+    const isMediaRecorderSupported = typeof MediaRecorder !== 'undefined' && (
+      HTMLVideoElement.prototype.captureStream || HTMLVideoElement.prototype.mozCaptureStream
+    );
+    if (!isMediaRecorderSupported) return;
 
     if (item.recording.active) {
       stopRecording(slotIndex);
@@ -1201,19 +1289,22 @@
     const item = state.slots[slotIndex];
     const caps = item ? (state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel]) : null;
     const isPtzSupported = Boolean(item && caps && caps.ptz === true);
-    const isAudioSupported = item && (!caps || caps.audio !== false);
-    const isFeedReady = item && !!item.videoPlaying;
+    const isAudioSupported = Boolean(item && (!caps || caps.audio !== false));
+    const isFeedReady = Boolean(item && item.videoPlaying);
+    const isMediaRecorderSupported = typeof MediaRecorder !== 'undefined' && (
+      HTMLVideoElement.prototype.captureStream || HTMLVideoElement.prototype.mozCaptureStream
+    );
 
     menu.querySelectorAll('.gpu-menu-item').forEach(el => el.classList.remove('disabled'));
 
     if (!item) {
-      menu.querySelectorAll('.gpu-menu-item:not(.danger)').forEach(el => el.classList.add('disabled'));
+      menu.querySelectorAll('.gpu-menu-item').forEach(el => el.classList.add('disabled'));
     } else {
       if (!isPtzSupported) {
         const ptzItem = menu.querySelector('[data-menu="ptz"]');
         if (ptzItem) ptzItem.classList.add('disabled');
       }
-      if (!isAudioSupported) {
+      if (!isAudioSupported || !isFeedReady) {
         const audioItem = menu.querySelector('[data-menu="audio"]');
         if (audioItem) audioItem.classList.add('disabled');
       }
@@ -1223,6 +1314,10 @@
         const recItem = menu.querySelector('[data-menu="rec"]');
         if (zoomItem) zoomItem.classList.add('disabled');
         if (snapItem) snapItem.classList.add('disabled');
+        if (recItem) recItem.classList.add('disabled');
+      }
+      if (!isMediaRecorderSupported) {
+        const recItem = menu.querySelector('[data-menu="rec"]');
         if (recItem) recItem.classList.add('disabled');
       }
     }
@@ -1250,26 +1345,48 @@
     if (mZoom) {
       const isZoomed = !!(item && item.digitalZoom && item.digitalZoom.active);
       const scaleVal = isZoomed ? `${Math.round(item.digitalZoom.scale * 10) / 10}x` : '';
-      mZoom.innerHTML = `<span>🔍</span> Digital Zoom ${isZoomed ? `<span class="menu-check">✓ ${scaleVal}</span>` : ''}`;
+      const statusLabel = !isFeedReady ? '(Offline)' : (isZoomed ? `✓ ${scaleVal}` : '');
+      mZoom.innerHTML = `<span>🔍</span> Digital Zoom ${statusLabel ? `<span class="${isZoomed ? 'menu-check' : 'menu-val'}">${statusLabel}</span>` : ''}`;
     }
 
     const mPtz = menu.querySelector('[data-menu="ptz"]');
     if (mPtz) {
       const drawer = document.getElementById('gpu-ptz-drawer');
       const isOpen = drawer && !drawer.classList.contains('hidden');
-      mPtz.innerHTML = `<span>🎮</span> PTZ Controller ${isOpen ? '<span class="menu-check">✓ Open</span>' : ''}`;
+      const statusLabel = !isPtzSupported ? '(Fixed Lens)' : (isOpen ? '✓ Open' : '');
+      mPtz.innerHTML = `<span>🎮</span> PTZ Controller ${statusLabel ? `<span class="${isOpen ? 'menu-check' : 'menu-val'}">${statusLabel}</span>` : ''}`;
     }
 
     const mAudio = menu.querySelector('[data-menu="audio"]');
     if (mAudio) {
       const isLive = !!(item && !item.audioMuted);
-      mAudio.innerHTML = `<span>🔊</span> Live Audio ${isLive ? '<span class="menu-check">✓ Live</span>' : '<span class="menu-val">Muted</span>'}`;
+      let statusLabel = 'Muted';
+      let statusClass = 'menu-val';
+      if (!isAudioSupported) {
+        statusLabel = '(No Mic)';
+      } else if (!isFeedReady) {
+        statusLabel = '(Connecting)';
+      } else if (isLive) {
+        statusLabel = '✓ Live';
+        statusClass = 'menu-check';
+      }
+      mAudio.innerHTML = `<span>🔊</span> Live Audio <span class="${statusClass}">${statusLabel}</span>`;
     }
 
     const mRec = menu.querySelector('[data-menu="rec"]');
     if (mRec) {
       const isRecording = !!(item && item.recording && item.recording.active);
-      mRec.innerHTML = `<span>⏺</span> Record Clip ${isRecording ? '<span class="menu-rec">🔴 Recording</span>' : ''}`;
+      let statusLabel = '';
+      let statusClass = 'menu-val';
+      if (!isMediaRecorderSupported) {
+        statusLabel = '(Unsupported)';
+      } else if (!isFeedReady) {
+        statusLabel = '(Offline)';
+      } else if (isRecording) {
+        statusLabel = '🔴 Recording';
+        statusClass = 'menu-rec';
+      }
+      mRec.innerHTML = `<span>⏺</span> Record Clip ${statusLabel ? `<span class="${statusClass}">${statusLabel}</span>` : ''}`;
     }
 
     menu.style.left = `${Math.min(window.innerWidth - 190, e.clientX)}px`;
@@ -1409,8 +1526,18 @@
         }
       };
 
+      const onStreamFailed = () => {
+        item.videoPlaying = false;
+        updateSlotBadges(slotIndex);
+        if (slotIndex === state.selectedSlotIndex) {
+          updateBottomDock();
+        }
+      };
+
       player.video.addEventListener('playing', onStreamReady, { once: true });
       player.video.addEventListener('loadeddata', onStreamReady, { once: true });
+      player.video.addEventListener('error', onStreamFailed);
+      player.video.addEventListener('ended', onStreamFailed);
     }
 
     updateSlotBadges(slotIndex);

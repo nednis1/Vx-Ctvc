@@ -1271,7 +1271,13 @@ video::-webkit-media-controls-fullscreen-button {
 
 /* Disabled / Greyed-out state for buttons and controls */
 .gpu-dock-btn:disabled,
-.gpu-dock-btn.disabled {
+.gpu-dock-btn.disabled,
+.ptz-btn:disabled,
+.ptz-btn.disabled,
+.ptz-zoom-btn:disabled,
+.ptz-zoom-btn.disabled,
+.ptz-preset-btn:disabled,
+.ptz-preset-btn.disabled {
   opacity: 0.28 !important;
   cursor: not-allowed !important;
   pointer-events: none !important;
@@ -1282,11 +1288,29 @@ video::-webkit-media-controls-fullscreen-button {
   box-shadow: none !important;
 }
 
+.gpu-dock-btn:disabled .dock-btn-dot,
+.gpu-dock-btn.disabled .dock-btn-dot {
+  opacity: 0.15 !important;
+  background: #475569 !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
 .gpu-menu-item.disabled {
-  opacity: 0.3 !important;
+  opacity: 0.28 !important;
   cursor: not-allowed !important;
   pointer-events: none !important;
   color: #64748b !important;
+  filter: grayscale(1) !important;
+}
+
+.gpu-menu-item.disabled .menu-check,
+.gpu-menu-item.disabled .menu-val,
+.gpu-menu-item.disabled .menu-rec {
+  opacity: 0.4 !important;
+  filter: grayscale(1) !important;
+  color: #64748b !important;
+  background: transparent !important;
 }
 
 /* Subtle PTZ Badge in Camera Tree */
