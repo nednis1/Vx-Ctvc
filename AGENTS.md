@@ -20,6 +20,34 @@ Instructions, operational constraints, and architecture guidelines for AI agents
 
 ---
 
+## 🔄 Git Workflow: Detailed Commit & Push Policy
+
+> [!IMPORTANT]
+> **COMMIT AND PUSH AFTER EVERY SYSTEM CHANGE.**
+>
+> - After every system change, feature implementation, bug fix, or configuration update, AI agents **MUST commit and push** all affected files to the remote repository (`main`).
+> - Commit messages must be **properly detailed and descriptive**, adhering to conventional commit guidelines (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`) to clearly state what was modified and why.
+> - Never leave finished work uncommitted or unpushed in the workspace.
+>
+> **Standard execution workflow:**
+> ```powershell
+> # 1. Static validation (never boot the server)
+> node --check server.js
+> node --check public/js/gpu-wall.js
+> node --check public/js/app.js
+>
+> # 2. Stage modified and new files
+> git add <files>
+>
+> # 3. Detailed commit
+> git commit -m "<type>(<scope>): <properly detailed explanation of changes>"
+>
+> # 4. Push to remote
+> git push origin main
+> ```
+
+---
+
 ## 🏛️ System Architecture
 
 This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remote Console Dashboard** designed for dual Dahua NVRs:
