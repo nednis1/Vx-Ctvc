@@ -11,18 +11,19 @@
   const PRESETS_STORAGE_KEY = 'voscctv_gpu_wall_presets';
 
   const state = {
-    split: 4,                  // 1, 4, 9, 16, 25, 32
+    split: 4,                  // 1, 2, 4, 6, 9, 16, 25, 32
     previousSplit: 4,          // For double-click 1x1 zoom toggle
+    columnMode: 'auto',        // 'auto', 2, 3
     focusedSlotIndex: null,    // If zoomed to single slot (0..31)
     selectedSlotIndex: 0,      // Which slot receives next camera click
     globalAspect: 'contain',   // 'contain' (Fit 16:9), 'fill' (Stretch), 'cover' (Crop)
     slots: {},                 // slotIndex -> slotState
     cameraNames: { nvr1: {}, nvr2: {} },
     capabilities: { nvr1: {}, nvr2: {} }, // channel -> { ptz: boolean, audio: boolean }
-    viewPresets: { default: { name: 'Default', split: 4, slots: {} } },
+    viewPresets: { default: { name: 'Default', split: 4, columnMode: 'auto', slots: {} } },
     currentPresetId: 'default',
     tour: { active: false, timer: null, intervalMs: 15000, offset: 0 },
-    drawerOpen: false,
+    drawerOpen: true,
     longPressTimer: null
   };
 
@@ -82,6 +83,7 @@
 
       const data = {
         split: state.split,
+        columnMode: state.columnMode,
         globalAspect: state.globalAspect,
         slots: serializableSlots
       };
@@ -100,8 +102,11 @@
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.split && [1, 4, 9, 16, 25, 32].includes(parsed.split)) {
+        if (parsed.split && [1, 2, 4, 6, 9, 16, 25, 32].includes(parsed.split)) {
           state.split = parsed.split;
+        }
+        if (parsed.columnMode && ['auto', 2, 3].includes(parsed.columnMode)) {
+          state.columnMode = parsed.columnMode;
         }
         if (parsed.globalAspect && ['contain', 'fill', 'cover'].includes(parsed.globalAspect)) {
           state.globalAspect = parsed.globalAspect;
@@ -483,6 +488,29 @@
     document.querySelectorAll('.gpu-aspect-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.aspect === state.globalAspect);
     });
+  }
+
+  function updateColumnModeUI() {
+    document.querySelectorAll('.gpu-col-btn').forEach((btn) => {
+      const mode = btn.dataset.cols;
+      const isMatch = (mode === 'auto' && state.columnMode === 'auto') ||
+                      (mode === '2' && state.columnMode === 2) ||
+                      (mode === '3' && state.columnMode === 3);
+      btn.classList.toggle('active', isMatch);
+    });
+  }
+
+  function setColumnMode(mode) {
+    if (mode === 2 || mode === '2') {
+      state.columnMode = 2;
+    } else if (mode === 3 || mode === '3') {
+      state.columnMode = 3;
+    } else {
+      state.columnMode = 'auto';
+    }
+    updateColumnModeUI();
+    saveLayout();
+    renderGrid();
   }
 
   function cycleSlotAspect(slotIndex) {
@@ -1050,6 +1078,7 @@
     state.viewPresets[id] = {
       name: name.trim(),
       split: state.split,
+      columnMode: state.columnMode,
       globalAspect: state.globalAspect,
       slots: serializableSlots
     };
@@ -1070,8 +1099,10 @@
     clearAll();
 
     state.split = preset.split || 4;
+    state.columnMode = preset.columnMode || 'auto';
     state.globalAspect = preset.globalAspect || 'contain';
     updateGlobalAspectUI();
+    updateColumnModeUI();
 
     if (preset.slots) {
       Object.keys(preset.slots).forEach((idx) => {
@@ -1253,7 +1284,10 @@
     gridContainer.innerHTML = '';
 
     const effectiveSplit = state.focusedSlotIndex !== null ? 1 : state.split;
-    gridContainer.className = `gpu-grid-container split-${effectiveSplit}`;
+    const colClass = state.focusedSlotIndex !== null
+      ? 'cols-auto'
+      : (state.columnMode === 2 ? 'cols-2' : state.columnMode === 3 ? 'cols-3' : 'cols-auto');
+    gridContainer.className = `gpu-grid-container split-${effectiveSplit} ${colClass}`;
 
     const totalSlots = effectiveSplit;
 
@@ -1304,6 +1338,7 @@
     });
 
     updateGlobalAspectUI();
+    updateColumnModeUI();
   }
 
   function setSplit(split) {
@@ -1346,6 +1381,12 @@
     }
 
     sidebar.classList.toggle('drawer-open', state.drawerOpen);
+    sidebar.classList.toggle('collapsed', !state.drawerOpen);
+
+    const toggleIcon = document.getElementById('gpu-drawer-toggle-icon');
+    if (toggleIcon) {
+      toggleIcon.textContent = state.drawerOpen ? '◀' : '▶';
+    }
   }
 
   function stopAll() {
@@ -1370,12 +1411,14 @@
       await Promise.all([loadCameraNames(), loadCameraCapabilities()]);
       renderTree();
       restoreSavedLayout();
+      updateColumnModeUI();
       setupContextMenu();
       setupPtzButtons();
       renderGrid();
       updateBottomDock();
     },
     setSplit,
+    setColumnMode,
     selectSlot,
     assignCameraToSlot,
     assignCameraToSelectedSlot,

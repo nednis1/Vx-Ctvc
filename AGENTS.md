@@ -45,7 +45,10 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
 - **100% Full-Bleed Video (Zero Obstruction)**: Feed slots must display video unobstructed. No persistent top bars, overlay buttons, or controls over the video canvas.
 - **Docked Controls**: All active slot controls (1x1 focus, snapshot, manual record, aspect ratio, quality stream selector, digital zoom, PTZ, audio, close) reside in the dedicated bottom bar (`.gpu-dock-bar`).
 - **Aspect Ratio Control**: Support cycle between `contain` (Fit), `fill` (Stretch), and `cover` (Crop).
-- **Grid Layouts**: Central grid supports 1, 4, 9, 16, 25, and 32 split views.
+- **Grid Layouts & Dynamic Columns**: Central grid supports 1, 2, 4, 6, 9, 16, 25, and 32 split views.
+- **2-Column & 3-Column Dynamic UI**:
+  - **Feed Grid**: Explicit column mode toggles (`COLS: Auto | 2 Cols | 3 Cols`) allow forcing feeds into 2 or 3 wide columns. Container queries (`@container livewall`) reflow feeds dynamically into 2 columns on phones and 3 columns on tablets.
+  - **Workspace Layout**: On desktop ($\ge 1024\text{px}$), the PTZ inspector docks as an in-flow Column 3 (`gpu-sidebar` | `gpu-main-area` | `gpu-ptz-drawer`), dynamically adjusting the central video grid without covering feeds. Collapsing the sidebar smoothly transitions the workspace to a 1 or 2 column view.
 - **Mobile & Tablet Support**: Responsive layout with touch targets and collapsible sidebar for handheld devices.
 
 ### 3. Camera Name Synchronization
@@ -66,3 +69,4 @@ node --check public/js/app.js
 # Git status
 git status -s
 ```
+

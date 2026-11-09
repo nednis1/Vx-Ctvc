@@ -393,8 +393,16 @@ body {
   display: flex;
   flex-direction: column;
   z-index: 20;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+}
+
+.gpu-sidebar.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  overflow: hidden !important;
+  border-right: none !important;
 }
 
 .gpu-sidebar-header {
@@ -620,6 +628,8 @@ body {
   overflow: hidden;
   min-width: 0;
   position: relative;
+  container-type: inline-size;
+  container-name: livewall;
 }
 
 /* GPU Toolbar */
@@ -642,15 +652,23 @@ body {
 }
 
 .gpu-drawer-toggle-btn {
-  display: none; /* Shown on mobile/tablet */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(56, 189, 248, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.35);
   color: #38bdf8;
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border-radius: 4px;
   cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gpu-drawer-toggle-btn:hover {
+  background: rgba(56, 189, 248, 0.28);
+  color: #ffffff;
 }
 
 .gpu-toolbar-group {
@@ -736,14 +754,24 @@ body {
   box-sizing: border-box;
 }
 
-/* Split Layouts: 1, 4, 9, 16, 25, 32 */
+/* Split Layouts: 1, 2, 4, 6, 9, 16, 25, 32 */
 .gpu-grid-container.split-1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
 }
 
+.gpu-grid-container.split-2 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
 .gpu-grid-container.split-4 {
   grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.gpu-grid-container.split-6 {
+  grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(2, 1fr);
 }
 
@@ -765,6 +793,44 @@ body {
 .gpu-grid-container.split-32 {
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(4, 1fr);
+}
+
+/* Dynamic Column Mode Overrides (2 Columns & 3 Columns Dynamic UI) */
+.gpu-grid-container.cols-2:not(.split-1) {
+  grid-template-columns: repeat(2, 1fr) !important;
+  grid-template-rows: none !important;
+  grid-auto-rows: minmax(min(240px, 46vh), 1fr) !important;
+}
+
+.gpu-grid-container.cols-3:not(.split-1) {
+  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-rows: none !important;
+  grid-auto-rows: minmax(min(190px, 31vh), 1fr) !important;
+}
+
+/* Column Mode Selector Buttons */
+.gpu-col-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gpu-col-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.gpu-col-btn.active {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
 }
 
 /* Slot Tile (Base) */
@@ -1127,27 +1193,53 @@ video::-webkit-media-controls-fullscreen-button {
 }
 
 /* -------------------------------------------------------------
- * PTZ Side Drawer (Docked to Right, Completely Outside Video Grid)
+ * PTZ Side Drawer / Inspector (Column 3 in 3-Column Desktop UI)
  * ------------------------------------------------------------- */
 .gpu-ptz-drawer {
-  position: absolute;
-  right: 0;
-  top: 38px;
-  bottom: 38px;
-  width: 170px;
-  background: rgba(15, 23, 42, 0.98);
-  backdrop-filter: blur(12px);
-  border-left: 1px solid rgba(56, 189, 248, 0.35);
-  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.7);
+  width: 180px;
+  min-width: 180px;
+  height: 100%;
+  background: #090d16;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
-  z-index: 25;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 20;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
 }
 
-.gpu-ptz-drawer.hidden {
-  transform: translateX(100%);
-  pointer-events: none;
+@media (min-width: 1024px) {
+  .gpu-ptz-drawer {
+    position: relative;
+    top: 0;
+    bottom: 0;
+  }
+
+  .gpu-ptz-drawer.hidden {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .gpu-ptz-drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 220px;
+    background: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(12px);
+    border-left: 1px solid rgba(56, 189, 248, 0.35);
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.7);
+    z-index: 40;
+  }
+
+  .gpu-ptz-drawer.hidden {
+    transform: translateX(100%);
+    pointer-events: none;
+  }
 }
 
 .gpu-ptz-drawer-header {
@@ -1412,26 +1504,49 @@ video::-webkit-media-controls-fullscreen-button {
 
   /* Split 25 and 32 wrap sensibly on tablet */
   .gpu-grid-container.split-25 {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .gpu-grid-container.split-32 {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Container-query-driven dynamic 2-column & 3-column UI for Live Wall */
+@container livewall (max-width: 620px) {
+  /* Dynamic 2-column layout on mobile phones */
+  .gpu-grid-container.cols-auto:not(.split-1) {
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(min(160px, 40vh), 1fr) !important;
+  }
+}
+
+@container livewall (min-width: 621px) and (max-width: 1080px) {
+  /* Dynamic 3-column layout on tablets, iPads, and compact windows */
+  .gpu-grid-container.cols-auto.split-6,
+  .gpu-grid-container.cols-auto.split-9,
+  .gpu-grid-container.cols-auto.split-16,
+  .gpu-grid-container.cols-auto.split-25,
+  .gpu-grid-container.cols-auto.split-32 {
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(min(180px, 32vh), 1fr) !important;
+  }
+}
+
+@container livewall (max-width: 380px) {
+  /* Single-column fallback on ultra-narrow portrait devices */
+  .gpu-grid-container.cols-auto:not(.split-1) {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(min(200px, 45vh), 1fr) !important;
   }
 }
 
 @media (max-width: 768px) {
   .gpu-badge-indicator {
     display: none;
-  }
-
-  /* Single column or 2-column on mobile phones */
-  .gpu-grid-container.split-4,
-  .gpu-grid-container.split-9,
-  .gpu-grid-container.split-16,
-  .gpu-grid-container.split-25,
-  .gpu-grid-container.split-32 {
-    grid-template-columns: repeat(1, 1fr);
   }
 
   .gpu-tree-item {
@@ -1472,7 +1587,8 @@ video::-webkit-media-controls-fullscreen-button {
     display: none;
   }
 
-  .gpu-grid-container.split-4 {
+  .gpu-grid-container.cols-auto.split-4,
+  .gpu-grid-container.cols-auto.split-6 {
     grid-template-columns: repeat(2, 1fr) !important;
   }
 }

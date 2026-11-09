@@ -130,18 +130,27 @@
         <!-- Top Control Bar -->
         <div class="gpu-toolbar">
           <div class="gpu-toolbar-left">
-            <button class="gpu-drawer-toggle-btn" id="gpu-drawer-toggle" onclick="window.VOSCCTV_GPU_WALL.toggleDrawer()" title="Toggle Camera List">
-              <span>📹 Cameras</span>
+            <button class="gpu-drawer-toggle-btn" id="gpu-drawer-toggle" onclick="window.VOSCCTV_GPU_WALL.toggleDrawer()" title="Toggle Camera List Sidebar">
+              <span id="gpu-drawer-toggle-icon">◀</span> <span>Cameras</span>
             </button>
 
             <div class="gpu-toolbar-group">
               <span class="gpu-group-label">SPLIT:</span>
               <button class="gpu-split-btn" data-split="1" onclick="window.VOSCCTV_GPU_WALL.setSplit(1)">1</button>
+              <button class="gpu-split-btn" data-split="2" onclick="window.VOSCCTV_GPU_WALL.setSplit(2)">2</button>
               <button class="gpu-split-btn active" data-split="4" onclick="window.VOSCCTV_GPU_WALL.setSplit(4)">4</button>
+              <button class="gpu-split-btn" data-split="6" onclick="window.VOSCCTV_GPU_WALL.setSplit(6)">6</button>
               <button class="gpu-split-btn" data-split="9" onclick="window.VOSCCTV_GPU_WALL.setSplit(9)">9</button>
               <button class="gpu-split-btn" data-split="16" onclick="window.VOSCCTV_GPU_WALL.setSplit(16)">16</button>
               <button class="gpu-split-btn" data-split="25" onclick="window.VOSCCTV_GPU_WALL.setSplit(25)">25</button>
               <button class="gpu-split-btn" data-split="32" onclick="window.VOSCCTV_GPU_WALL.setSplit(32)">32</button>
+            </div>
+
+            <div class="gpu-toolbar-group" title="Dynamic Column Layout Mode">
+              <span class="gpu-group-label">COLS:</span>
+              <button class="gpu-col-btn active" data-cols="auto" onclick="window.VOSCCTV_GPU_WALL.setColumnMode('auto')" title="Auto Layout (Matches Split)">Auto</button>
+              <button class="gpu-col-btn" data-cols="2" onclick="window.VOSCCTV_GPU_WALL.setColumnMode(2)" title="Force 2 Columns Dynamic Grid">2 Cols</button>
+              <button class="gpu-col-btn" data-cols="3" onclick="window.VOSCCTV_GPU_WALL.setColumnMode(3)" title="Force 3 Columns Dynamic Grid">3 Cols</button>
             </div>
 
             <div class="gpu-toolbar-group" title="Video Aspect Ratio Mode">
@@ -227,38 +236,6 @@
           </div>
         </div>
 
-        <!-- Dedicated PTZ Side Flyout (Docked on Right Side, Completely Outside Video Grid) -->
-        <div class="gpu-ptz-drawer hidden" id="gpu-ptz-drawer">
-          <div class="gpu-ptz-drawer-header">
-            <span id="gpu-ptz-drawer-title">🎮 PTZ CONTROLLER</span>
-            <button class="gpu-ptz-drawer-close" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz(false)">✕</button>
-          </div>
-          <div class="gpu-ptz-drawer-body">
-            <div class="gpu-ptz-dpad">
-              <button class="ptz-btn" data-code="LeftUp">↖</button>
-              <button class="ptz-btn" data-code="Up">▲</button>
-              <button class="ptz-btn" data-code="RightUp">↗</button>
-              <button class="ptz-btn" data-code="Left">◀</button>
-              <div class="ptz-center">PTZ</div>
-              <button class="ptz-btn" data-code="Right">▶</button>
-              <button class="ptz-btn" data-code="LeftDown">↙</button>
-              <button class="ptz-btn" data-code="Down">▼</button>
-              <button class="ptz-btn" data-code="RightDown">↘</button>
-            </div>
-            <div class="gpu-ptz-zoom-ctrls">
-              <button class="ptz-zoom-btn" data-code="ZoomTele">Zoom +</button>
-              <button class="ptz-zoom-btn" data-code="ZoomWide">Zoom -</button>
-            </div>
-            <div class="gpu-ptz-presets">
-              <span>Preset:</span>
-              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(1)">1</button>
-              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(2)">2</button>
-              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(3)">3</button>
-              <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(4)">4</button>
-            </div>
-          </div>
-        </div>
-
         <!-- Custom VMS Right-Click Context Menu -->
         <div class="gpu-context-menu hidden" id="gpu-context-menu">
           <div class="gpu-menu-item" data-menu="1x1" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1()"><span>⛶</span> Toggle 1x1 Focus</div>
@@ -273,6 +250,38 @@
           <div class="gpu-menu-item danger" data-menu="close" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot()"><span>✕</span> Close Camera Feed</div>
         </div>
       </section>
+
+      <!-- Right Column: Dedicated PTZ Side Flyout (Docked 3-Column UI on Desktop) -->
+      <aside class="gpu-ptz-drawer hidden" id="gpu-ptz-drawer">
+        <div class="gpu-ptz-drawer-header">
+          <span id="gpu-ptz-drawer-title">🎮 PTZ CONTROLLER</span>
+          <button class="gpu-ptz-drawer-close" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz(false)">✕</button>
+        </div>
+        <div class="gpu-ptz-drawer-body">
+          <div class="gpu-ptz-dpad">
+            <button class="ptz-btn" data-code="LeftUp">↖</button>
+            <button class="ptz-btn" data-code="Up">▲</button>
+            <button class="ptz-btn" data-code="RightUp">↗</button>
+            <button class="ptz-btn" data-code="Left">◀</button>
+            <div class="ptz-center">PTZ</div>
+            <button class="ptz-btn" data-code="Right">▶</button>
+            <button class="ptz-btn" data-code="LeftDown">↙</button>
+            <button class="ptz-btn" data-code="Down">▼</button>
+            <button class="ptz-btn" data-code="RightDown">↘</button>
+          </div>
+          <div class="gpu-ptz-zoom-ctrls">
+            <button class="ptz-zoom-btn" data-code="ZoomTele">Zoom +</button>
+            <button class="ptz-zoom-btn" data-code="ZoomWide">Zoom -</button>
+          </div>
+          <div class="gpu-ptz-presets">
+            <span>Preset:</span>
+            <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(1)">1</button>
+            <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(2)">2</button>
+            <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(3)">3</button>
+            <button class="ptz-preset-btn" onclick="window.VOSCCTV_GPU_WALL.ptzGotoPreset(4)">4</button>
+          </div>
+        </div>
+      </aside>
     </div>
   </main>
 
