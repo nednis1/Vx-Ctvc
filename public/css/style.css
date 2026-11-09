@@ -167,6 +167,45 @@ body {
   color: #ffffff;
 }
 
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+  user-select: none;
+}
+
+.user-pill .user-icon {
+  font-size: 12px;
+}
+
+.user-pill .user-name {
+  color: #38bdf8;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.tool-btn.logout-btn {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tool-btn.logout-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
 /* Viewport Area */
 .viewport-area {
   flex: 1;
@@ -1977,6 +2016,24 @@ video::-webkit-media-controls-fullscreen-button {
     background: #e0f2fe;
     color: #0369a1;
     border-color: rgba(3, 105, 161, 0.25);
+  }
+  .user-pill {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #475569;
+  }
+  .user-pill .user-name {
+    color: #0284c7;
+  }
+  .tool-btn.logout-btn {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.25);
+    color: #dc2626;
+  }
+  .tool-btn.logout-btn:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
   }
   .gpu-badge {
     background: rgba(2, 132, 199, 0.12);

@@ -55,6 +55,10 @@
     </div>
 
     <div class="bar-right">
+      <div class="user-pill" id="user-pill" title="Active Console Operator">
+        <span class="user-icon" aria-hidden="true">👤</span>
+        <span class="user-name" id="user-name">admin</span>
+      </div>
       <button class="tool-btn theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch Light/Dark Mode" aria-label="Toggle theme">
         <span class="theme-icon" id="theme-toggle-icon">☀️</span>
         <span class="theme-label" id="theme-toggle-label">Light</span>
@@ -62,6 +66,10 @@
       <button class="tool-btn" onclick="openDirectTab()" title="Open active NVR in direct browser tab">↗ Direct Tab</button>
       <button class="tool-btn" onclick="reloadActive()" title="Reload active session">↻ Reload</button>
       <button class="tool-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶ Fullscreen</button>
+      <button class="tool-btn logout-btn" id="logout-btn" onclick="handleLogout()" title="Sign out of console">
+        <span>🚪</span>
+        <span>Logout</span>
+      </button>
     </div>
   </header>
 

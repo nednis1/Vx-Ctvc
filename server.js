@@ -8,6 +8,29 @@ const path = require('path');
 const zlib = require('zlib');
 const go2rtcManager = require('./go2rtc-manager');
 
+// Load environment variables from .env if present
+function loadEnv() {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    try {
+      const content = fs.readFileSync(envPath, 'utf8');
+      content.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          const val = trimmed.slice(eqIdx + 1).trim().replace(/^['"](.*)['"]$/, '$1');
+          if (key && process.env[key] === undefined) {
+            process.env[key] = val;
+          }
+        }
+      });
+    } catch(e) {}
+  }
+}
+loadEnv();
+
 // Custom Camera Names file persistence
 const CAMERA_NAMES_FILE = path.join(__dirname, 'camera_names.json');
 function loadCustomNames() {
@@ -26,7 +49,12 @@ function saveCustomNames(data) {
 
 // Configuration
 const CONFIG = {
-  dashboardPort: process.env.PORT || 8090,
+  dashboardPort: parseInt(process.env.PORT, 10) || 8090,
+  authEnabled: process.env.AUTH_ENABLED !== 'false',
+  dashboardUser: process.env.DASHBOARD_USER || 'admin',
+  dashboardPassword: process.env.DASHBOARD_PASSWORD || 'admin',
+  nvrUser: process.env.NVR_USER || 'iot',
+  nvrPassword: process.env.NVR_PASSWORD || 'iot12345',
   nvrs: [
     {
       id: 'nvr1',
@@ -52,6 +80,66 @@ const CONFIG = {
     }
   ]
 };
+
+// -------------------------------------------------------------
+// Session Management & Dashboard Authentication
+// -------------------------------------------------------------
+const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+let activeSessions = {};
+
+function loadSessions() {
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      activeSessions = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    activeSessions = {};
+  }
+}
+
+function saveSessions() {
+  try {
+    const now = Date.now();
+    Object.keys(activeSessions).forEach(id => {
+      if (activeSessions[id].expires < now) delete activeSessions[id];
+    });
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(activeSessions), 'utf8');
+  } catch (e) {}
+}
+loadSessions();
+
+function parseCookies(req) {
+  const list = {};
+  const rc = req.headers && req.headers.cookie;
+  if (rc) {
+    rc.split(';').forEach(cookie => {
+      const parts = cookie.split('=');
+      const key = parts.shift().trim();
+      const val = decodeURIComponent(parts.join('='));
+      if (key) list[key] = val;
+    });
+  }
+  return list;
+}
+
+function getSessionFromRequest(req) {
+  const cookies = parseCookies(req);
+  const sessionId = cookies['voscctv_session'];
+  if (!sessionId) return null;
+  const sess = activeSessions[sessionId];
+  if (!sess) return null;
+  if (sess.expires < Date.now()) {
+    delete activeSessions[sessionId];
+    saveSessions();
+    return null;
+  }
+  return sess;
+}
+
+function isValidSession(req) {
+  if (!CONFIG.authEnabled) return true;
+  return Boolean(getSessionFromRequest(req));
+}
 
 // -------------------------------------------------------------
 // 1. Setup Reverse Proxies for NVRs
@@ -154,6 +242,97 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json());
+
+// -------------------------------------------------------------
+// Authentication Endpoints & Route Guards
+// -------------------------------------------------------------
+
+// API: Process user login
+app.post('/api/login', (req, res) => {
+  const { username, password, remember } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password required' });
+  }
+
+  const validUsers = [
+    { user: CONFIG.dashboardUser, pass: CONFIG.dashboardPassword, role: 'admin' },
+    { user: CONFIG.nvrUser, pass: CONFIG.nvrPassword, role: 'admin' }
+  ];
+
+  const matched = validUsers.find(
+    u => u.user.toLowerCase() === username.trim().toLowerCase() && u.pass === password
+  );
+
+  if (!matched) {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  const sessionId = crypto.randomBytes(32).toString('hex');
+  const ttlMs = remember ? (30 * 24 * 3600 * 1000) : (24 * 3600 * 1000);
+  activeSessions[sessionId] = {
+    username: matched.user,
+    role: matched.role,
+    created: Date.now(),
+    expires: Date.now() + ttlMs
+  };
+  saveSessions();
+
+  const maxAgeSec = Math.floor(ttlMs / 1000);
+  res.setHeader('Set-Cookie', `voscctv_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`);
+  return res.json({ success: true, user: { username: matched.user, role: matched.role } });
+});
+
+// API: Logout & invalidate session
+app.post('/api/logout', (req, res) => {
+  const cookies = parseCookies(req);
+  const sessionId = cookies['voscctv_session'];
+  if (sessionId && activeSessions[sessionId]) {
+    delete activeSessions[sessionId];
+    saveSessions();
+  }
+  res.setHeader('Set-Cookie', 'voscctv_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.json({ success: true });
+});
+
+// API: Check current session status
+app.get('/api/auth-status', (req, res) => {
+  if (!CONFIG.authEnabled) {
+    return res.json({ authRequired: false, authenticated: true, user: { username: 'kiosk', role: 'admin' } });
+  }
+  const sess = getSessionFromRequest(req);
+  if (!sess) {
+    return res.json({ authRequired: true, authenticated: false, user: null });
+  }
+  res.json({ authRequired: true, authenticated: true, user: { username: sess.username, role: sess.role } });
+});
+
+// Route Guard: Redirect unauthenticated requests to login page
+app.get(['/', '/index.html'], (req, res, next) => {
+  if (CONFIG.authEnabled && !isValidSession(req)) {
+    return res.redirect('/login.html');
+  }
+  next();
+});
+
+// Route Guard: Redirect authenticated users away from login page
+app.get('/login.html', (req, res, next) => {
+  if (CONFIG.authEnabled && isValidSession(req)) {
+    return res.redirect('/');
+  }
+  next();
+});
+
+// API Guard: protect all other /api routes
+app.use('/api', (req, res, next) => {
+  if (req.path === '/login' || req.path === '/logout' || req.path === '/auth-status') {
+    return next();
+  }
+  if (CONFIG.authEnabled && !isValidSession(req)) {
+    return res.status(401).json({ error: 'Unauthorized: Authentication required' });
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function createNvrProxy(nvr) {
@@ -242,6 +421,12 @@ function createNvrProxy(nvr) {
   }
 
   const server = http.createServer({ insecureHTTPParser: true }, async (req, res) => {
+    // Check dashboard authentication for NVR proxies if auth is enabled
+    if (CONFIG.authEnabled && !isValidSession(req)) {
+      res.writeHead(401, { 'Content-Type': 'text/plain' });
+      return res.end('Unauthorized: Please log in to VOSCCTV console first.');
+    }
+
     // 0. Handle all /api/ requests from inside Dahua iframes directly via Express
     if (req.url && req.url.startsWith('/api/')) {
       return app(req, res);
@@ -600,6 +785,11 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
 
   // WebSocket support (Crucial for Dahua live Web 5.0 streaming!)
   server.on('upgrade', (req, socket, head) => {
+    if (CONFIG.authEnabled && !isValidSession(req)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     socket.setTimeout(0);
     socket.setNoDelay(true);
     proxy.ws(req, socket, head);
@@ -924,6 +1114,7 @@ app.post('/api/rename-nvr-camera', async (req, res) => {
 const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   console.log(`====================================================`);
   console.log(`[VOSCTV NVR DASHBOARD] Running at http://localhost:${CONFIG.dashboardPort}`);
+  console.log(`- Authentication: ${CONFIG.authEnabled ? 'ENABLED (Dashboard login enforced)' : 'DISABLED (Kiosk mode)'}`);
   console.log(`- NVR 1 (${CONFIG.nvrs[0].ip}) Proxy: http://localhost:${CONFIG.nvrs[0].proxyPort}`);
   console.log(`- NVR 2 (${CONFIG.nvrs[1].ip}) Proxy: http://localhost:${CONFIG.nvrs[1].proxyPort}`);
   console.log(`- WebRTC GPU Stream Gateway: Enabled via go2rtc`);
@@ -933,7 +1124,7 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
 
   // Setup go2rtc WebRTC GPU Bridge
   try {
-    go2rtcManager.setupGo2rtcProxy(app, dashboardServer);
+    go2rtcManager.setupGo2rtcProxy(app, dashboardServer, isValidSession);
     go2rtcManager.startGo2rtc(CONFIG.nvrs);
   } catch (err) {
     console.warn('[go2rtc] Initialization warning:', err.message);

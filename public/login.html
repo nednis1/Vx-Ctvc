@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sign In - VOSCCTV Console</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#EF4444">
+  <meta name="color-scheme" content="dark light">
+  <script>
+    try {
+      const theme = localStorage.getItem('voscctv_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+      const meta = document.querySelector('meta[name="color-scheme"]');
+      if (meta) meta.content = theme;
+    } catch(e) {}
+  </script>
+  <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+
+  <!-- Top bar controls (Theme toggle) -->
+  <header class="login-top-bar">
+    <button type="button" class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch Light/Dark Mode" aria-label="Toggle theme">
+      <span class="theme-icon" id="theme-toggle-icon">☀️</span>
+      <span class="theme-label" id="theme-toggle-label">Light</span>
+    </button>
+  </header>
+
+  <!-- Login Card -->
+  <main class="login-card" role="main">
+    <div class="login-header">
+      <div class="login-brand-icon" aria-hidden="true">
+        <!-- SVG CCTV Camera Icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M18 10.48V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4.48l4 3.98v-11l-4 3.98zM14 16H4V8h10v8z"/>
+        </svg>
+      </div>
+      <h1 class="login-title">VOSC<span class="accent">CTV</span></h1>
+      <p class="login-subtitle">Dahua Dual NVR Surveillance Console</p>
+      <div class="security-badge">
+        <span class="security-badge-dot"></span>
+        <span>Hardware Security Gateway</span>
+      </div>
+    </div>
+
+    <!-- Error Alert Banner -->
+    <div class="login-error-banner" id="error-banner" role="alert" aria-live="assertive">
+      <span class="error-icon">⚠️</span>
+      <span id="error-message">Invalid username or password.</span>
+    </div>
+
+    <!-- Login Form -->
+    <form id="login-form" onsubmit="handleLogin(event)" autocomplete="on" novalidate>
+      <div class="form-group">
+        <label for="username" class="form-label">Username / Operator ID</label>
+        <div class="input-wrapper">
+          <span class="input-icon" aria-hidden="true">👤</span>
+          <input 
+            type="text" 
+            id="username" 
+            name="username" 
+            class="form-input" 
+            placeholder="e.g. admin" 
+            required 
+            autofocus 
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+          >
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Password</label>
+        <div class="input-wrapper">
+          <span class="input-icon" aria-hidden="true">🔒</span>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            class="form-input" 
+            placeholder="Enter password" 
+            required 
+            autocomplete="current-password"
+          >
+          <button 
+            type="button" 
+            class="password-toggle-btn" 
+            id="password-toggle-btn" 
+            onclick="togglePasswordVisibility()" 
+            title="Toggle password visibility" 
+            aria-label="Toggle password visibility"
+          >
+            👁️
+          </button>
+        </div>
+      </div>
+
+      <div class="form-options-row">
+        <label class="checkbox-label" for="remember-me">
+          <input type="checkbox" id="remember-me" name="remember" class="checkbox-input" checked>
+          <span>Remember this device (30 days)</span>
+        </label>
+      </div>
+
+      <button type="submit" class="login-submit-btn" id="submit-btn">
+        <span class="btn-spinner" id="btn-spinner" aria-hidden="true"></span>
+        <span class="btn-text" id="btn-text">Sign In to Console</span>
+        <span class="btn-arrow" aria-hidden="true">→</span>
+      </button>
+    </form>
+
+    <footer class="login-footer">
+      <p class="login-footer-text">Protected Dahua Gateway · Encrypted Digest Relays</p>
+      <p class="login-footer-hint">Default console login: <code>admin</code> / <code>admin</code> or NVR credentials</p>
+    </footer>
+  </main>
+
+  <script>
+    // Theme Management
+    function getActiveTheme() {
+      return document.documentElement.getAttribute('data-theme') || 'dark';
+    }
+
+    function setTheme(theme) {
+      const target = theme === 'light' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', target);
+      try {
+        localStorage.setItem('voscctv_theme', target);
+        const meta = document.querySelector('meta[name="color-scheme"]');
+        if (meta) meta.content = target;
+      } catch (e) {}
+      updateThemeUI(target);
+    }
+
+    function toggleTheme() {
+      const current = getActiveTheme();
+      setTheme(current === 'light' ? 'dark' : 'light');
+    }
+
+    function updateThemeUI(theme) {
+      const icon = document.getElementById('theme-toggle-icon');
+      const label = document.getElementById('theme-toggle-label');
+      if (icon) icon.textContent = theme === 'light' ? '🌙' : '☀️';
+      if (label) label.textContent = theme === 'light' ? 'Dark' : 'Light';
+    }
+
+    // Initialize Theme
+    (function initTheme() {
+      let saved = 'dark';
+      try {
+        saved = localStorage.getItem('voscctv_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      } catch (e) {}
+      setTheme(saved);
+    })();
+
+    // Password visibility toggle
+    function togglePasswordVisibility() {
+      const passwordInput = document.getElementById('password');
+      const toggleBtn = document.getElementById('password-toggle-btn');
+      if (!passwordInput || !toggleBtn) return;
+      
+      const isPassword = passwordInput.type === 'password';
+      passwordInput.type = isPassword ? 'text' : 'password';
+      toggleBtn.textContent = isPassword ? '🙈' : '👁️';
+      toggleBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+    }
+
+    // Check if user is already authenticated
+    (async function checkExistingAuth() {
+      try {
+        const res = await fetch('/api/auth-status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated || data.authRequired === false) {
+            window.location.replace('/');
+          }
+        }
+      } catch (e) {}
+    })();
+
+    // Form Submission
+    async function handleLogin(e) {
+      e.preventDefault();
+
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      const rememberCheckbox = document.getElementById('remember-me');
+      const errorBanner = document.getElementById('error-banner');
+      const errorMessage = document.getElementById('error-message');
+      const submitBtn = document.getElementById('submit-btn');
+
+      const username = usernameInput ? usernameInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
+      const remember = rememberCheckbox ? rememberCheckbox.checked : true;
+
+      if (!username || !password) {
+        showError('Please enter both username and password.');
+        if (!username) usernameInput.focus();
+        else passwordInput.focus();
+        return;
+      }
+
+      // Set Loading State
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('loading');
+      }
+      hideError();
+
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, password, remember })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.success) {
+          // Redirect to main console dashboard
+          window.location.replace('/');
+        } else {
+          showError(data.error || 'Invalid credentials. Please verify username and password.');
+          if (passwordInput) {
+            passwordInput.value = '';
+            passwordInput.focus();
+          }
+        }
+      } catch (err) {
+        showError('Could not reach VOSCCTV server. Please verify network connectivity.');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('loading');
+        }
+      }
+    }
+
+    function showError(msg) {
+      const banner = document.getElementById('error-banner');
+      const msgEl = document.getElementById('error-message');
+      if (msgEl) msgEl.textContent = msg;
+      if (banner) {
+        banner.classList.remove('visible');
+        void banner.offsetWidth; // Re-trigger shake animation
+        banner.classList.add('visible');
+      }
+    }
+
+    function hideError() {
+      const banner = document.getElementById('error-banner');
+      if (banner) banner.classList.remove('visible');
+    }
+  </script>
+</body>
+</html>

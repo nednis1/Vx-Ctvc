@@ -154,9 +154,12 @@ function stopGo2rtc() {
 /**
  * Setup HTTP & WebSocket proxy routes inside Express and Dashboard HTTP Server
  */
-function setupGo2rtcProxy(app, server) {
+function setupGo2rtcProxy(app, server, authCheckFn) {
   // 1. Relay HTTP endpoints (/api/go2rtc/* -> http://127.0.0.1:1984/api/*)
   app.all('/api/go2rtc*', (req, res) => {
+    if (typeof authCheckFn === 'function' && !authCheckFn(req)) {
+      return res.status(401).json({ error: 'Unauthorized: Authentication required' });
+    }
     req.url = req.url.replace(/^\/api\/go2rtc/, '/api');
     go2rtcProxy.web(req, res);
   });
@@ -164,6 +167,11 @@ function setupGo2rtcProxy(app, server) {
   // 2. Handle WebSocket upgrades for MSE or WebRTC data channels (/api/go2rtc/ws)
   server.on('upgrade', (req, socket, head) => {
     if (req.url && (req.url.startsWith('/api/go2rtc') || req.url.startsWith('/api/ws'))) {
+      if (typeof authCheckFn === 'function' && !authCheckFn(req)) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
       req.url = req.url.replace(/^\/api\/go2rtc/, '/api');
       go2rtcProxy.ws(req, socket, head);
     }

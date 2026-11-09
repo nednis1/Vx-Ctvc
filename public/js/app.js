@@ -294,6 +294,43 @@ function initTheme() {
 }
 
 /**
+ * Authentication & Session Management
+ */
+async function initAuth() {
+  try {
+    const res = await fetch('/api/auth-status');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.authRequired && !data.authenticated) {
+        window.location.replace('/login.html');
+        return;
+      }
+      const userPill = document.getElementById('user-pill');
+      const userName = document.getElementById('user-name');
+      if (userName && data.user && data.user.username) {
+        userName.textContent = data.user.username;
+      }
+      if (userPill) {
+        userPill.style.display = data.authRequired ? 'inline-flex' : 'none';
+      }
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.style.display = data.authRequired ? 'inline-flex' : 'none';
+      }
+    }
+  } catch (err) {
+    console.warn('[VOSCTV] Auth status check error:', err);
+  }
+}
+
+async function handleLogout() {
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+  } catch (e) {}
+  window.location.replace('/login.html');
+}
+
+/**
  * Periodic health checker for tab status dots: Solid Green (Online) or Grey (Dead)
  */
 function pollHealth() {
@@ -352,6 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // Initialize Authentication state
+  initAuth();
 
   // Initialize Light / Dark theme state
   initTheme();
