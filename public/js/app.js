@@ -9,7 +9,7 @@ const NVR2_URL = `http://${host}:8092/`;
 const TIMEOUT_MS = 14000;      // 14s timeout
 const STATUS_POLL_MS = 15000;  // 15s health check
 
-let currentTab = 'nvr1';
+let currentTab = 'gpu';
 
 const nvrState = {
   nvr1: {
@@ -291,8 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Initially load NVR 1
-  ensureFrameLoaded('nvr1');
+  // Initially load Live Wall as default landing view
+  switchTab('gpu');
 
   // Immediate health check and setup periodic health polling
   pollHealth();
@@ -300,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Setup keyboard shortcuts
   window.addEventListener('keydown', (e) => {
+    if (e.altKey && (e.key === '0' || e.key.toLowerCase() === 'w' || e.key.toLowerCase() === 'g')) switchTab('gpu');
     if (e.altKey && e.key === '1') switchTab('nvr1');
     if (e.altKey && e.key === '2') switchTab('nvr2');
     if (e.altKey && e.key.toLowerCase() === 's') switchTab('split');

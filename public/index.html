@@ -23,7 +23,12 @@
       </div>
 
       <nav class="session-tabs">
-        <button class="session-tab active" id="tab-nvr1" onclick="switchTab('nvr1')">
+        <button class="session-tab active" id="tab-gpu" onclick="switchTab('gpu')">
+          <span class="gpu-badge">GPU</span>
+          <span>Live Wall (GPU)</span>
+        </button>
+
+        <button class="session-tab" id="tab-nvr1" onclick="switchTab('nvr1')">
           <span class="dot online" id="dot-nvr1" title="Online"></span>
           <span>NVR 1 (192.168.1.200)</span>
         </button>
@@ -37,11 +42,6 @@
           <span class="split-icon">⬚⬚</span>
           <span>Split View</span>
         </button>
-
-        <button class="session-tab" id="tab-gpu" onclick="switchTab('gpu')">
-          <span class="gpu-badge">GPU</span>
-          <span>Live Wall (GPU)</span>
-        </button>
       </nav>
     </div>
 
@@ -53,7 +53,7 @@
   </header>
 
   <!-- Main Viewports (Shared Persistent NVR Sessions Across Single & Split Views) -->
-  <main class="viewport-area" id="viewport-area" data-view="nvr1">
+  <main class="viewport-area" id="viewport-area" data-view="gpu">
     <!-- NVR 1 Session Pane -->
     <div class="nvr-pane" id="pane-nvr1">
       <div class="split-title">NVR 1 (192.168.1.200)</div>
