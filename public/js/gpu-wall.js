@@ -966,6 +966,9 @@
         titleEl.textContent = '🎮 PTZ CONTROLLER';
       }
     }
+    setTimeout(() => {
+      adjustGridLayout();
+    }, 180);
   }
 
   async function sendPtzCommand(slotIndex, code, action = 'start', arg1 = 0, arg2 = 5) {
@@ -1645,6 +1648,142 @@
 
     updateGlobalAspectUI();
     updateColumnModeUI();
+    adjustGridLayout();
+  }
+
+  const PREFERRED_COLS = {
+    1: [1],
+    2: [2, 1],
+    4: [2, 4, 1],
+    6: [3, 2, 6, 1],
+    9: [3, 2, 4, 1],
+    16: [4, 5, 3, 2, 8],
+    25: [5, 6, 4, 3],
+    32: [8, 6, 4, 3]
+  };
+
+  /**
+   * Adjust grid columns and slot dimensions so CCTV feeds perfectly fit slot space
+   * without letterboxing or pillarboxing (strictly adhering to 16:9 Dahua camera aspect).
+   */
+  function adjustGridLayout() {
+    const gridContainer = document.getElementById('gpu-grid-container');
+    if (!gridContainer) return;
+
+    const effectiveSplit = state.focusedSlotIndex !== null ? 1 : state.split;
+    const totalSlots = effectiveSplit;
+    if (totalSlots <= 0) return;
+
+    const containerW = gridContainer.clientWidth;
+    const containerH = gridContainer.clientHeight;
+    if (containerW <= 0 || containerH <= 0) return;
+
+    const gap = 4;
+    const pad = 8; // 4px padding each side
+    const availW = Math.max(containerW - pad, 60);
+    const availH = Math.max(containerH - pad, 60);
+    const targetAspect = 16 / 9;
+
+    let bestCols = 1;
+    let bestSlotW = 0;
+    let bestSlotH = 0;
+    let bestArea = -1;
+
+    let candidateCols = [];
+
+    if (state.focusedSlotIndex !== null || effectiveSplit === 1) {
+      candidateCols = [1];
+    } else if (state.columnMode === 2) {
+      candidateCols = [2];
+    } else if (state.columnMode === 3) {
+      candidateCols = [3];
+    } else {
+      // 'auto' mode: evaluate aspect-fitting candidate columns
+      if (PREFERRED_COLS[effectiveSplit]) {
+        candidateCols = PREFERRED_COLS[effectiveSplit];
+      } else {
+        for (let c = 1; c <= Math.min(totalSlots, 12); c++) {
+          candidateCols.push(c);
+        }
+      }
+    }
+
+    // Evaluate candidate columns to find the one maximizing 16:9 CCTV video area
+    for (const c of candidateCols) {
+      const r = Math.ceil(totalSlots / c);
+      const maxW_fromWidth = (availW - (c - 1) * gap) / c;
+      const maxH_fromHeight = (availH - (r - 1) * gap) / r;
+
+      if (maxW_fromWidth <= 0 || maxH_fromHeight <= 0) continue;
+
+      // Constrain slot dimensions so it is exactly targetAspect (16:9)
+      // and fits within available container width and height
+      const maxW_fromHeight = maxH_fromHeight * targetAspect;
+      const slotW = Math.min(maxW_fromWidth, maxW_fromHeight);
+      const slotH = slotW / targetAspect;
+
+      const area = slotW * slotH;
+
+      if (area > bestArea) {
+        bestArea = area;
+        bestCols = c;
+        bestSlotW = slotW;
+        bestSlotH = slotH;
+      }
+    }
+
+    // Fallback if container is extremely constrained
+    if (bestSlotW <= 0 || bestSlotH <= 0) {
+      bestCols = state.columnMode === 2 ? 2 : state.columnMode === 3 ? 3 : Math.min(totalSlots, 4);
+      bestSlotW = Math.max((availW - (bestCols - 1) * gap) / bestCols, 120);
+      bestSlotH = bestSlotW / targetAspect;
+    }
+
+    const totalRows = Math.ceil(totalSlots / bestCols);
+    const totalGridHeight = totalRows * bestSlotH + (totalRows - 1) * gap;
+    const overflowsY = totalGridHeight > availH + 2;
+
+    if (overflowsY && (state.columnMode === 2 || state.columnMode === 3 || totalSlots >= 16)) {
+      // When scrolling is required, slot width fills the column width,
+      // and slot height is exactly slotW / targetAspect (16:9)
+      const scrollSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
+      if (scrollSlotW > 100) {
+        bestSlotW = scrollSlotW;
+        bestSlotH = bestSlotW / targetAspect;
+      }
+      gridContainer.style.setProperty('align-content', 'start', 'important');
+    } else {
+      gridContainer.style.setProperty('align-content', 'center', 'important');
+    }
+
+    gridContainer.style.setProperty('justify-content', 'center', 'important');
+    gridContainer.style.setProperty('--grid-cols', String(bestCols));
+    gridContainer.style.setProperty('--slot-width', `${Math.floor(bestSlotW)}px`);
+    gridContainer.style.setProperty('--slot-height', `${Math.floor(bestSlotH)}px`);
+    gridContainer.style.setProperty('grid-template-columns', `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`, 'important');
+    gridContainer.style.setProperty('grid-template-rows', `repeat(${totalRows}, ${Math.floor(bestSlotH)}px)`, 'important');
+    gridContainer.style.setProperty('grid-auto-rows', `${Math.floor(bestSlotH)}px`, 'important');
+  }
+
+  let gridResizeObserver = null;
+  function setupGridResizeObserver() {
+    const gridContainer = document.getElementById('gpu-grid-container');
+    if (!gridContainer || gridResizeObserver) return;
+
+    if (typeof window !== 'undefined' && window.ResizeObserver) {
+      let rafId = null;
+      gridResizeObserver = new ResizeObserver(() => {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          adjustGridLayout();
+        });
+      });
+      gridResizeObserver.observe(gridContainer);
+    } else if (typeof window !== 'undefined') {
+      window.addEventListener('resize', () => {
+        requestAnimationFrame(adjustGridLayout);
+      });
+    }
   }
 
   function setSplit(split) {
@@ -1699,6 +1838,10 @@
     if (toggleIcon) {
       toggleIcon.textContent = state.drawerOpen ? '◀' : '▶';
     }
+
+    setTimeout(() => {
+      adjustGridLayout();
+    }, 180);
   }
 
   function stopAll() {
@@ -1730,6 +1873,7 @@
       updateStreamEngineUI();
       setupContextMenu();
       setupPtzButtons();
+      setupGridResizeObserver();
       renderGrid();
       updateBottomDock();
 
@@ -1776,6 +1920,7 @@
     saveCurrentViewPreset,
     loadViewPreset,
     toggleDrawer,
+    adjustGridLayout,
     filterTree,
     ptzGotoPreset,
     // Bottom Dock Bridge Methods

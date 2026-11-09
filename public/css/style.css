@@ -821,60 +821,50 @@ body {
   background: #020617;
   overflow: auto;
   box-sizing: border-box;
+  justify-content: center;
+  align-content: center;
 }
 
-/* Split Layouts: 1, 2, 4, 6, 9, 16, 25, 32 */
+/* Split Layouts: 1, 2, 4, 6, 9, 16, 25, 32 (CSS Fallbacks) */
 .gpu-grid-container.split-1 {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .gpu-grid-container.split-2 {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .gpu-grid-container.split-4 {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .gpu-grid-container.split-6 {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .gpu-grid-container.split-9 {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .gpu-grid-container.split-16 {
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .gpu-grid-container.split-25 {
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .gpu-grid-container.split-32 {
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
-/* Dynamic Column Mode Overrides (2 Columns & 3 Columns Dynamic UI) */
+/* Dynamic Column Mode Overrides (CSS Fallbacks) */
 .gpu-grid-container.cols-2:not(.split-1) {
-  grid-template-columns: repeat(2, 1fr) !important;
-  grid-template-rows: none !important;
-  grid-auto-rows: minmax(min(240px, 46vh), 1fr) !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .gpu-grid-container.cols-3:not(.split-1) {
-  grid-template-columns: repeat(3, 1fr) !important;
-  grid-template-rows: none !important;
-  grid-auto-rows: minmax(min(190px, 31vh), 1fr) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* Column Mode Selector Buttons */
@@ -1012,7 +1002,12 @@ body {
   position: relative;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
-  min-height: 80px;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -1735,35 +1730,29 @@ video::-webkit-media-controls-fullscreen-button {
   }
 }
 
-/* Container-query-driven dynamic 2-column & 3-column UI for Live Wall */
+/* Container-query-driven dynamic 2-column & 3-column UI fallbacks for Live Wall */
 @container livewall (max-width: 620px) {
-  /* Dynamic 2-column layout on mobile phones */
+  /* Dynamic 2-column fallback on mobile phones */
   .gpu-grid-container.cols-auto:not(.split-1) {
-    grid-template-columns: repeat(2, 1fr) !important;
-    grid-template-rows: none !important;
-    grid-auto-rows: minmax(min(160px, 40vh), 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @container livewall (min-width: 621px) and (max-width: 1080px) {
-  /* Dynamic 3-column layout on tablets, iPads, and compact windows */
+  /* Dynamic 3-column fallback on tablets, iPads, and compact windows */
   .gpu-grid-container.cols-auto.split-6,
   .gpu-grid-container.cols-auto.split-9,
   .gpu-grid-container.cols-auto.split-16,
   .gpu-grid-container.cols-auto.split-25,
   .gpu-grid-container.cols-auto.split-32 {
-    grid-template-columns: repeat(3, 1fr) !important;
-    grid-template-rows: none !important;
-    grid-auto-rows: minmax(min(180px, 32vh), 1fr) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @container livewall (max-width: 380px) {
   /* Single-column fallback on ultra-narrow portrait devices */
   .gpu-grid-container.cols-auto:not(.split-1) {
-    grid-template-columns: 1fr !important;
-    grid-template-rows: none !important;
-    grid-auto-rows: minmax(min(200px, 45vh), 1fr) !important;
+    grid-template-columns: 1fr;
   }
 }
 
