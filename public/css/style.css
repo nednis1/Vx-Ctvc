@@ -654,7 +654,7 @@ body {
 .gpu-drawer-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   background: rgba(56, 189, 248, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.35);
   color: #38bdf8;
@@ -669,6 +669,44 @@ body {
 .gpu-drawer-toggle-btn:hover {
   background: rgba(56, 189, 248, 0.28);
   color: #ffffff;
+}
+
+.gpu-drawer-toggle-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.gpu-drawer-toggle-btn:not(.active) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+}
+
+/* Toolbar Toggle LED Dots (Drawer & Tour) */
+.toggle-led-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #64748b;
+  display: inline-block;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.gpu-drawer-toggle-btn.active .toggle-led-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.gpu-tour-btn .toggle-led-dot {
+  background: #64748b;
+}
+
+.gpu-tour-btn.active .toggle-led-dot {
+  background: #34d399;
+  box-shadow: 0 0 6px #34d399;
+  animation: pulseDotRec 1s infinite alternate;
 }
 
 .gpu-toolbar-group {
@@ -687,6 +725,7 @@ body {
 
 /* Split Buttons */
 .gpu-split-btn {
+  position: relative;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
@@ -710,6 +749,20 @@ body {
   border-color: #38bdf8;
   color: #38bdf8;
   box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+
+.gpu-split-btn.active::after,
+.gpu-col-btn.active::after,
+.gpu-aspect-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 3px;
+  right: 3px;
+  height: 2px;
+  background: #38bdf8;
+  border-radius: 1px;
+  box-shadow: 0 0 5px #38bdf8;
 }
 
 /* Target Slot Indicator Pill */
@@ -810,6 +863,7 @@ body {
 
 /* Column Mode Selector Buttons */
 .gpu-col-btn {
+  position: relative;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
@@ -836,6 +890,7 @@ body {
 /* Slot Tile (Base) */
 /* Toolbar Aspect & Tour & Presets */
 .gpu-aspect-btn {
+  position: relative;
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
@@ -1123,7 +1178,7 @@ video::-webkit-media-controls-fullscreen-button {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   transition: all 0.15s;
   user-select: none;
 }
@@ -1135,10 +1190,54 @@ video::-webkit-media-controls-fullscreen-button {
 }
 
 .gpu-dock-btn.active {
-  background: #38bdf8;
-  color: #020617;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
   border-color: #38bdf8;
   font-weight: 700;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}
+
+/* Specialized Active Styles for Key Toggles */
+.gpu-dock-btn.active.btn-hd {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+  color: #fbbf24;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.gpu-dock-btn.active.btn-audio {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #34d399;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+/* Dock Button Status LED Dots */
+.dock-btn-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #475569;
+  display: inline-block;
+  margin-left: 1px;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.gpu-dock-btn.active .dock-btn-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.gpu-dock-btn.active.btn-hd .dock-btn-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+.gpu-dock-btn.active.btn-audio .dock-btn-dot {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
 }
 
 .gpu-dock-btn.recording {
@@ -1148,9 +1247,20 @@ video::-webkit-media-controls-fullscreen-button {
   animation: pulseDockRec 1s infinite alternate;
 }
 
+.gpu-dock-btn.recording .dock-btn-dot {
+  background: #ffffff;
+  box-shadow: 0 0 6px #ffffff;
+  animation: pulseDotRec 1s infinite alternate;
+}
+
 @keyframes pulseDockRec {
   0% { transform: scale(1); }
-  100% { transform: scale(1.05); }
+  100% { transform: scale(1.04); }
+}
+
+@keyframes pulseDotRec {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0.6; }
 }
 
 .gpu-dock-btn.danger:hover {
@@ -1379,6 +1489,7 @@ video::-webkit-media-controls-fullscreen-button {
   color: #f1f5f9;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   cursor: pointer;
   border-radius: 4px;
@@ -1396,45 +1507,114 @@ video::-webkit-media-controls-fullscreen-button {
   color: #ffffff;
 }
 
+.menu-check {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.gpu-menu-item:hover .menu-check {
+  color: #020617;
+  background: rgba(2, 6, 23, 0.2);
+}
+
+.menu-val {
+  margin-left: auto;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.gpu-menu-item:hover .menu-val {
+  color: #020617;
+}
+
+.menu-rec {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ef4444;
+  animation: pulseSlotRec 1s infinite;
+}
+
 .gpu-menu-sep {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
   margin: 3px 0;
 }
-  border-radius: 3px;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 3px;
-  cursor: pointer;
-}
 
-.ptz-zoom-btn:active {
-  background: #38bdf8;
-  color: #020617;
-}
-
-.gpu-ptz-presets {
+/* -------------------------------------------------------------
+ * Slot OSD Status Badges (Zero Video Obstruction, Pointer-Events: None)
+ * ------------------------------------------------------------- */
+.gpu-slot-badges {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   display: flex;
   align-items: center;
-  gap: 3px;
-  font-size: 9px;
-  color: #94a3b8;
+  gap: 5px;
+  z-index: 4;
+  pointer-events: none;
+  user-select: none;
 }
 
-.ptz-preset-btn {
-  width: 20px;
-  height: 18px;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #1e293b;
-  color: #f1f5f9;
-  font-size: 9px;
-  cursor: pointer;
+.slot-badge {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  text-transform: uppercase;
 }
 
-.ptz-preset-btn:hover {
-  background: #38bdf8;
+.slot-badge.badge-hd {
+  background: rgba(245, 158, 11, 0.88);
+  color: #ffffff;
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.slot-badge.badge-zoom {
+  background: rgba(56, 189, 248, 0.9);
   color: #020617;
+  border: 1px solid rgba(56, 189, 248, 0.9);
+}
+
+.slot-badge.badge-audio {
+  background: rgba(16, 185, 129, 0.88);
+  color: #ffffff;
+  border: 1px solid rgba(52, 211, 153, 0.7);
+}
+
+.slot-badge.badge-rec {
+  background: rgba(239, 68, 68, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(248, 113, 113, 0.8);
+  animation: pulseSlotRec 1.2s infinite;
+}
+
+.slot-badge .badge-rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: inline-block;
+  animation: pulseDotRec 1s infinite alternate;
+}
+
+@keyframes pulseSlotRec {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.82; }
 }
 
 /* Spinner */
