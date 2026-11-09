@@ -1779,6 +1779,11 @@
 
       const onStreamFailed = () => {
         item.videoPlaying = false;
+        if (spinnerEl) {
+          spinnerEl.style.display = 'flex';
+          const label = spinnerEl.querySelector('span');
+          if (label) label.textContent = 'Stream Offline / Reconnecting...';
+        }
         updateSlotBadges(slotIndex);
         if (slotIndex === state.selectedSlotIndex) {
           updateBottomDock();

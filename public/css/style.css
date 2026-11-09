@@ -2198,7 +2198,23 @@ video::-webkit-media-controls-fullscreen-button {
     border: 2px solid #0284c7 !important;
     box-shadow: 0 0 10px rgba(2, 132, 199, 0.25) !important;
   }
-  /* Note: .gpu-video-wrapper maintains #000000 so video streams render cleanly without glare */
+  .gpu-slot.playing {
+    background: #f8fafc;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+  .gpu-slot-spinner {
+    background: #f8fafc !important;
+    color: #475569 !important;
+  }
+  .gpu-slot-spinner span {
+    color: #475569 !important;
+    font-weight: 500;
+  }
+  .spinner-ring {
+    border: 2px solid rgba(0, 0, 0, 0.12) !important;
+    border-top-color: #0284c7 !important;
+  }
+  /* Note: .gpu-video-wrapper maintains #000000 so active video streams render cleanly without glare */
   .gpu-video-wrapper {
     background: #000000 !important;
   }
@@ -2379,6 +2395,9 @@ video::-webkit-media-controls-fullscreen-button {
   .simple-spinner {
     border-color: rgba(0, 0, 0, 0.12);
     border-top-color: var(--vosctv-red);
+  }
+  .simple-loading span {
+    color: #475569;
   }
   .simple-timeout {
     background: #ffffff;
