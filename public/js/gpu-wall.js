@@ -25,7 +25,7 @@
     viewPresets: { default: { name: 'Default', split: 4, columnMode: 'auto', slots: {} } },
     currentPresetId: 'default',
     tour: { active: false, timer: null, intervalMs: 15000, offset: 0 },
-    drawerOpen: true,
+    drawerOpen: typeof window !== 'undefined' ? window.innerWidth > 1024 : true,
     longPressTimer: null
   };
 
@@ -1613,9 +1613,13 @@
       mRec.innerHTML = `Record Clip ${statusLabel ? `<span class="${statusClass}">${statusLabel}</span>` : ''}`;
     }
 
-    menu.style.left = `${Math.min(window.innerWidth - 190, e.clientX)}px`;
-    menu.style.top = `${Math.min(window.innerHeight - 320, e.clientY)}px`;
     menu.classList.remove('hidden');
+    const menuW = menu.offsetWidth || 190;
+    const menuH = menu.offsetHeight || 300;
+    const posX = Math.max(8, Math.min(window.innerWidth - menuW - 8, e.clientX));
+    const posY = Math.max(8, Math.min(window.innerHeight - menuH - 8, e.clientY));
+    menu.style.left = `${posX}px`;
+    menu.style.top = `${posY}px`;
   }
 
   // -------------------------------------------------------------
@@ -1701,9 +1705,7 @@
       applyVideoTransform(slotIndex);
     }
 
-    // Desktop: Double-click to reset digital zoom if zoomed, or toggle full 1x1 screen
-    wrapper.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
+    const handleSlotDoubleActivate = () => {
       if (item.digitalZoom && item.digitalZoom.active && item.digitalZoom.scale > 1.05) {
         item.digitalZoom.scale = 1.0;
         item.digitalZoom.x = 0;
@@ -1716,26 +1718,57 @@
         return;
       }
       toggleSlotZoom(slotIndex);
+    };
+
+    // Desktop: Double-click to reset digital zoom if zoomed, or toggle full 1x1 screen
+    wrapper.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      handleSlotDoubleActivate();
     });
 
-    // Right-Click Context Menu (like Dahua SmartPSS desktop app)
-    slotEl.addEventListener('contextmenu', (e) => {
-      openContextMenu(e, slotIndex);
-    });
+    // Touch Devices: Single-finger tap / double-tap (ignores scroll drags and pinch-zoom)
+    let tapStartX = 0;
+    let tapStartY = 0;
+    let tapMoved = false;
+    let tapMulti = false;
 
-    // Touch Devices: Double-tap to toggle 1x1 zoom
-    slotEl.addEventListener('touchstart', (e) => {
+    wrapper.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) {
+        tapMulti = true;
+        return;
+      }
+      tapMulti = false;
+      tapMoved = false;
+      tapStartX = e.touches[0].clientX;
+      tapStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    wrapper.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 1) {
+        tapMulti = true;
+        return;
+      }
+      if (!tapMoved && e.touches.length === 1) {
+        const dx = Math.abs(e.touches[0].clientX - tapStartX);
+        const dy = Math.abs(e.touches[0].clientY - tapStartY);
+        if (dx > 12 || dy > 12) tapMoved = true;
+      }
+    }, { passive: true });
+
+    wrapper.addEventListener('touchend', (e) => {
+      if (tapMulti || tapMoved || e.changedTouches.length !== 1 || e.touches.length > 0) return;
       const now = Date.now();
       const timeSinceLast = now - (item.lastTapTime || 0);
 
       if (timeSinceLast > 0 && timeSinceLast < 300) {
-        e.preventDefault();
-        toggleSlotZoom(slotIndex);
+        if (e.cancelable) e.preventDefault();
+        item.lastTapTime = 0;
+        handleSlotDoubleActivate();
         return;
       }
       item.lastTapTime = now;
       selectSlot(slotIndex);
-    }, { passive: true });
+    }, { passive: false });
 
     // Mount VideoRTC hardware-accelerated video element
     const streamKey = `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
@@ -1835,9 +1868,18 @@
       slotEl.id = `gpu-slot-${slotIndex}`;
       slotEl.dataset.slotIndex = slotIndex;
 
-      // Click to select this slot as active assignment target
+      // Click to select this slot; on mobile tapping an already-selected empty slot opens camera list
       slotEl.addEventListener('click', () => {
+        const wasSelected = state.selectedSlotIndex === slotIndex;
         selectSlot(slotIndex);
+        if (window.innerWidth <= 1024 && !state.slots[slotIndex] && wasSelected && !state.drawerOpen) {
+          toggleDrawer(true);
+        }
+      });
+
+      // Right-Click Context Menu (registered once per slot node)
+      slotEl.addEventListener('contextmenu', (e) => {
+        openContextMenu(e, slotIndex);
       });
 
       // Drag over and drop support
@@ -1900,8 +1942,8 @@
   };
 
   /**
-   * Adjust grid columns and slot dimensions so CCTV feeds perfectly fit slot space.
-   * Auto columns are scrollable so feeds remain large and do not shrink when the window shrinks.
+   * Adjust grid columns and slot dimensions dynamically across phone, tablet, and desktop.
+   * Respects portrait/landscape orientation changes and avoids inline !important CSS locks.
    */
   function adjustGridLayout() {
     const gridContainer = document.getElementById('gpu-grid-container');
@@ -1920,6 +1962,10 @@
     const availW = Math.max(containerW - pad, 60);
     const availH = Math.max(containerH - pad, 60);
     const targetAspect = 16 / 9;
+
+    const isNarrowViewport = containerW <= 620;
+    const isUltraNarrow = containerW <= 380;
+    const isPhoneLandscape = (typeof window !== 'undefined' && window.innerHeight <= 540 && containerW > containerH);
 
     let bestCols = 1;
     let bestSlotW = 0;
@@ -1948,7 +1994,10 @@
       bestSlotH = Math.floor(bestSlotW / targetAspect);
     } else if (state.slotSize === 'fit') {
       // Fit Screen: strictly fit inside viewport without scrolling
-      const candidates = PREFERRED_COLS[effectiveSplit] || [1, 2, 3, 4];
+      const baseCandidates = PREFERRED_COLS[effectiveSplit] || [1, 2, 3, 4];
+      const candidates = isUltraNarrow
+        ? [1, 2].filter(c => c <= totalSlots)
+        : (isNarrowViewport ? [2, 1, 3].filter(c => c <= totalSlots) : baseCandidates);
       let bestArea = -1;
 
       for (const c of candidates) {
@@ -1969,25 +2018,65 @@
           bestSlotH = slotH;
         }
       }
-    } else {
-      // AUTO COLUMNS (Scrollable, Slots Don't Shrink, Slots Can Be Bigger)
-      // Determine target/minimum slot width based on slotSize setting
-      let minSlotW = 380; // default for 'large': ensures generous, readable feeds
+    } else if (isPhoneLandscape) {
+      // Phone Landscape Auto-Immersion: optimize live grid fit in shallow viewport height
+      const candidates = effectiveSplit <= 2 ? [Math.min(2, effectiveSplit), 1] : [2, 3, 4];
+      let bestArea = -1;
+      for (const c of candidates) {
+        if (c > totalSlots) continue;
+        const r = Math.ceil(totalSlots / c);
+        const maxW = (availW - (c - 1) * gap) / c;
+        const maxH = (availH - (r - 1) * gap) / r;
+        if (maxW < 130) continue;
+        const fitW = Math.min(maxW, Math.max(maxH * targetAspect, 160 * targetAspect));
+        const fitH = fitW / targetAspect;
+        const area = fitW * fitH;
+        if (r * fitH <= availH + 4 && area > bestArea) {
+          bestArea = area;
+          bestCols = c;
+          bestSlotW = fitW;
+          bestSlotH = fitH;
+        }
+      }
+      if (bestArea < 0) {
+        bestCols = Math.min(totalSlots, 2);
+        bestSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
+        bestSlotH = Math.floor(bestSlotW / targetAspect);
+      }
+    } else if (isNarrowViewport) {
+      // Phone Portrait & Narrow Panes: crisp responsive 1-col or 2-col reflow
       if (state.slotSize === 'xl') {
-        minSlotW = 640; // Extra Large: giant feeds
+        bestCols = 1;
+      } else if (isUltraNarrow && state.slotSize !== 'medium') {
+        bestCols = 1;
+      } else if (effectiveSplit === 2 && containerH > containerW * 1.15) {
+        bestCols = 1;
+      } else {
+        bestCols = Math.min(totalSlots, 2);
+      }
+      bestSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
+      bestSlotH = Math.floor(bestSlotW / targetAspect);
+    } else {
+      // Tablet & Desktop Auto Columns (621px+)
+      let minSlotW = 340;
+      if (state.slotSize === 'xl') {
+        minSlotW = 580;
       } else if (state.slotSize === 'medium') {
-        minSlotW = 260; // Medium: dense overview
+        minSlotW = 240;
       }
 
-      // Calculate maximum columns that fit across available width while maintaining minSlotW
       let maxColsByWidth = Math.floor((availW + gap) / (minSlotW + gap));
       maxColsByWidth = Math.max(1, Math.min(totalSlots, maxColsByWidth));
 
-      // Balance columns for standard surveillance splits:
+      // Balance columns cleanly for tablets & desktops
       let c = maxColsByWidth;
+      if (containerW <= 1080 && effectiveSplit >= 6) {
+        c = Math.max(c, 3);
+        c = Math.min(c, effectiveSplit);
+      }
       if (totalSlots === 4 && c >= 3) {
         c = 2; // Clean 2x2 for 4 feeds
-      } else if (totalSlots === 6 && c === 4) {
+      } else if (totalSlots === 6 && c >= 4) {
         c = 3; // Clean 3x2 for 6 feeds
       } else if (totalSlots === 9 && c >= 4) {
         c = 3; // Clean 3x3 for 9 feeds
@@ -2006,8 +2095,8 @@
 
     // Fallback if container is extremely constrained
     if (bestSlotW <= 0 || bestSlotH <= 0) {
-      bestCols = 2;
-      bestSlotW = Math.max(Math.floor((availW - gap) / 2), 120);
+      bestCols = isUltraNarrow ? 1 : Math.min(totalSlots, 2);
+      bestSlotW = Math.max(Math.floor((availW - (bestCols - 1) * gap) / bestCols), 120);
       bestSlotH = Math.floor(bestSlotW / targetAspect);
     }
 
@@ -2015,27 +2104,41 @@
     const totalGridHeight = totalRows * bestSlotH + (totalRows - 1) * gap;
     const overflowsY = totalGridHeight > availH + 2;
 
-    if (overflowsY) {
-      // When content overflows height, align to start for smooth natural scrolling
-      gridContainer.style.setProperty('align-content', 'start', 'important');
-    } else {
-      // When content fits vertically, center vertically
-      gridContainer.style.setProperty('align-content', 'center', 'important');
-    }
-
-    gridContainer.style.setProperty('justify-content', 'center', 'important');
+    gridContainer.style.alignContent = overflowsY ? 'start' : 'center';
+    gridContainer.style.justifyContent = 'center';
     gridContainer.style.setProperty('--grid-cols', String(bestCols));
     gridContainer.style.setProperty('--slot-width', `${Math.floor(bestSlotW)}px`);
     gridContainer.style.setProperty('--slot-height', `${Math.floor(bestSlotH)}px`);
-    gridContainer.style.setProperty('grid-template-columns', `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`, 'important');
-    gridContainer.style.setProperty('grid-template-rows', `repeat(${totalRows}, ${Math.floor(bestSlotH)}px)`, 'important');
-    gridContainer.style.setProperty('grid-auto-rows', `${Math.floor(bestSlotH)}px`, 'important');
+
+    if (isNarrowViewport && state.slotSize !== 'fit' && state.focusedSlotIndex === null && effectiveSplit > 1) {
+      // Flexible edge-to-edge tracks on narrow/phone viewports prevent horizontal pixel clipping
+      gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, minmax(0, 1fr))`;
+      gridContainer.style.gridTemplateRows = '';
+      gridContainer.style.gridAutoRows = 'auto';
+    } else {
+      gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`;
+      gridContainer.style.gridTemplateRows = `repeat(${totalRows}, ${Math.floor(bestSlotH)}px)`;
+      gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
+    }
   }
 
   let gridResizeObserver = null;
+  let lastMobileState = typeof window !== 'undefined' ? window.innerWidth <= 1024 : false;
+
   function setupGridResizeObserver() {
     const gridContainer = document.getElementById('gpu-grid-container');
     if (!gridContainer || gridResizeObserver) return;
+
+    const handleViewportChange = () => {
+      if (typeof window !== 'undefined') {
+        const isNowMobile = window.innerWidth <= 1024;
+        if (isNowMobile !== lastMobileState) {
+          lastMobileState = isNowMobile;
+          toggleDrawer(!isNowMobile);
+        }
+      }
+      requestAnimationFrame(adjustGridLayout);
+    };
 
     if (typeof window !== 'undefined' && window.ResizeObserver) {
       let rafId = null;
@@ -2046,11 +2149,45 @@
         });
       });
       gridResizeObserver.observe(gridContainer);
-    } else if (typeof window !== 'undefined') {
-      window.addEventListener('resize', () => {
-        requestAnimationFrame(adjustGridLayout);
-      });
     }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleViewportChange, { passive: true });
+      window.addEventListener('orientationchange', () => {
+        setTimeout(handleViewportChange, 120);
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+          requestAnimationFrame(adjustGridLayout);
+        });
+      }
+    }
+  }
+
+  let sidebarSwipeBound = false;
+  function setupSidebarSwipeClose() {
+    if (sidebarSwipeBound) return;
+    const sidebar = document.getElementById('gpu-sidebar');
+    if (!sidebar) return;
+    sidebarSwipeBound = true;
+
+    let startX = 0;
+    let startY = 0;
+    sidebar.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    sidebar.addEventListener('touchend', (e) => {
+      if (window.innerWidth > 1024 || !state.drawerOpen || e.changedTouches.length !== 1) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      // Intentional horizontal swipe left dismisses mobile camera drawer
+      if (dx < -55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        toggleDrawer(false);
+      }
+    }, { passive: true });
   }
 
   function setSplit(split) {
@@ -2187,14 +2324,10 @@
       setupContextMenu();
       setupPtzButtons();
       setupGridResizeObserver();
+      setupSidebarSwipeClose();
+      toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
       renderGrid();
       updateBottomDock();
-
-      const toggleBtn = document.getElementById('gpu-drawer-toggle');
-      if (toggleBtn) {
-        toggleBtn.classList.toggle('active', state.drawerOpen);
-        toggleBtn.setAttribute('aria-expanded', String(state.drawerOpen));
-      }
 
       // 2. Fetch metadata asynchronously in background without blocking stream startup
       loadCameraNames().then(() => {

@@ -44,10 +44,11 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-main);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   position: relative;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -55,8 +56,8 @@ body {
 /* Top bar controls (Theme toggle) */
 .login-top-bar {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
   z-index: 10;
 }
 
@@ -268,4 +269,33 @@ body {
 
 @keyframes btnSpin {
   to { transform: rotate(360deg); }
+}
+
+@media (pointer: coarse), (max-width: 600px) {
+  .form-input {
+    font-size: 16px;
+    min-height: 44px;
+    padding: 10px 48px 10px 12px;
+  }
+
+  .login-submit-btn,
+  .theme-toggle-btn,
+  .password-toggle-btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .password-toggle-btn {
+    right: 2px;
+    padding: 0 10px;
+  }
+
+  .checkbox-label {
+    min-height: 36px;
+  }
+
+  .checkbox-input {
+    width: 18px;
+    height: 18px;
+  }
 }

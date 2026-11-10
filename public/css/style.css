@@ -36,12 +36,20 @@
   --border-sidebar-footer: rgba(0, 0, 0, 0.08);
 }
 
+html, body {
+  overscroll-behavior: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-app);
   color: var(--text-main);
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -49,14 +57,17 @@ body {
 
 /* Slim Top Bar */
 .vosctv-bar {
+  min-height: var(--bar-height);
   height: var(--bar-height);
   background: var(--bg-dark);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  padding-top: env(safe-area-inset-top, 0px);
   user-select: none;
+  flex-shrink: 0;
   z-index: 100;
 }
 
@@ -65,11 +76,13 @@ body {
   align-items: center;
   gap: 16px;
   height: 100%;
+  min-width: 0;
 }
 
 .vosctv-brand {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .vosctv-title {
@@ -88,6 +101,8 @@ body {
   align-items: flex-end;
   height: 100%;
   gap: 4px;
+  min-width: 0;
+  overscroll-behavior: contain;
 }
 
 .session-tab {
@@ -523,6 +538,8 @@ body {
 .gpu-tree-container {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 6px;
   box-sizing: border-box;
 }
@@ -764,7 +781,6 @@ body {
 .gpu-tour-btn.active .toggle-led-dot {
   background: #34d399;
   box-shadow: 0 0 6px #34d399;
-  animation: pulseDotRec 1s infinite alternate;
 }
 
 .gpu-toolbar-group {
@@ -894,11 +910,15 @@ body {
  * ------------------------------------------------------------- */
 .gpu-grid-container {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: grid;
   gap: 4px;
   padding: 4px;
   background: #020617;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
   justify-content: center;
   align-content: center;
@@ -1824,15 +1844,46 @@ video::-webkit-media-controls-fullscreen-button {
   z-index: 15;
 }
 
+@media (pointer: coarse) {
+  .gpu-search-box input,
+  .gpu-rename-input {
+    font-size: 16px;
+  }
+
+  .gpu-menu-item {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .ptz-btn,
+  .ptz-zoom-btn,
+  .ptz-preset-btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}
+
 @media (max-width: 1024px) {
-  /* Sidebar becomes off-canvas drawer */
+  /* Sidebar becomes off-canvas drawer without zeroing width */
   .gpu-sidebar {
     position: absolute;
     left: 0;
     top: 0;
     bottom: 0;
+    width: min(84vw, 300px);
+    min-width: 0;
+    max-width: 84vw;
     transform: translateX(-100%);
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .gpu-sidebar.collapsed {
+    width: min(84vw, 300px) !important;
+    min-width: 0 !important;
+    max-width: 84vw !important;
+    border-right: 1px solid var(--border) !important;
   }
 
   .gpu-sidebar.drawer-open {
@@ -1850,29 +1901,58 @@ video::-webkit-media-controls-fullscreen-button {
   }
 
   .gpu-sidebar-close-btn {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    margin: -6px -4px -6px 0;
+  }
+
+  .gpu-sidebar-footer {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .gpu-tree-action-btn {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Split 25 and 32 wrap sensibly on tablet */
-  .gpu-grid-container.split-25 {
-    grid-template-columns: repeat(3, 1fr);
+  .gpu-grid-container.split-25,
+  .gpu-grid-container.split-32 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .gpu-ptz-drawer {
+    width: min(78vw, 240px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  .gpu-grid-container.split-32 {
-    grid-template-columns: repeat(3, 1fr);
+  .gpu-ptz-drawer-close {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
 /* Container-query-driven dynamic 2-column & 3-column UI fallbacks for Live Wall */
 @container livewall (max-width: 620px) {
-  /* Dynamic 2-column fallback on mobile phones */
+  /* Dynamic 2-column reflow on mobile phones */
   .gpu-grid-container.cols-auto:not(.split-1) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @container livewall (min-width: 621px) and (max-width: 1080px) {
-  /* Dynamic 3-column fallback on tablets, iPads, and compact windows */
+  /* Dynamic 3-column reflow on tablets, iPads, and compact windows */
   .gpu-grid-container.cols-auto.split-6,
   .gpu-grid-container.cols-auto.split-9,
   .gpu-grid-container.cols-auto.split-16,
@@ -1883,30 +1963,99 @@ video::-webkit-media-controls-fullscreen-button {
 }
 
 @container livewall (max-width: 380px) {
-  /* Single-column fallback on ultra-narrow portrait devices */
+  /* Single-column reflow on ultra-narrow portrait devices */
   .gpu-grid-container.cols-auto:not(.split-1) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 768px) {
+  /* Dynamic wrapping Top Console Bar on Phones */
+  .vosctv-bar {
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  }
+
+  .bar-left {
+    flex: 1 1 100%;
+    height: 34px;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .session-tabs {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .session-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .session-tab {
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 11px;
+    font-size: 11.5px;
+    touch-action: manipulation;
+  }
+
+  .bar-right {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    gap: 5px;
+    padding-bottom: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    min-width: 0;
+  }
+
+  .bar-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tool-btn {
+    flex-shrink: 0;
+    min-height: 30px;
+    padding: 4px 10px;
+    touch-action: manipulation;
+  }
+
+  .user-pill {
+    flex-shrink: 0;
+    min-height: 30px;
+  }
+
   .gpu-tree-item {
     padding: 10px 12px; /* Generous touch target for handheld phones */
     min-height: 44px;
   }
 
   .gpu-active-slot-pill {
-    padding: 3px 8px;
+    padding: 4px 8px;
     font-size: 10px;
+    white-space: nowrap;
   }
 
-  /* Highly Ergonomic Mobile Bottom Control Dock (Thumb-Zone Primacy) */
+  /* Ergonomic Mobile Bottom Control Dock (Thumb-Zone Primacy) */
   .gpu-dock-bar {
     height: auto;
-    min-height: 46px;
-    padding: 6px 10px max(6px, env(safe-area-inset-bottom)) 10px;
+    min-height: 48px;
+    padding: 6px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
     overflow-x: auto;
     overflow-y: hidden;
+    overscroll-behavior: contain;
     justify-content: flex-start;
     align-items: center;
     gap: 10px;
@@ -1935,7 +2084,7 @@ video::-webkit-media-controls-fullscreen-button {
   }
 
   .gpu-dock-cam-title {
-    max-width: 120px;
+    max-width: 140px;
     font-size: 11.5px;
     text-overflow: ellipsis;
     overflow: hidden;
@@ -1943,25 +2092,29 @@ video::-webkit-media-controls-fullscreen-button {
   }
 
   .gpu-dock-btn {
-    height: 34px;
-    padding: 0 10px;
-    font-size: 11px;
+    min-height: 40px;
+    height: 40px;
+    min-width: 48px;
+    padding: 0 11px;
+    font-size: 11.5px;
     border-radius: 5px;
     touch-action: manipulation;
+    flex-shrink: 0;
   }
 
   .gpu-dock-btn.btn-close {
-    padding: 0 8px;
+    padding: 0 10px;
   }
 
   /* Ergonomic mobile toolbar scrolling */
   .gpu-toolbar {
     overflow-x: auto;
     overflow-y: hidden;
+    overscroll-behavior: contain;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    height: 38px;
-    padding: 0 8px;
+    height: 42px;
+    padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
   }
 
   .gpu-toolbar::-webkit-scrollbar {
@@ -1973,44 +2126,178 @@ video::-webkit-media-controls-fullscreen-button {
     flex-shrink: 0;
   }
 
-  .gpu-select-btn {
-    height: 28px;
-    padding: 0 7px;
-    font-size: 10.5px;
+  .gpu-toolbar-select,
+  .gpu-drawer-toggle-btn,
+  .gpu-tour-btn,
+  .gpu-view-save-btn {
+    min-height: 32px;
+    height: 32px;
+    touch-action: manipulation;
   }
 
-  /* Top bar session tabs touch scrolling */
-  .session-tabs {
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+  /* Toast safe wrapping on phones */
+  .gpu-toast-container {
+    bottom: max(106px, calc(96px + env(safe-area-inset-bottom)));
+    width: calc(100% - 24px);
+    max-width: 400px;
   }
 
-  .session-tabs::-webkit-scrollbar {
-    display: none;
+  .gpu-toast {
+    white-space: normal;
+    text-align: center;
+    max-width: 100%;
   }
 }
 
-/* Phone Landscape Auto-Immersion */
-@media (max-width: 900px) and (orientation: landscape) {
-  .gpu-toolbar {
-    height: 30px;
-    padding: 0 6px;
+/* Portrait Phone Stack & Two-Tier Ergonomic Thumb Cockpit */
+@media (max-width: 640px) {
+  .tab-extra {
+    display: none;
   }
 
   .gpu-dock-bar {
-    height: 30px;
-    padding: 0 6px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    overflow: visible;
+    padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .gpu-dock-left {
+    width: 100%;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .gpu-dock-cam-title {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    font-size: 11.5px;
+  }
+
+  .gpu-dock-center {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding-bottom: 1px;
+  }
+
+  .gpu-dock-center::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gpu-dock-btn {
+    min-height: 42px;
+    height: 42px;
+    min-width: 52px;
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .viewport-area[data-view="split"] {
+    flex-direction: column;
+  }
+
+  .viewport-area[data-view="split"] .nvr-pane {
+    flex: 1 1 50%;
+    width: 100%;
+    height: 50%;
+  }
+}
+
+/* Phone Landscape Auto-Immersion (Covers modern 390px-430px tall devices up to 932px wide) */
+@media (max-width: 932px) and (max-height: 540px) and (orientation: landscape) {
+  .vosctv-bar {
+    flex-wrap: nowrap;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .vosctv-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bar-left {
+    flex: 0 0 auto;
+    height: 34px;
+  }
+
+  .bar-right {
+    flex: 0 0 auto;
+    padding-bottom: 0;
+  }
+
+  .tab-extra {
+    display: none;
+  }
+
+  .gpu-toolbar {
+    height: 34px;
+    padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  }
+
+  .gpu-toolbar-select,
+  .gpu-drawer-toggle-btn,
+  .gpu-tour-btn,
+  .gpu-view-save-btn {
+    min-height: 26px;
+    height: 26px;
   }
 
   .gpu-group-label {
     display: none;
   }
 
+  .gpu-dock-bar {
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    min-height: 40px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    gap: 8px;
+  }
+
+  .gpu-dock-left {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .gpu-dock-cam-title {
+    max-width: 115px;
+    flex: 0 1 auto;
+  }
+
+  .gpu-dock-center {
+    width: auto;
+    overflow: visible;
+    flex-shrink: 0;
+  }
+
+  .gpu-dock-btn {
+    height: 34px;
+    min-height: 34px;
+    min-width: 44px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
   .gpu-grid-container.cols-auto.split-4,
   .gpu-grid-container.cols-auto.split-6 {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
