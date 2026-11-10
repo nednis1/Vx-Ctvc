@@ -649,22 +649,6 @@ body {
   box-shadow: 0 0 5px #38bdf8;
 }
 
-/* Target Slot Indicator Pill */
-.gpu-active-slot-pill {
-  font-size: 10px;
-  font-weight: 600;
-  color: #cbd5e1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-
-.gpu-active-slot-pill span {
-  color: #38bdf8;
-  font-weight: 700;
-}
-
 /* -------------------------------------------------------------
  * 3. Central Grid Container & Slot Tiles
  * ------------------------------------------------------------- */
@@ -1739,12 +1723,6 @@ video::-webkit-media-controls-fullscreen-button {
     min-height: 44px;
   }
 
-  .gpu-active-slot-pill {
-    padding: 4px 8px;
-    font-size: 10px;
-    white-space: nowrap;
-  }
-
   /* Ergonomic Mobile Bottom Control Dock (Thumb-Zone Primacy) */
   .gpu-dock-bar {
     height: auto;
@@ -2219,15 +2197,6 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-view-save-btn:hover {
     background: #f1f5f9;
     color: #0f172a;
-  }
-  .gpu-active-slot-pill {
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    color: #334155;
-  }
-  .gpu-active-slot-pill span {
-    color: #0284c7;
-    font-weight: 700;
   }
 
   /* Central Grid & Slots */

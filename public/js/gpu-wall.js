@@ -342,12 +342,6 @@
       el.classList.toggle('selected', idx === slotIndex);
     });
 
-    // Update target pill in toolbar
-    const pill = document.getElementById('gpu-active-slot-num');
-    if (pill) {
-      pill.textContent = `Slot ${slotIndex + 1}`;
-    }
-
     // Update the Dedicated Bottom Control Dock
     updateBottomDock();
   }
