@@ -95,6 +95,11 @@
     } catch (e) {}
   }
 
+  function normalizeColumnMode(mode) {
+    const numCol = Number(mode);
+    return [1, 2, 3, 4].includes(numCol) ? numCol : 'auto';
+  }
+
   function restoreSavedLayout() {
     try {
       const savedPresets = localStorage.getItem(PRESETS_STORAGE_KEY);
@@ -109,8 +114,8 @@
         if (parsed.split && [1, 2, 4, 6, 9, 16, 25, 32].includes(parsed.split)) {
           state.split = parsed.split;
         }
-        if (parsed.columnMode && ['auto', 1, 2, 3, 4].includes(parsed.columnMode)) {
-          state.columnMode = parsed.columnMode;
+        if (parsed.columnMode !== undefined && parsed.columnMode !== null) {
+          state.columnMode = normalizeColumnMode(parsed.columnMode);
         }
         if (parsed.slotSize && ['large', 'xl', 'medium', 'fit'].includes(parsed.slotSize)) {
           state.slotSize = parsed.slotSize;
@@ -510,6 +515,16 @@
     });
   }
 
+  function syncGridClassName() {
+    const gridContainer = document.getElementById('gpu-grid-container');
+    if (!gridContainer) return;
+    const effectiveSplit = state.focusedSlotIndex !== null ? 1 : state.split;
+    const normCol = normalizeColumnMode(state.columnMode);
+    const colClass = state.focusedSlotIndex !== null || normCol === 'auto' ? 'cols-auto' : `cols-${normCol}`;
+    const isScrollable = state.slotSize !== 'fit' && state.focusedSlotIndex === null && effectiveSplit > 1;
+    gridContainer.className = `gpu-grid-container split-${effectiveSplit} ${colClass}${isScrollable ? ' grid-scrollable' : ''}`;
+  }
+
   function updateColumnModeUI() {
     const select = document.getElementById('gpu-col-select');
     if (select) {
@@ -517,29 +532,18 @@
     }
     document.querySelectorAll('.gpu-col-btn').forEach((btn) => {
       const mode = btn.dataset.cols;
-      const isMatch = (mode === 'auto' && state.columnMode === 'auto') ||
-                      (mode === '2' && state.columnMode === 2) ||
-                      (mode === '3' && state.columnMode === 3);
+      const isMatch = String(mode) === String(state.columnMode);
       btn.classList.toggle('active', isMatch);
       btn.setAttribute('aria-pressed', String(isMatch));
     });
   }
 
   function setColumnMode(mode) {
-    if (mode === 1 || mode === '1') {
-      state.columnMode = 1;
-    } else if (mode === 2 || mode === '2') {
-      state.columnMode = 2;
-    } else if (mode === 3 || mode === '3') {
-      state.columnMode = 3;
-    } else if (mode === 4 || mode === '4') {
-      state.columnMode = 4;
-    } else {
-      state.columnMode = 'auto';
-    }
+    state.columnMode = normalizeColumnMode(mode);
     updateColumnModeUI();
     saveLayout();
-    renderGrid();
+    syncGridClassName();
+    adjustGridLayout();
   }
 
   function updateSlotSizeUI() {
@@ -554,6 +558,7 @@
     state.slotSize = size;
     updateSlotSizeUI();
     saveLayout();
+    syncGridClassName();
     adjustGridLayout();
   }
 
@@ -1466,7 +1471,7 @@
     clearAll();
 
     state.split = preset.split || 4;
-    state.columnMode = preset.columnMode || 'auto';
+    state.columnMode = normalizeColumnMode(preset.columnMode);
     state.slotSize = preset.slotSize || 'large';
     state.globalAspect = preset.globalAspect || 'contain';
     updateGlobalAspectUI();
@@ -1855,10 +1860,7 @@
     gridContainer.innerHTML = '';
 
     const effectiveSplit = state.focusedSlotIndex !== null ? 1 : state.split;
-    const colClass = state.focusedSlotIndex !== null
-      ? 'cols-auto'
-      : (state.columnMode === 2 ? 'cols-2' : state.columnMode === 3 ? 'cols-3' : 'cols-auto');
-    gridContainer.className = `gpu-grid-container split-${effectiveSplit} ${colClass}`;
+    syncGridClassName();
 
     const totalSlots = effectiveSplit;
 
@@ -1943,7 +1945,7 @@
 
   /**
    * Adjust grid columns and slot dimensions dynamically across phone, tablet, and desktop.
-   * Respects portrait/landscape orientation changes and avoids inline !important CSS locks.
+   * Respects explicit COLS overrides uniformly and uses scrollable 1fr tracks without overflow.
    */
   function adjustGridLayout() {
     const gridContainer = document.getElementById('gpu-grid-container');
@@ -1952,6 +1954,8 @@
     const effectiveSplit = state.focusedSlotIndex !== null ? 1 : state.split;
     const totalSlots = effectiveSplit;
     if (totalSlots <= 0) return;
+
+    syncGridClassName();
 
     const containerW = gridContainer.clientWidth;
     const containerH = gridContainer.clientHeight;
@@ -1966,31 +1970,23 @@
     const isNarrowViewport = containerW <= 620;
     const isUltraNarrow = containerW <= 380;
     const isPhoneLandscape = (typeof window !== 'undefined' && window.innerHeight <= 540 && containerW > containerH);
+    const normCol = normalizeColumnMode(state.columnMode);
+    const explicitCol = normCol === 'auto' ? null : normCol;
 
     let bestCols = 1;
     let bestSlotW = 0;
     let bestSlotH = 0;
+    let lockSingleLandscapeCap = false;
 
     // Focused 1x1 mode: single slot maximizes on screen without scrolling
     if (state.focusedSlotIndex !== null || effectiveSplit === 1) {
       bestCols = 1;
       bestSlotW = Math.min(availW, availH * targetAspect);
       bestSlotH = bestSlotW / targetAspect;
-    } else if (state.columnMode === 1) {
-      bestCols = 1;
-      bestSlotW = availW;
-      bestSlotH = bestSlotW / targetAspect;
-    } else if (state.columnMode === 2) {
-      bestCols = 2;
-      bestSlotW = Math.floor((availW - gap) / 2);
-      bestSlotH = Math.floor(bestSlotW / targetAspect);
-    } else if (state.columnMode === 3) {
-      bestCols = 3;
-      bestSlotW = Math.floor((availW - 2 * gap) / 3);
-      bestSlotH = Math.floor(bestSlotW / targetAspect);
-    } else if (state.columnMode === 4) {
-      bestCols = 4;
-      bestSlotW = Math.floor((availW - 3 * gap) / 4);
+    } else if (explicitCol !== null) {
+      // Explicit COLS override (1, 2, 3, 4) is always honored cleanly
+      bestCols = explicitCol;
+      bestSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
       bestSlotH = Math.floor(bestSlotW / targetAspect);
     } else if (state.slotSize === 'fit') {
       // Fit Screen: strictly fit inside viewport without scrolling
@@ -2054,6 +2050,7 @@
       if (bestCols === 1 && isPhoneLandscape && bestSlotH > availH) {
         bestSlotH = Math.max(availH, 160);
         bestSlotW = Math.floor(bestSlotH * targetAspect);
+        lockSingleLandscapeCap = true;
       }
     }
 
@@ -2074,19 +2071,19 @@
     gridContainer.style.setProperty('--slot-width', `${Math.floor(bestSlotW)}px`);
     gridContainer.style.setProperty('--slot-height', `${Math.floor(bestSlotH)}px`);
 
-    if (bestCols === 1 && isNarrowViewport && state.slotSize !== 'fit' && state.focusedSlotIndex === null && effectiveSplit > 1) {
-      // Edge-to-edge full-width scrollable column on phones without horizontal overflow
-      gridContainer.style.gridTemplateColumns = 'minmax(0, 1fr)';
-      gridContainer.style.gridTemplateRows = '';
-      gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
-    } else if (state.slotSize === 'fit' || state.focusedSlotIndex !== null || effectiveSplit === 1) {
+    const isFixedFitOrSingle = (state.slotSize === 'fit' && !overflowsY) || state.focusedSlotIndex !== null || effectiveSplit === 1 || lockSingleLandscapeCap;
+    if (isFixedFitOrSingle) {
+      gridContainer.classList.remove('grid-scrollable');
       gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`;
-      gridContainer.style.gridTemplateRows = `repeat(${totalRows}, ${Math.floor(bestSlotH)}px)`;
+      gridContainer.style.gridTemplateRows = state.focusedSlotIndex !== null || effectiveSplit === 1 || state.slotSize === 'fit'
+        ? `repeat(${totalRows}, ${Math.floor(bestSlotH)}px)`
+        : '';
       gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
     } else {
-      gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`;
+      gridContainer.classList.add('grid-scrollable');
+      gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, minmax(0, 1fr))`;
       gridContainer.style.gridTemplateRows = '';
-      gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
+      gridContainer.style.gridAutoRows = 'auto';
     }
   }
 

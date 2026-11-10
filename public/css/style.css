@@ -955,12 +955,20 @@ body {
 }
 
 /* Dynamic Column Mode Overrides (CSS Fallbacks) */
+.gpu-grid-container.cols-1:not(.split-1) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .gpu-grid-container.cols-2:not(.split-1) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .gpu-grid-container.cols-3:not(.split-1) {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gpu-grid-container.cols-4:not(.split-1) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 /* Column Mode Selector Buttons */
@@ -1099,6 +1107,10 @@ body {
   min-height: 0;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.gpu-grid-container.grid-scrollable .gpu-slot {
+  height: auto;
 }
 
 .gpu-slot:hover {
