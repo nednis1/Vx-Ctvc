@@ -247,31 +247,52 @@ app.use(express.json());
 // Authentication Endpoints & Route Guards
 // -------------------------------------------------------------
 
-// API: Process user login
-app.post('/api/login', (req, res) => {
+// API: Process user login (Authenticates with NVR credentials / live Dahua Digest Auth)
+app.post('/api/login', async (req, res) => {
   const { username, password, remember } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
   }
 
-  const validUsers = [
-    { user: CONFIG.dashboardUser, pass: CONFIG.dashboardPassword, role: 'admin' },
-    { user: CONFIG.nvrUser, pass: CONFIG.nvrPassword, role: 'admin' }
-  ];
+  const cleanUser = username.trim();
+  let matchedUser = null;
 
-  const matched = validUsers.find(
-    u => u.user.toLowerCase() === username.trim().toLowerCase() && u.pass === password
-  );
+  // 1. Fast match against configured NVR credentials (.env)
+  if (
+    cleanUser.toLowerCase() === (CONFIG.nvrUser || '').toLowerCase() &&
+    password === CONFIG.nvrPassword
+  ) {
+    matchedUser = { user: cleanUser, role: 'admin' };
+  } else if (
+    cleanUser.toLowerCase() === (CONFIG.dashboardUser || '').toLowerCase() &&
+    password === CONFIG.dashboardPassword
+  ) {
+    matchedUser = { user: cleanUser, role: 'admin' };
+  }
 
-  if (!matched) {
-    return res.status(401).json({ error: 'Invalid username or password' });
+  // 2. If not matched locally, authenticate live against Dahua NVRs via Digest challenge
+  if (!matchedUser) {
+    for (const nvr of CONFIG.nvrs) {
+      try {
+        const testUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/global.cgi?action=getCurrentTime`;
+        const authRes = await dahuaDigestRequest(testUrl, cleanUser, password);
+        if (authRes && authRes.status === 200) {
+          matchedUser = { user: cleanUser, role: 'admin' };
+          break;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (!matchedUser) {
+    return res.status(401).json({ error: 'Invalid NVR credentials' });
   }
 
   const sessionId = crypto.randomBytes(32).toString('hex');
   const ttlMs = remember ? (30 * 24 * 3600 * 1000) : (24 * 3600 * 1000);
   activeSessions[sessionId] = {
-    username: matched.user,
-    role: matched.role,
+    username: matchedUser.user,
+    role: matchedUser.role,
     created: Date.now(),
     expires: Date.now() + ttlMs
   };
@@ -279,7 +300,7 @@ app.post('/api/login', (req, res) => {
 
   const maxAgeSec = Math.floor(ttlMs / 1000);
   res.setHeader('Set-Cookie', `voscctv_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`);
-  return res.json({ success: true, user: { username: matched.user, role: matched.role } });
+  return res.json({ success: true, user: { username: matchedUser.user, role: matchedUser.role } });
 });
 
 // API: Logout & invalidate session
