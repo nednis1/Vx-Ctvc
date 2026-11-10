@@ -1109,10 +1109,6 @@ body {
   box-sizing: border-box;
 }
 
-.gpu-grid-container.grid-scrollable .gpu-slot {
-  height: auto;
-}
-
 .gpu-slot:hover {
   border-color: rgba(255, 255, 255, 0.25);
 }

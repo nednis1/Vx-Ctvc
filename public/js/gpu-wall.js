@@ -1023,7 +1023,6 @@
         recBtn.setAttribute('aria-pressed', String(isRecActive));
         recBtn.title = isRecActive ? "Stop Recording Clip" : "Record Live Clip";
       }
-      if (recIcon) recIcon.textContent = item.recording && item.recording.active ? '⏹' : '⏺';
       if (recLabel) {
         if (item.recording && item.recording.active) {
           const mins = Math.floor(item.recording.seconds / 60).toString().padStart(2, '0');
@@ -2083,7 +2082,7 @@
       gridContainer.classList.add('grid-scrollable');
       gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, minmax(0, 1fr))`;
       gridContainer.style.gridTemplateRows = '';
-      gridContainer.style.gridAutoRows = 'auto';
+      gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
     }
   }
 
