@@ -62,7 +62,7 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
 
 ---
 
-## 🎨 Universal UI/UX Design Philosophy & Master Rules
+## 🧠 Cognitive Minimalism Standards & Universal UI/UX Design Philosophy
 
 > [!IMPORTANT]
 > **MASTER DESIGN DIRECTIVE: COGNITIVE MINIMALISM & ZERO VISUAL FRICTION**
@@ -73,7 +73,7 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
 ### 🚫 The 10 Explicitly Prohibited UI Anti-Patterns
 
 1. **No Superfluous Status Badges, State Pills, or Diagnostic Chips**:
-   - **Never** place decorative status pills next to titles, buttons, or inside headers (e.g., `HARDWARE SECURITY GATEWAY`, `LIVE`, `AUTO`, `MANUAL LIMITS`, `STABLE`, `ACTIVE RULES`).
+   - **Never** place decorative status pills next to titles, buttons, or inside headers (e.g., `HARDWARE SECURITY GATEWAY`, `LIVE`, `AUTO`, `MANUAL LIMITS`, `STABLE`, `ACTIVE RULES`, `CLIENT GPU`, `GPU`).
    - System state must be conveyed naturally through the controls themselves (e.g. an active toggle, dropdown selection, or direct form values). Badges create visual noise, draw false focus, and duplicate obvious state.
    - *Exception*: Badges are strictly reserved for actionable operational states, critical hardware errors, faults, or genuine device health alerts (`Offline`, `Fault`, `Warning`).
 
@@ -97,7 +97,7 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
    - Alerts and excursions must use quiet in-place data coloring (e.g., text transitioning cleanly to rose-red or steady semantic status dots) rather than jarring animations.
 
 5. **No Disruptive Popups, Routine Toasts, or Action Spam**:
-   - **Never** trigger toast notifications or popup banners for routine user actions or background state changes (e.g., "Switched to Light Mode", "Connecting stream...", "Feed minimized", "Filtered cameras", "Telemetry refreshed").
+   - **Never** trigger toast notifications or popup banners for routine user actions or background state changes (e.g., "Switched to Light Mode", "Stream quality: Main HD", "Connecting stream...", "Feed minimized", "Filtered cameras", "Telemetry refreshed", "Digital zoom active").
    - **Ambient Inline Visual State**: Confirm user actions visually through the element itself—toggled active classes, subtle borders, depression states (`transform: scale(0.96)`), or icon state flips.
    - **Strict Toast Whitelist**: Toasts (`showToast`) are strictly reserved for:
      1. High-priority hardware alarms or critical sensor faults.
@@ -106,7 +106,7 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
      4. Form validation errors and clipboard confirmations (`Copied`).
 
 6. **No Gratuitous Animations, Sci-Fi Backdrops, or Pulsing Dots**:
-   - **Never** add sci-fi background scanlines, gridline overlays (`32px 32px`), radial glow vignettes, pulsing heartbeat dots, or decorative keyframes on static elements.
+   - **Never** add sci-fi background scanlines, gridline overlays (`32px 32px`), radial glow vignettes, pulsing heartbeat dots, or decorative keyframes on static elements (e.g., `@keyframes pulseTour`, `@keyframes pulseDockRec`, `@keyframes pulseDotRec`).
    - Continuous CSS animations drain GPU/CPU cycles, distract the operator's eye, and degrade video streaming performance. Animations must be strictly reserved for genuine user transitions (e.g., smooth drawer opens or tab switches).
 
 7. **No Redundant Controls or Duplicate Data Presentations**:
@@ -115,7 +115,7 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
 
 8. **No Explanatory Helper Paragraphs, Marketing Subtitles, or Decorative Icons**:
    - Eliminate verbose explanatory paragraphs, marketing subtitle blocks, and category headers (e.g., remove "Dahua Dual NVR Surveillance Console", "Hardware Security Gateway", "Protected Dahua Gateway").
-   - Never place decorative encircled `info` icons in headers, and remove decorative emojis (`👤`, `🔒`, `👁️`, `→`) from form fields and action buttons.
+   - Never place decorative encircled `info` icons in headers, and remove decorative emojis (`👤`, `🔒`, `👁️`, `→`, `⚡`, `📹`, `🎮`, `💾`, `⛶`, `🚪`) from form fields, headers, menus, and action buttons.
    - Secondary explanations, unit formulas, and technical guides belong inside native browser hover tooltips (`title` attribute) on the relevant label or icon—never occupying layout space.
 
 9. **Zero "AI Slop", Synthetic Controls, or Fake Data**:

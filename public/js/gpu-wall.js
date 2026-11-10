@@ -184,7 +184,6 @@
         itemEl.draggable = true;
 
         itemEl.innerHTML = `
-          <span class="gpu-tree-item-icon">📹</span>
           <span class="gpu-tree-ch-tag">CH ${ch.toString().padStart(2, '0')}</span>
           <span class="gpu-tree-name-label" id="label-${nvr.id}-${ch}" title="Double-click to rename">${title}</span>
           ${ptzBadge}
@@ -453,7 +452,6 @@
     if (slotIndex === state.selectedSlotIndex) {
       updateBottomDock();
     }
-    showToast(`⚡ Stream quality: ${item.subtype === 'hd' ? 'Main HD (1080p)' : 'Sub-Stream (SD)'}`);
   }
 
   /**
@@ -675,7 +673,6 @@
 
     if (item.digitalZoom.active) {
       if (wrapper) wrapper.classList.add('zoom-active');
-      showToast('🔍 Digital Zoom active: Scroll to zoom, drag to pan');
     } else {
       item.digitalZoom.scale = 1;
       item.digitalZoom.x = 0;
@@ -684,7 +681,6 @@
       if (wrapper) {
         wrapper.classList.remove('zoom-active', 'is-dragging');
       }
-      showToast('🔍 Digital Zoom turned off');
     }
 
     updateSlotBadges(slotIndex);
@@ -840,9 +836,8 @@
     const zoomBtn = document.getElementById('dock-btn-zoom');
     const ptzBtn = document.getElementById('dock-btn-ptz');
     const audioBtn = document.getElementById('dock-btn-audio');
-    const audioIcon = document.getElementById('dock-audio-icon');
+    const audioLabel = document.getElementById('dock-audio-label');
     const recBtn = document.getElementById('dock-btn-record');
-    const recIcon = document.getElementById('dock-rec-icon');
     const recLabel = document.getElementById('dock-rec-label');
     const snapBtn = document.getElementById('dock-btn-snapshot');
     const btn1x1 = document.getElementById('dock-btn-1x1');
@@ -861,9 +856,8 @@
       if (zoomBtn) { zoomBtn.disabled = true; zoomBtn.classList.add('disabled'); zoomBtn.classList.remove('active'); zoomBtn.setAttribute('aria-pressed', 'false'); zoomBtn.title = "No camera assigned to this slot"; }
       if (ptzBtn) { ptzBtn.disabled = true; ptzBtn.classList.add('disabled'); ptzBtn.classList.remove('active'); ptzBtn.setAttribute('aria-expanded', 'false'); ptzBtn.title = "No camera assigned to this slot"; }
       if (audioBtn) { audioBtn.disabled = true; audioBtn.classList.add('disabled'); audioBtn.classList.remove('active', 'btn-audio'); audioBtn.setAttribute('aria-pressed', 'false'); audioBtn.title = "No camera assigned to this slot"; }
-      if (audioIcon) audioIcon.textContent = '🔇';
+      if (audioLabel) audioLabel.textContent = 'Audio';
       if (recBtn) { recBtn.disabled = true; recBtn.classList.add('disabled'); recBtn.classList.remove('recording'); recBtn.setAttribute('aria-pressed', 'false'); recBtn.title = "No camera assigned to this slot"; }
-      if (recIcon) recIcon.textContent = '⏺';
       if (recLabel) recLabel.textContent = 'Record';
       if (snapBtn) { snapBtn.disabled = true; snapBtn.classList.add('disabled'); snapBtn.title = "No camera assigned to this slot"; }
       if (btn1x1) { btn1x1.disabled = true; btn1x1.classList.add('disabled'); btn1x1.classList.remove('active'); btn1x1.setAttribute('aria-pressed', 'false'); btn1x1.title = "No camera assigned to this slot"; }
@@ -951,14 +945,14 @@
         audioBtn.classList.remove('active', 'btn-audio');
         audioBtn.setAttribute('aria-pressed', 'false');
         audioBtn.title = "Microphone/audio not available on this camera model (No Audio Hardware)";
-        if (audioIcon) audioIcon.textContent = '🔇';
+        if (audioLabel) audioLabel.textContent = 'Audio';
       } else if (!isFeedReady) {
         audioBtn.disabled = true;
         audioBtn.classList.add('disabled');
         audioBtn.classList.remove('active', 'btn-audio');
         audioBtn.setAttribute('aria-pressed', 'false');
         audioBtn.title = "Waiting for live video/audio stream to connect...";
-        if (audioIcon) audioIcon.textContent = '🔇';
+        if (audioLabel) audioLabel.textContent = 'Audio';
       } else {
         const isAudioActive = !item.audioMuted;
         audioBtn.disabled = false;
@@ -967,7 +961,7 @@
         audioBtn.classList.toggle('btn-audio', isAudioActive);
         audioBtn.setAttribute('aria-pressed', String(isAudioActive));
         audioBtn.title = isAudioActive ? "Mute Live Audio (Currently LIVE)" : "Unmute Live Audio (Currently MUTED)";
-        if (audioIcon) audioIcon.textContent = isAudioActive ? '🔊' : '🔇';
+        if (audioLabel) audioLabel.textContent = isAudioActive ? 'Mute' : 'Audio';
       }
     }
 
@@ -1140,9 +1134,9 @@
     const titleEl = document.getElementById('gpu-ptz-drawer-title');
     if (titleEl) {
       if (item) {
-        titleEl.textContent = `🎮 PTZ CH ${item.channel.toString().padStart(2, '0')} (${item.nvrId.toUpperCase()})`;
+        titleEl.textContent = `PTZ CH ${item.channel.toString().padStart(2, '0')} (${item.nvrId.toUpperCase()})`;
       } else {
-        titleEl.textContent = '🎮 PTZ CONTROLLER';
+        titleEl.textContent = 'PTZ CONTROLLER';
       }
     }
     setTimeout(() => {
@@ -1288,7 +1282,7 @@
     try {
       const stream = video.captureStream ? video.captureStream(30) : (video.mozCaptureStream ? video.mozCaptureStream(30) : null);
       if (!stream) {
-        showToast('⚠️ Browser does not support direct stream recording');
+        showToast('Browser does not support direct stream recording');
         return;
       }
 
@@ -1323,7 +1317,7 @@
         const ext = type.includes('mp4') ? 'mp4' : 'webm';
         const blob = new Blob(item.recording.chunks, { type });
         if (blob.size === 0) {
-          showToast('⚠️ Recording contained no data or was too short');
+          showToast('Recording contained no data or was too short');
           return;
         }
         const url = URL.createObjectURL(blob);
@@ -1337,7 +1331,7 @@
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 3000);
-        showToast(`💾 Clip saved (${Math.round(blob.size / 1024)} KB): ${filename}`);
+        showToast(`Clip saved (${Math.round(blob.size / 1024)} KB): ${filename}`);
       };
 
       recorder.start(1000);
@@ -1355,10 +1349,9 @@
 
       updateSlotBadges(slotIndex);
       updateBottomDock();
-      showToast('🔴 Recording live clip started...');
     } catch (err) {
       console.warn('[GPU Wall] Clip recording error:', err);
-      showToast(`⚠️ Clip recording error: ${err.message || 'Failed'}`);
+      showToast(`Clip recording error: ${err.message || 'Failed'}`);
     }
   }
 
@@ -1557,35 +1550,35 @@
     const m1x1 = menu.querySelector('[data-menu="1x1"]');
     if (m1x1) {
       const isFocused = state.focusedSlotIndex !== null;
-      m1x1.innerHTML = `<span>⛶</span> Toggle 1x1 Focus ${isFocused ? '<span class="menu-check">✓ Active</span>' : ''}`;
+      m1x1.innerHTML = `Toggle 1x1 Focus ${isFocused ? '<span class="menu-check">Active</span>' : ''}`;
     }
 
     const mQuality = menu.querySelector('[data-menu="quality"]');
     if (mQuality) {
       const isHd = item && item.subtype === 'hd';
-      mQuality.innerHTML = `<span>⚡</span> Stream Quality ${isHd ? '<span class="menu-check">✓ HD</span>' : '<span class="menu-val">SUB</span>'}`;
+      mQuality.innerHTML = `Stream Quality ${isHd ? '<span class="menu-check">HD</span>' : '<span class="menu-val">SUB</span>'}`;
     }
 
     const mAspect = menu.querySelector('[data-menu="aspect"]');
     if (mAspect) {
       const asp = (item && (item.aspect || state.globalAspect) || 'contain').toUpperCase();
-      mAspect.innerHTML = `<span>🔲</span> Aspect Ratio <span class="menu-val">[${asp}]</span>`;
+      mAspect.innerHTML = `Aspect Ratio <span class="menu-val">[${asp}]</span>`;
     }
 
     const mZoom = menu.querySelector('[data-menu="zoom"]');
     if (mZoom) {
       const isZoomed = !!(item && item.digitalZoom && item.digitalZoom.active);
       const scaleVal = isZoomed ? `${Math.round(item.digitalZoom.scale * 10) / 10}x` : '';
-      const statusLabel = !isFeedReady ? '(Offline)' : (isZoomed ? `✓ ${scaleVal}` : '');
-      mZoom.innerHTML = `<span>🔍</span> Digital Zoom ${statusLabel ? `<span class="${isZoomed ? 'menu-check' : 'menu-val'}">${statusLabel}</span>` : ''}`;
+      const statusLabel = !isFeedReady ? '(Offline)' : (isZoomed ? scaleVal : '');
+      mZoom.innerHTML = `Digital Zoom ${statusLabel ? `<span class="${isZoomed ? 'menu-check' : 'menu-val'}">${statusLabel}</span>` : ''}`;
     }
 
     const mPtz = menu.querySelector('[data-menu="ptz"]');
     if (mPtz) {
       const drawer = document.getElementById('gpu-ptz-drawer');
       const isOpen = drawer && !drawer.classList.contains('hidden');
-      const statusLabel = !isPtzSupported ? '(Fixed Lens)' : (isOpen ? '✓ Open' : '');
-      mPtz.innerHTML = `<span>🎮</span> PTZ Controller ${statusLabel ? `<span class="${isOpen ? 'menu-check' : 'menu-val'}">${statusLabel}</span>` : ''}`;
+      const statusLabel = !isPtzSupported ? '(Fixed Lens)' : (isOpen ? 'Open' : '');
+      mPtz.innerHTML = `PTZ Controller ${statusLabel ? `<span class="${isOpen ? 'menu-check' : 'menu-val'}">${statusLabel}</span>` : ''}`;
     }
 
     const mAudio = menu.querySelector('[data-menu="audio"]');
@@ -1598,10 +1591,10 @@
       } else if (!isFeedReady) {
         statusLabel = '(Connecting)';
       } else if (isLive) {
-        statusLabel = '✓ Live';
+        statusLabel = 'Live';
         statusClass = 'menu-check';
       }
-      mAudio.innerHTML = `<span>🔊</span> Live Audio <span class="${statusClass}">${statusLabel}</span>`;
+      mAudio.innerHTML = `Live Audio <span class="${statusClass}">${statusLabel}</span>`;
     }
 
     const mRec = menu.querySelector('[data-menu="rec"]');
@@ -1614,10 +1607,10 @@
       } else if (!isFeedReady) {
         statusLabel = '(Offline)';
       } else if (isRecording) {
-        statusLabel = '🔴 Recording';
+        statusLabel = 'Recording';
         statusClass = 'menu-rec';
       }
-      mRec.innerHTML = `<span>⏺</span> Record Clip ${statusLabel ? `<span class="${statusClass}">${statusLabel}</span>` : ''}`;
+      mRec.innerHTML = `Record Clip ${statusLabel ? `<span class="${statusClass}">${statusLabel}</span>` : ''}`;
     }
 
     menu.style.left = `${Math.min(window.innerWidth - 190, e.clientX)}px`;
@@ -1643,18 +1636,18 @@
 
     // Main HD Badge
     if (item.subtype === 'hd') {
-      badges.push('<span class="slot-badge badge-hd" title="Streaming Main HD (High Quality)">⚡ HD</span>');
+      badges.push('<span class="slot-badge badge-hd" title="Streaming Main HD (High Quality)">HD</span>');
     }
 
     // Digital Zoom Badge
     if (item.digitalZoom && item.digitalZoom.active) {
       const scaleStr = `${Math.round(item.digitalZoom.scale * 10) / 10}x`;
-      badges.push(`<span class="slot-badge badge-zoom" title="Digital Zoom Active (${scaleStr})">🔍 ${scaleStr}</span>`);
+      badges.push(`<span class="slot-badge badge-zoom" title="Digital Zoom Active (${scaleStr})">${scaleStr}</span>`);
     }
 
     // Live Audio Unmuted Badge
     if (!item.audioMuted) {
-      badges.push('<span class="slot-badge badge-audio" title="Audio Unmuted">🔊 AUDIO</span>');
+      badges.push('<span class="slot-badge badge-audio" title="Audio Unmuted">AUDIO</span>');
     }
 
     // Video Recording Badge
@@ -1720,7 +1713,6 @@
         if (slotIndex === state.selectedSlotIndex) {
           updateBottomDock();
         }
-        showToast('🔍 Digital Zoom reset to 1.0x');
         return;
       }
       toggleSlotZoom(slotIndex);
@@ -2073,7 +2065,7 @@
     if (!slotEl) return;
     const videoEl = slotEl.querySelector('video');
     if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
-      showToast('⚠️ Video feed is not ready for snapshot');
+      showToast('Video feed is not ready for snapshot');
       return;
     }
 
@@ -2116,7 +2108,7 @@
 
     canvas.toBlob((blob) => {
       if (!blob) {
-        showToast('⚠️ Could not export snapshot image');
+        showToast('Could not export snapshot image');
         return;
       }
       const url = URL.createObjectURL(blob);
@@ -2130,7 +2122,7 @@
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 3000);
-      showToast(`📸 Snapshot saved: ${filename}`);
+      showToast(`Snapshot saved: ${filename}`);
     }, 'image/jpeg', 0.95);
   }
 

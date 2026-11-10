@@ -889,19 +889,6 @@ body {
   font-weight: 700;
 }
 
-.gpu-badge-indicator {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  padding: 3px 7px;
-  border-radius: 4px;
-}
-
 /* -------------------------------------------------------------
  * 3. Central Grid Container & Slot Tiles
  * ------------------------------------------------------------- */
@@ -1060,12 +1047,6 @@ body {
   border-color: #10b981;
   color: #34d399;
   font-weight: 700;
-  animation: pulseTour 1.5s infinite;
-}
-
-@keyframes pulseTour {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
 }
 
 .gpu-view-dropdown-wrap {
@@ -1430,23 +1411,11 @@ video::-webkit-media-controls-fullscreen-button {
   background: #ef4444;
   color: #ffffff;
   border-color: #ef4444;
-  animation: pulseDockRec 1s infinite alternate;
 }
 
 .gpu-dock-btn.recording .dock-btn-dot {
   background: #ffffff;
   box-shadow: 0 0 6px #ffffff;
-  animation: pulseDotRec 1s infinite alternate;
-}
-
-@keyframes pulseDockRec {
-  0% { transform: scale(1); }
-  100% { transform: scale(1.04); }
-}
-
-@keyframes pulseDotRec {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1.4); opacity: 0.6; }
 }
 
 .gpu-dock-btn.danger:hover {
@@ -1747,7 +1716,6 @@ video::-webkit-media-controls-fullscreen-button {
   font-size: 10px;
   font-weight: 700;
   color: #ef4444;
-  animation: pulseSlotRec 1s infinite;
 }
 
 .gpu-menu-sep {
@@ -1810,7 +1778,6 @@ video::-webkit-media-controls-fullscreen-button {
   background: rgba(239, 68, 68, 0.92);
   color: #ffffff;
   border: 1px solid rgba(248, 113, 113, 0.8);
-  animation: pulseSlotRec 1.2s infinite;
 }
 
 .slot-badge .badge-rec-dot {
@@ -1819,12 +1786,6 @@ video::-webkit-media-controls-fullscreen-button {
   border-radius: 50%;
   background: #ffffff;
   display: inline-block;
-  animation: pulseDotRec 1s infinite alternate;
-}
-
-@keyframes pulseSlotRec {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.82; }
 }
 
 /* Spinner */
@@ -1929,10 +1890,6 @@ video::-webkit-media-controls-fullscreen-button {
 }
 
 @media (max-width: 768px) {
-  .gpu-badge-indicator {
-    display: none;
-  }
-
   .gpu-tree-item {
     padding: 10px 12px; /* Generous touch target for handheld phones */
     min-height: 44px;
@@ -2331,11 +2288,6 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-active-slot-pill span {
     color: #0284c7;
     font-weight: 700;
-  }
-  .gpu-badge-indicator {
-    background: #f1f5f9;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    color: #475569;
   }
 
   /* Central Grid & Slots */
