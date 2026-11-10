@@ -945,37 +945,13 @@ body {
   background: rgba(56, 189, 248, 0.5);
 }
 
-/* Split Layouts: 1, 2, 4, 6, 9, 16, 25, 32 (CSS Fallbacks) */
+/* Split Layouts (CSS Auto-Fill Fallback: large scrollable slots without shrinking) */
+.gpu-grid-container.cols-auto {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+}
+
 .gpu-grid-container.split-1 {
   grid-template-columns: minmax(0, 1fr);
-}
-
-.gpu-grid-container.split-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.gpu-grid-container.split-4 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.gpu-grid-container.split-6 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.gpu-grid-container.split-9 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.gpu-grid-container.split-16 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.gpu-grid-container.split-25 {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.gpu-grid-container.split-32 {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 /* Dynamic Column Mode Overrides (CSS Fallbacks) */
@@ -1919,12 +1895,6 @@ video::-webkit-media-controls-fullscreen-button {
     align-items: center;
     justify-content: center;
   }
-
-  /* Split 25 and 32 wrap sensibly on tablet */
-  .gpu-grid-container.split-25,
-  .gpu-grid-container.split-32 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 1023px) {
@@ -1943,27 +1913,8 @@ video::-webkit-media-controls-fullscreen-button {
   }
 }
 
-/* Container-query-driven dynamic 2-column & 3-column UI fallbacks for Live Wall */
-@container livewall (max-width: 620px) {
-  /* Dynamic 2-column reflow on mobile phones */
-  .gpu-grid-container.cols-auto:not(.split-1) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container livewall (min-width: 621px) and (max-width: 1080px) {
-  /* Dynamic 3-column reflow on tablets, iPads, and compact windows */
-  .gpu-grid-container.cols-auto.split-6,
-  .gpu-grid-container.cols-auto.split-9,
-  .gpu-grid-container.cols-auto.split-16,
-  .gpu-grid-container.cols-auto.split-25,
-  .gpu-grid-container.cols-auto.split-32 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@container livewall (max-width: 380px) {
-  /* Single-column reflow on ultra-narrow portrait devices */
+/* Narrow container fallback preserves full-width unshrunk feeds with vertical scrolling */
+@container livewall (max-width: 767px) {
   .gpu-grid-container.cols-auto:not(.split-1) {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2293,11 +2244,6 @@ video::-webkit-media-controls-fullscreen-button {
     min-width: 44px;
     padding: 0 10px;
     font-size: 11px;
-  }
-
-  .gpu-grid-container.cols-auto.split-4,
-  .gpu-grid-container.cols-auto.split-6 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

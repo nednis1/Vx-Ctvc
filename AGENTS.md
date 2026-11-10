@@ -155,12 +155,12 @@ Structure information across three progressive levels to prevent operator cognit
   - Touch targets must be generous ($\ge 34\text{px} - 44\text{px}$) with comfortable tap spacing.
   - Safe-area insets (`padding-bottom: max(6px, env(safe-area-inset-bottom))`) prevent collisions with edge-to-edge phone navigation bars.
   - Horizontal swipe navigation: Both `.gpu-dock-bar` and `.gpu-toolbar` must support smooth momentum-based horizontal scrolling (`-webkit-overflow-scrolling: touch`) with hidden scrollbars (`scrollbar-width: none`), never wrapping awkwardly onto multiple staggered lines.
-- **Dynamic Container Query Reflow (`@container livewall`)**:
-  - Single slot on ultra-narrow portrait devices ($\le 380\text{px}$).
-  - 2 columns dynamic reflow on mobile phones ($\le 620\text{px}$).
-  - 3 columns dynamic reflow on tablets and compact viewports ($621\text{px} - 1080\text{px}$).
+- **Unshrunk Scrollable Slots (`minSlotW` Sizing) — Never Cram All Slots Into One View**:
+  - Default `COLS: Auto` + `SIZE: Large` (`380px+` min slot width; `XL`: `640px+`, `Medium`: `260px+`) preserves clear, unshrunk camera feeds and relies on vertical scrolling (`overflow-y: auto`) when total rows exceed viewport height.
+  - On portrait phones ($\le 620\text{px}$), default `Large` renders 1 full-width column per row instead of shrinking feeds into narrow miniature columns.
+  - Only explicit `SIZE: Fit Screen` (or `1x1` / `SPLIT: 1`) scales slots to fit inside a single viewport without scrolling, while explicit `COLS` overrides let operators force `1`, `2`, `3`, or `4` columns when desired.
 - **Off-Canvas Mobile Drawers**:
-  - Left device/camera tree collapses into an off-canvas slide-out drawer on devices $\le 1024\text{px}$, dismissed with smooth backdrop taps.
+  - Left device/camera tree collapses into an off-canvas slide-out drawer on devices $\le 1024\text{px}$, dismissed with backdrop taps or swipe-left gestures.
   - PTZ drawer acts as an off-canvas drawer on mobile, preserving full-bleed video feeds without obstruction.
 
 ---
@@ -177,10 +177,10 @@ Structure information across three progressive levels to prevent operator cognit
 - **100% Full-Bleed Video (Zero Obstruction)**: Feed slots must display video unobstructed. No persistent top bars, overlay buttons, or controls over the video canvas.
 - **Docked Controls**: All active slot controls (1x1 focus, snapshot, manual record, aspect ratio, quality stream selector, digital zoom, PTZ, audio, close) reside in the dedicated bottom bar (`.gpu-dock-bar`).
 - **Aspect Ratio Control**: Support cycle between `contain` (Fit), `fill` (Stretch), and `cover` (Crop).
-- **Grid Layouts & Dynamic Columns**: Central grid supports 1, 2, 4, 6, 9, 16, 25, and 32 split views.
-- **2-Column & 3-Column Dynamic UI**:
-  - **Feed Grid**: Explicit column mode dropdowns (`COLS: Auto | 2 Cols | 3 Cols`) allow forcing feeds into 2 or 3 wide columns. Container queries (`@container livewall`) reflow feeds dynamically into 2 columns on phones and 3 columns on tablets.
-  - **Workspace Layout**: On desktop ($\ge 1024\text{px}$), the PTZ inspector docks as an in-flow Column 3 (`gpu-sidebar` | `gpu-main-area` | `gpu-ptz-drawer`), dynamically adjusting the central video grid without covering feeds. Collapsing the sidebar smoothly transitions the workspace to a 1 or 2 column view.
+- **Grid Layouts & Dynamic Columns**: Central grid supports 1, 2, 4, 6, 9, 16, 25, and 32 split views with scrollable full-size feeds by default (`SIZE: Large` = `380px+`).
+- **Flexible Columns & Workspace Layout**:
+  - **Feed Grid**: Explicit dropdowns (`COLS: Auto | 1 | 2 | 3 | 4` and `SIZE: Large | Extra Large | Medium | Fit Screen`) let operators choose scrollable unshrunk feeds (default) or explicit `Fit Screen`.
+  - **Workspace Layout**: On desktop ($\ge 1024\text{px}$), the PTZ inspector docks as an in-flow Column 3 (`gpu-sidebar` | `gpu-main-area` | `gpu-ptz-drawer`), dynamically adjusting the central video grid without covering feeds. Collapsing the sidebar smoothly expands usable grid width without shrinking feeds.
 - **Mobile & Tablet Support**: Responsive layout with touch targets and collapsible sidebar for handheld devices.
 
 ### 3. Camera Name Synchronization

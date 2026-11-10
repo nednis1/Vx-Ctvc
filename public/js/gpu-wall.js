@@ -2018,85 +2018,49 @@
           bestSlotH = slotH;
         }
       }
-    } else if (isPhoneLandscape) {
-      // Phone Landscape Auto-Immersion: optimize live grid fit in shallow viewport height
-      const candidates = effectiveSplit <= 2 ? [Math.min(2, effectiveSplit), 1] : [2, 3, 4];
-      let bestArea = -1;
-      for (const c of candidates) {
-        if (c > totalSlots) continue;
-        const r = Math.ceil(totalSlots / c);
-        const maxW = (availW - (c - 1) * gap) / c;
-        const maxH = (availH - (r - 1) * gap) / r;
-        if (maxW < 130) continue;
-        const fitW = Math.min(maxW, Math.max(maxH * targetAspect, 160 * targetAspect));
-        const fitH = fitW / targetAspect;
-        const area = fitW * fitH;
-        if (r * fitH <= availH + 4 && area > bestArea) {
-          bestArea = area;
-          bestCols = c;
-          bestSlotW = fitW;
-          bestSlotH = fitH;
-        }
-      }
-      if (bestArea < 0) {
-        bestCols = Math.min(totalSlots, 2);
-        bestSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
-        bestSlotH = Math.floor(bestSlotW / targetAspect);
-      }
-    } else if (isNarrowViewport) {
-      // Phone Portrait & Narrow Panes: crisp responsive 1-col or 2-col reflow
-      if (state.slotSize === 'xl') {
-        bestCols = 1;
-      } else if (isUltraNarrow && state.slotSize !== 'medium') {
-        bestCols = 1;
-      } else if (effectiveSplit === 2 && containerH > containerW * 1.15) {
-        bestCols = 1;
-      } else {
-        bestCols = Math.min(totalSlots, 2);
-      }
-      bestSlotW = Math.floor((availW - (bestCols - 1) * gap) / bestCols);
-      bestSlotH = Math.floor(bestSlotW / targetAspect);
     } else {
-      // Tablet & Desktop Auto Columns (621px+)
-      let minSlotW = 340;
+      // SCROLLABLE AUTO COLUMNS (Never shrinks slots to fit all rows in one screen)
+      let minSlotW = 380; // Large (default): crisp readable feeds across phone & desktop
       if (state.slotSize === 'xl') {
-        minSlotW = 580;
+        minSlotW = 640; // Extra Large: maximum video detail
       } else if (state.slotSize === 'medium') {
-        minSlotW = 240;
+        minSlotW = 260; // Medium: denser overview with natural vertical scroll
       }
 
       let maxColsByWidth = Math.floor((availW + gap) / (minSlotW + gap));
       maxColsByWidth = Math.max(1, Math.min(totalSlots, maxColsByWidth));
 
-      // Balance columns cleanly for tablets & desktops
+      // Cap upper column density for balanced standard splits (never increases columns below minSlotW)
       let c = maxColsByWidth;
-      if (containerW <= 1080 && effectiveSplit >= 6) {
-        c = Math.max(c, 3);
-        c = Math.min(c, effectiveSplit);
-      }
       if (totalSlots === 4 && c >= 3) {
-        c = 2; // Clean 2x2 for 4 feeds
+        c = 2;
       } else if (totalSlots === 6 && c >= 4) {
-        c = 3; // Clean 3x2 for 6 feeds
+        c = 3;
       } else if (totalSlots === 9 && c >= 4) {
-        c = 3; // Clean 3x3 for 9 feeds
+        c = 3;
       } else if (totalSlots === 16 && c > 4) {
-        c = 4; // Clean 4x4 for 16 feeds
+        c = 4;
       } else if (totalSlots === 25 && c > 5) {
-        c = 5; // Clean 5x5 for 25 feeds
+        c = 5;
       } else if (totalSlots === 32 && c > 8) {
-        c = 8; // Clean 8x4 for 32 feeds
+        c = 8;
       }
 
       bestCols = c;
       bestSlotW = Math.floor((availW - (c - 1) * gap) / c);
       bestSlotH = Math.floor(bestSlotW / targetAspect);
+
+      // In shallow phone landscape, ensure a single-column feed isn't taller than the screen
+      if (bestCols === 1 && isPhoneLandscape && bestSlotH > availH) {
+        bestSlotH = Math.max(availH, 160);
+        bestSlotW = Math.floor(bestSlotH * targetAspect);
+      }
     }
 
     // Fallback if container is extremely constrained
     if (bestSlotW <= 0 || bestSlotH <= 0) {
-      bestCols = isUltraNarrow ? 1 : Math.min(totalSlots, 2);
-      bestSlotW = Math.max(Math.floor((availW - (bestCols - 1) * gap) / bestCols), 120);
+      bestCols = 1;
+      bestSlotW = Math.max(availW, 120);
       bestSlotH = Math.floor(bestSlotW / targetAspect);
     }
 
@@ -2110,14 +2074,18 @@
     gridContainer.style.setProperty('--slot-width', `${Math.floor(bestSlotW)}px`);
     gridContainer.style.setProperty('--slot-height', `${Math.floor(bestSlotH)}px`);
 
-    if (isNarrowViewport && state.slotSize !== 'fit' && state.focusedSlotIndex === null && effectiveSplit > 1) {
-      // Flexible edge-to-edge tracks on narrow/phone viewports prevent horizontal pixel clipping
-      gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, minmax(0, 1fr))`;
+    if (bestCols === 1 && isNarrowViewport && state.slotSize !== 'fit' && state.focusedSlotIndex === null && effectiveSplit > 1) {
+      // Edge-to-edge full-width scrollable column on phones without horizontal overflow
+      gridContainer.style.gridTemplateColumns = 'minmax(0, 1fr)';
       gridContainer.style.gridTemplateRows = '';
-      gridContainer.style.gridAutoRows = 'auto';
-    } else {
+      gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
+    } else if (state.slotSize === 'fit' || state.focusedSlotIndex !== null || effectiveSplit === 1) {
       gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`;
       gridContainer.style.gridTemplateRows = `repeat(${totalRows}, ${Math.floor(bestSlotH)}px)`;
+      gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
+    } else {
+      gridContainer.style.gridTemplateColumns = `repeat(${bestCols}, ${Math.floor(bestSlotW)}px)`;
+      gridContainer.style.gridTemplateRows = '';
       gridContainer.style.gridAutoRows = `${Math.floor(bestSlotH)}px`;
     }
   }
