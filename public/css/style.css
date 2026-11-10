@@ -18,6 +18,8 @@
   --border: rgba(255, 255, 255, 0.1);
   --green: #10b981;
   --grey: #64748b;
+  --bg-sidebar-footer: #0b1120;
+  --border-sidebar-footer: rgba(255, 255, 255, 0.06);
 }
 
 :root[data-theme="light"],
@@ -30,6 +32,8 @@
   --text-main: #0f172a;
   --text-muted: #64748b;
   --border: rgba(0, 0, 0, 0.12);
+  --bg-sidebar-footer: #f8fafc;
+  --border-sidebar-footer: rgba(0, 0, 0, 0.08);
 }
 
 body {
@@ -639,8 +643,8 @@ body {
 /* Sidebar Batch Action Footer */
 .gpu-sidebar-footer {
   padding: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: #0b1120;
+  border-top: 1px solid var(--border-sidebar-footer, rgba(255, 255, 255, 0.06));
+  background: var(--bg-sidebar-footer, #0b1120);
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
@@ -2051,21 +2055,37 @@ video::-webkit-media-controls-fullscreen-button {
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     color: #0f172a;
   }
-  .gpu-sidebar-search {
-    background: #ffffff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  .gpu-sidebar-title {
+    color: #475569;
   }
-  .gpu-tree-search-input {
-    background: #f1f5f9;
-    border: 1px solid rgba(0, 0, 0, 0.12);
+  .gpu-sidebar-close-btn {
+    color: #64748b;
+  }
+  .gpu-sidebar-close-btn:hover {
     color: #0f172a;
   }
+  .gpu-search-box,
+  .gpu-sidebar-search {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+  .gpu-search-box input,
+  .gpu-tree-search-input {
+    background: transparent;
+    border: none;
+    color: #0f172a;
+  }
+  .gpu-search-box input:focus,
   .gpu-tree-search-input:focus {
     border-color: #0284c7;
     background: #ffffff;
   }
+  .gpu-search-box input::placeholder,
   .gpu-tree-search-input::placeholder {
     color: #94a3b8;
+  }
+  .gpu-search-icon {
+    opacity: 0.7;
   }
   .gpu-tree-group-header {
     background: #f8fafc;
@@ -2093,6 +2113,7 @@ video::-webkit-media-controls-fullscreen-button {
     border-left: 2px solid #0284c7;
     color: #0284c7;
   }
+  .gpu-sidebar-footer,
   .gpu-tree-actions {
     background: #f8fafc;
     border-top: 1px solid rgba(0, 0, 0, 0.08);
@@ -2106,6 +2127,23 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-tree-action-btn:hover {
     background: #f1f5f9;
     color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+  .gpu-tree-action-btn.danger {
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.2);
+    background: rgba(220, 38, 38, 0.04);
+  }
+  .gpu-tree-action-btn.danger:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+  }
+  .gpu-rename-input {
+    background: #ffffff;
+    border-color: #0284c7;
+    color: #0f172a;
+    box-shadow: 0 0 4px rgba(2, 132, 199, 0.25);
   }
 
   /* Toolbar */
