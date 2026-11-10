@@ -52,8 +52,8 @@ function saveCustomNames(data) {
 const CONFIG = {
   dashboardPort: parseInt(process.env.PORT, 10) || 8090,
   authEnabled: process.env.AUTH_ENABLED !== 'false',
-  dashboardUser: process.env.DASHBOARD_USER || 'admin',
-  dashboardPassword: process.env.DASHBOARD_PASSWORD || 'admin',
+  dashboardUser: process.env.DASHBOARD_USER || 'iot',
+  dashboardPassword: process.env.DASHBOARD_PASSWORD || 'iot12345',
   nvrUser: process.env.NVR_USER || 'iot',
   nvrPassword: process.env.NVR_PASSWORD || 'iot12345',
   nvrs: [
