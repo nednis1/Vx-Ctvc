@@ -7,6 +7,7 @@ const net = require('net');
 const path = require('path');
 const zlib = require('zlib');
 const go2rtcManager = require('./go2rtc-manager');
+const directusClient = require('./directus-client');
 
 // Load environment variables from .env if present
 function loadEnv() {
@@ -247,7 +248,7 @@ app.use(express.json());
 // Authentication Endpoints & Route Guards
 // -------------------------------------------------------------
 
-// API: Process user login (Authenticates with NVR credentials / live Dahua Digest Auth)
+// API: Process user login (Directus database credentials with NVR & hardware fallback)
 app.post('/api/login', async (req, res) => {
   const { username, password, remember } = req.body || {};
   if (!username || !password) {
@@ -257,27 +258,39 @@ app.post('/api/login', async (req, res) => {
   const cleanUser = username.trim();
   let matchedUser = null;
 
-  // 1. Fast match against configured NVR credentials (.env)
-  if (
-    cleanUser.toLowerCase() === (CONFIG.nvrUser || '').toLowerCase() &&
-    password === CONFIG.nvrPassword
-  ) {
-    matchedUser = { user: cleanUser, role: 'admin' };
-  } else if (
-    cleanUser.toLowerCase() === (CONFIG.dashboardUser || '').toLowerCase() &&
-    password === CONFIG.dashboardPassword
-  ) {
-    matchedUser = { user: cleanUser, role: 'admin' };
+  // 1. Authoritative: Authenticate against Directus database (collection: iot_cctv_credentials)
+  try {
+    const directusAuth = await directusClient.authenticate(cleanUser, password);
+    if (directusAuth && directusAuth.authenticated) {
+      matchedUser = { user: directusAuth.user, role: directusAuth.role || 'admin', source: directusAuth.source };
+    }
+  } catch (err) {
+    console.warn('[Auth] Directus authentication attempt error:', err.message);
   }
 
-  // 2. If not matched locally, authenticate live against Dahua NVRs via Digest challenge
+  // 2. Fallback: Match against configured NVR credentials (.env)
+  if (!matchedUser) {
+    if (
+      cleanUser.toLowerCase() === (CONFIG.nvrUser || '').toLowerCase() &&
+      password === CONFIG.nvrPassword
+    ) {
+      matchedUser = { user: cleanUser, role: 'admin', source: 'env_nvr' };
+    } else if (
+      cleanUser.toLowerCase() === (CONFIG.dashboardUser || '').toLowerCase() &&
+      password === CONFIG.dashboardPassword
+    ) {
+      matchedUser = { user: cleanUser, role: 'admin', source: 'env_dashboard' };
+    }
+  }
+
+  // 3. Fallback: Authenticate live against Dahua NVRs via Digest challenge
   if (!matchedUser) {
     for (const nvr of CONFIG.nvrs) {
       try {
         const testUrl = `http://${nvr.ip}:${nvr.port}/cgi-bin/global.cgi?action=getCurrentTime`;
         const authRes = await dahuaDigestRequest(testUrl, cleanUser, password);
         if (authRes && authRes.status === 200) {
-          matchedUser = { user: cleanUser, role: 'admin' };
+          matchedUser = { user: cleanUser, role: 'admin', source: 'dahua_hardware' };
           break;
         }
       } catch (e) {}
@@ -285,7 +298,7 @@ app.post('/api/login', async (req, res) => {
   }
 
   if (!matchedUser) {
-    return res.status(401).json({ error: 'Invalid NVR credentials' });
+    return res.status(401).json({ error: 'Invalid username or password' });
   }
 
   const sessionId = crypto.randomBytes(32).toString('hex');
@@ -1140,6 +1153,9 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   console.log(`- NVR 2 (${CONFIG.nvrs[1].ip}) Proxy: http://localhost:${CONFIG.nvrs[1].proxyPort}`);
   console.log(`- WebRTC GPU Stream Gateway: Enabled via go2rtc`);
   console.log(`====================================================`);
+  // Initialize Directus connection and pull credentials
+  directusClient.init().catch(e => console.warn('[Directus] Initialization warning:', e.message));
+
   syncOfficialNvrNames().catch(() => {});
   probeCameraCapabilities().catch(() => {});
 
@@ -1155,6 +1171,7 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nGracefully shutting down servers...');
+  try { directusClient.stop(); } catch (e) {}
   try { go2rtcManager.stopGo2rtc(); } catch (e) {}
   dashboardServer.close();
   proxyServers.forEach(s => s.close());
