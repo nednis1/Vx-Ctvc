@@ -18,7 +18,7 @@
       if (meta) meta.content = theme;
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="/css/style.css?v=vosctv14">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv15">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -190,16 +190,21 @@
         <!-- Dedicated Bottom Control Dock (Dahua VMS Architecture: OUTSIDE Video) -->
         <div class="gpu-dock-bar" id="gpu-dock-bar">
           <div class="gpu-dock-left">
-            <button type="button" class="gpu-dock-slot-pill" id="gpu-dock-slot-pill" onclick="window.VOSCCTV_GPU_WALL.cycleSelectedSlot()" title="Tap to select next grid slot">Slot 1</button>
+            <button type="button" class="gpu-dock-cam-trigger" id="dock-btn-cameras" onclick="window.VOSCCTV_GPU_WALL.toggleDrawer()" title="Open Cameras List" aria-label="Open Cameras List">Cameras</button>
+            <div class="gpu-dock-slot-group">
+              <button type="button" class="gpu-dock-slot-nav" id="dock-slot-prev" onclick="window.VOSCCTV_GPU_WALL.stepSelectedSlot(-1)" title="Previous Slot" aria-label="Previous Slot">◀</button>
+              <button type="button" class="gpu-dock-slot-pill" id="gpu-dock-slot-pill" onclick="window.VOSCCTV_GPU_WALL.cycleSelectedSlot()" title="Tap to select next grid slot">Slot 1</button>
+              <button type="button" class="gpu-dock-slot-nav" id="dock-slot-next" onclick="window.VOSCCTV_GPU_WALL.stepSelectedSlot(1)" title="Next Slot" aria-label="Next Slot">▶</button>
+            </div>
             <span class="gpu-dock-cam-title" id="gpu-dock-cam-title">No Camera Assigned</span>
           </div>
 
           <div class="gpu-dock-center">
+            <button class="gpu-dock-btn" id="dock-btn-1x1" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1()" title="Toggle 1x1 Full Screen View" aria-pressed="false">
+              <span class="dock-btn-label">1x1</span>
+            </button>
             <button type="button" class="gpu-dock-btn" id="dock-btn-quality" onclick="window.VOSCCTV_GPU_WALL.dockToggleQuality()" title="Toggle Main HD / Sub-Stream" aria-pressed="false">
               <span class="dock-btn-label" id="dock-quality-label">SUB</span>
-            </button>
-            <button type="button" class="gpu-dock-btn" id="dock-btn-aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()" title="Cycle Aspect: Fit / Stretch / Crop">
-              <span class="dock-btn-label" id="dock-aspect-label">FIT</span>
             </button>
             <button type="button" class="gpu-dock-btn" id="dock-btn-zoom" onclick="window.VOSCCTV_GPU_WALL.dockToggleDigitalZoom()" title="Digital Zoom (Tap +/- or pinch/wheel to zoom, drag to pan)" aria-pressed="false">
               <span class="dock-btn-label" id="dock-zoom-label">Zoom</span>
@@ -210,8 +215,8 @@
             <button type="button" class="gpu-dock-btn dock-zoom-step hidden" id="dock-btn-zoom-in" onclick="window.VOSCCTV_GPU_WALL.dockStepDigitalZoom(0.5)" title="Zoom In (+0.5x)" aria-label="Digital zoom in">
               <span class="dock-btn-label">+</span>
             </button>
-            <button class="gpu-dock-btn" id="dock-btn-ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()" title="Open Dahua PTZ Camera Controls" aria-expanded="false">
-              <span class="dock-btn-label">PTZ</span>
+            <button class="gpu-dock-btn" id="dock-btn-snapshot" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot()" title="Capture High-Res Snapshot">
+              <span class="dock-btn-label">Snapshot</span>
             </button>
             <button class="gpu-dock-btn" id="dock-btn-audio" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio()" title="Listen to Live Audio" aria-pressed="false">
               <span class="dock-btn-label" id="dock-audio-label">Audio</span>
@@ -219,11 +224,11 @@
             <button class="gpu-dock-btn" id="dock-btn-record" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord()" title="Record Video Clip to PC" aria-pressed="false">
               <span class="dock-btn-label" id="dock-rec-label">Record</span>
             </button>
-            <button class="gpu-dock-btn" id="dock-btn-snapshot" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot()" title="Capture High-Res Snapshot">
-              <span class="dock-btn-label">Snapshot</span>
+            <button type="button" class="gpu-dock-btn" id="dock-btn-aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()" title="Cycle Aspect: Fit / Stretch / Crop">
+              <span class="dock-btn-label" id="dock-aspect-label">FIT</span>
             </button>
-            <button class="gpu-dock-btn" id="dock-btn-1x1" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1()" title="Toggle 1x1 Full Screen View" aria-pressed="false">
-              <span class="dock-btn-label">1x1</span>
+            <button class="gpu-dock-btn" id="dock-btn-ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()" title="Open Dahua PTZ Camera Controls" aria-expanded="false">
+              <span class="dock-btn-label">PTZ</span>
             </button>
             <button class="gpu-dock-btn danger" id="dock-btn-close" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot()" title="Close Active Camera Feed">
               <span class="dock-btn-label">Close</span>
@@ -235,12 +240,12 @@
         <div class="gpu-context-menu hidden" id="gpu-context-menu">
           <div class="gpu-menu-item" data-menu="1x1" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1()">Toggle 1x1 Focus</div>
           <div class="gpu-menu-item" data-menu="quality" onclick="window.VOSCCTV_GPU_WALL.dockToggleQuality()">Toggle HD / Sub-Stream</div>
-          <div class="gpu-menu-item" data-menu="aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()">Cycle Aspect Ratio</div>
           <div class="gpu-menu-item" data-menu="zoom" onclick="window.VOSCCTV_GPU_WALL.dockToggleDigitalZoom()">Digital Zoom</div>
-          <div class="gpu-menu-item" data-menu="ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()">PTZ Controller</div>
-          <div class="gpu-menu-item" data-menu="audio" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio()">Toggle Audio</div>
           <div class="gpu-menu-item" data-menu="snap" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot()">Take Snapshot</div>
+          <div class="gpu-menu-item" data-menu="audio" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio()">Toggle Audio</div>
           <div class="gpu-menu-item" data-menu="rec" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord()">Record Clip</div>
+          <div class="gpu-menu-item" data-menu="aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()">Cycle Aspect Ratio</div>
+          <div class="gpu-menu-item" data-menu="ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()">PTZ Controller</div>
           <div class="gpu-menu-sep"></div>
           <div class="gpu-menu-item danger" data-menu="close" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot()">Close Camera Feed</div>
         </div>
@@ -280,8 +285,31 @@
     </div>
   </main>
 
+  <!-- View Presets Manager Modal / Mobile Bottom Sheet -->
+  <dialog class="gpu-preset-dialog" id="gpu-preset-dialog" aria-labelledby="gpu-preset-dialog-title">
+    <div class="gpu-preset-dialog-content">
+      <div class="gpu-preset-dialog-header">
+        <span class="gpu-preset-dialog-title" id="gpu-preset-dialog-title">Layout Presets</span>
+        <button type="button" class="gpu-preset-dialog-close" onclick="window.VOSCCTV_GPU_WALL.closePresetDialog()" title="Close dialog" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="gpu-preset-dialog-body">
+        <label for="gpu-preset-name-input" class="gpu-preset-label">Save Current Layout</label>
+        <div class="gpu-preset-input-row">
+          <input type="text" id="gpu-preset-name-input" class="gpu-preset-input" placeholder="Layout name (e.g. Front Gate & Lobby)" maxlength="32" autocomplete="off">
+          <button type="button" class="gpu-preset-btn primary" onclick="window.VOSCCTV_GPU_WALL.confirmSavePreset()">Save</button>
+        </div>
+        <div class="gpu-preset-list-wrap">
+          <span class="gpu-preset-subheading">Saved Layouts</span>
+          <div class="gpu-preset-list" id="gpu-preset-list">
+            <!-- Dynamically populated presets with Load & Delete actions -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv10"></script>
-  <script src="/js/app.js?v=vosctv11"></script>
+  <script src="/js/gpu-wall.js?v=vosctv11"></script>
+  <script src="/js/app.js?v=vosctv12"></script>
 </body>
 </html>

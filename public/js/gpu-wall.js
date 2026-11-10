@@ -360,10 +360,10 @@
     updateBottomDock();
   }
 
-  function cycleSelectedSlot() {
+  function stepSelectedSlot(delta = 1) {
     const total = Math.max(1, state.split);
     const current = state.focusedSlotIndex !== null ? state.focusedSlotIndex : state.selectedSlotIndex;
-    const nextIdx = (current + 1) % total;
+    const nextIdx = (current + delta + total) % total;
     if (state.focusedSlotIndex !== null) {
       state.focusedSlotIndex = nextIdx;
       state.selectedSlotIndex = nextIdx;
@@ -375,6 +375,10 @@
     if (slotEl && typeof slotEl.scrollIntoView === 'function') {
       slotEl.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
+  }
+
+  function cycleSelectedSlot() {
+    stepSelectedSlot(1);
   }
 
   function advanceSelectedSlot() {
@@ -1517,9 +1521,122 @@
     });
   }
 
-  function saveCurrentViewPreset() {
-    const name = prompt('Enter a name for this custom view layout:');
-    if (!name || !name.trim()) return;
+  function openPresetDialog() {
+    const dialog = document.getElementById('gpu-preset-dialog');
+    if (!dialog) return;
+    const input = document.getElementById('gpu-preset-name-input');
+    if (input) input.value = '';
+    renderPresetList();
+    if (typeof dialog.showModal === 'function') {
+      try {
+        if (!dialog.open) dialog.showModal();
+      } catch (e) {
+        dialog.setAttribute('open', '');
+      }
+    } else {
+      dialog.setAttribute('open', '');
+    }
+    if (input) {
+      setTimeout(() => input.focus(), 80);
+    }
+  }
+
+  function closePresetDialog() {
+    const dialog = document.getElementById('gpu-preset-dialog');
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') {
+      try {
+        if (dialog.open) dialog.close();
+      } catch (e) {
+        dialog.removeAttribute('open');
+      }
+    } else {
+      dialog.removeAttribute('open');
+    }
+  }
+
+  function renderPresetList() {
+    const listEl = document.getElementById('gpu-preset-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    const ids = Object.keys(state.viewPresets);
+    if (ids.length === 0) {
+      listEl.innerHTML = '<div class="gpu-preset-empty">No saved presets yet</div>';
+      return;
+    }
+
+    ids.forEach((id) => {
+      const preset = state.viewPresets[id];
+      const item = document.createElement('div');
+      item.className = 'gpu-preset-item' + (id === state.currentPresetId ? ' active' : '');
+
+      const metaWrap = document.createElement('div');
+      metaWrap.className = 'gpu-preset-meta';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'gpu-preset-name';
+      nameSpan.textContent = preset.name || id;
+
+      const infoSpan = document.createElement('span');
+      infoSpan.className = 'gpu-preset-info';
+      const count = preset.slots ? Object.keys(preset.slots).length : 0;
+      infoSpan.textContent = `Split ${preset.split || 4} • ${count} cam${count === 1 ? '' : 's'}`;
+
+      metaWrap.appendChild(nameSpan);
+      metaWrap.appendChild(infoSpan);
+
+      const actions = document.createElement('div');
+      actions.className = 'gpu-preset-actions';
+
+      const loadBtn = document.createElement('button');
+      loadBtn.type = 'button';
+      loadBtn.className = 'gpu-preset-action-btn load';
+      loadBtn.textContent = 'Load';
+      loadBtn.onclick = () => {
+        loadViewPreset(id);
+        closePresetDialog();
+      };
+      actions.appendChild(loadBtn);
+
+      if (id !== 'default') {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'gpu-preset-action-btn danger';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = () => {
+          deletePreset(id);
+        };
+        actions.appendChild(delBtn);
+      }
+
+      item.appendChild(metaWrap);
+      item.appendChild(actions);
+      listEl.appendChild(item);
+    });
+  }
+
+  function deletePreset(id) {
+    if (id === 'default') return;
+    delete state.viewPresets[id];
+    if (state.currentPresetId === id) {
+      state.currentPresetId = 'default';
+    }
+    try {
+      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(state.viewPresets));
+    } catch (e) {}
+    updatePresetDropdown();
+    renderPresetList();
+    showToast('Preset deleted');
+  }
+
+  function confirmSavePreset() {
+    const input = document.getElementById('gpu-preset-name-input');
+    const name = input ? input.value.trim() : '';
+    if (!name) {
+      if (input) input.focus();
+      return;
+    }
 
     const id = 'view_' + Date.now();
     const serializableSlots = {};
@@ -1536,7 +1653,7 @@
     });
 
     state.viewPresets[id] = {
-      name: name.trim(),
+      name: name,
       split: state.split,
       columnMode: state.columnMode,
       slotSize: state.slotSize,
@@ -1550,6 +1667,42 @@
     } catch (e) {}
 
     updatePresetDropdown();
+    closePresetDialog();
+    showToast(`Preset "${name}" saved`);
+  }
+
+  function saveCurrentViewPreset() {
+    openPresetDialog();
+  }
+
+  function setupPresetDialog() {
+    const dialog = document.getElementById('gpu-preset-dialog');
+    if (!dialog) return;
+
+    dialog.addEventListener('click', (e) => {
+      const rect = dialog.getBoundingClientRect();
+      const inDialog = (
+        rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+      );
+      if (!inDialog) {
+        closePresetDialog();
+      }
+    });
+
+    dialog.addEventListener('cancel', () => {
+      closePresetDialog();
+    });
+
+    const input = document.getElementById('gpu-preset-name-input');
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmSavePreset();
+        }
+      });
+    }
   }
 
   function loadViewPreset(id) {
@@ -2000,8 +2153,8 @@
     }
 
     // Select active slot
-    const targetSlot = state.focusedSlotIndex !== null ? state.focusedSlotIndex : state.selectedSlotIndex;
-    selectSlot(targetSlot >= effectiveSplit ? 0 : targetSlot);
+    const targetSlot = state.focusedSlotIndex !== null ? state.focusedSlotIndex : (state.selectedSlotIndex >= effectiveSplit ? 0 : state.selectedSlotIndex);
+    selectSlot(targetSlot);
 
     // Update active state in toolbar buttons and split select
     const splitSelect = document.getElementById('gpu-split-select');
@@ -2302,6 +2455,85 @@
       }
     }, { passive: true });
 
+    // Edge swipe right (from <= 32px of left edge) opens mobile camera drawer
+    let edgeStartX = 0;
+    let edgeStartY = 0;
+    let isEdgeSwipeCandidate = false;
+
+    window.addEventListener('touchstart', (e) => {
+      if (window.innerWidth > 1024 || state.drawerOpen || e.touches.length !== 1) {
+        isEdgeSwipeCandidate = false;
+        return;
+      }
+      const t = e.touches[0];
+      edgeStartX = t.clientX;
+      edgeStartY = t.clientY;
+      isEdgeSwipeCandidate = edgeStartX <= 32;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+      if (!isEdgeSwipeCandidate || window.innerWidth > 1024 || state.drawerOpen || e.changedTouches.length !== 1) {
+        isEdgeSwipeCandidate = false;
+        return;
+      }
+      const dx = e.changedTouches[0].clientX - edgeStartX;
+      const dy = e.changedTouches[0].clientY - edgeStartY;
+      isEdgeSwipeCandidate = false;
+      if (dx >= 45 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+        toggleDrawer(true);
+      }
+    }, { passive: true });
+
+    // 1x1 Focus Mode: horizontal swipe on feed steps Prev/Next active slot
+    const gridContainer = document.getElementById('gpu-grid-container');
+    if (gridContainer) {
+      let feedStartX = 0;
+      let feedStartY = 0;
+      let feedStartTime = 0;
+      let isFeedSwipeCandidate = false;
+
+      gridContainer.addEventListener('touchstart', (e) => {
+        if (state.focusedSlotIndex === null) {
+          isFeedSwipeCandidate = false;
+          return;
+        }
+        const currentItem = state.slots[state.focusedSlotIndex];
+        if (currentItem && currentItem.digitalZoom && currentItem.digitalZoom.active) {
+          isFeedSwipeCandidate = false;
+          return;
+        }
+        if (e.touches.length !== 1) return;
+        feedStartX = e.touches[0].clientX;
+        feedStartY = e.touches[0].clientY;
+        feedStartTime = Date.now();
+        isFeedSwipeCandidate = true;
+      }, { passive: true });
+
+      gridContainer.addEventListener('touchend', (e) => {
+        if (!isFeedSwipeCandidate || state.focusedSlotIndex === null || e.changedTouches.length !== 1) {
+          isFeedSwipeCandidate = false;
+          return;
+        }
+        const currentItem = state.slots[state.focusedSlotIndex];
+        if (currentItem && currentItem.digitalZoom && currentItem.digitalZoom.active) {
+          isFeedSwipeCandidate = false;
+          return;
+        }
+        const dx = e.changedTouches[0].clientX - feedStartX;
+        const dy = e.changedTouches[0].clientY - feedStartY;
+        const elapsed = Date.now() - feedStartTime;
+        isFeedSwipeCandidate = false;
+
+        if (elapsed < 600 && Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+          if (dx < 0) {
+            stepSelectedSlot(1);
+          } else {
+            stepSelectedSlot(-1);
+          }
+        }
+      }, { passive: true });
+    }
+
     const ptzDrawer = document.getElementById('gpu-ptz-drawer');
     if (ptzDrawer) {
       let ptzStartX = 0;
@@ -2321,6 +2553,36 @@
         }
       }, { passive: true });
     }
+  }
+
+  function setupScrollAffordance(el) {
+    if (!el) return;
+    const updateMask = () => {
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (maxScroll <= 4) {
+        el.style.maskImage = 'none';
+        el.style.webkitMaskImage = 'none';
+        return;
+      }
+      const hasLeft = el.scrollLeft > 6;
+      const hasRight = el.scrollLeft < maxScroll - 6;
+      if (hasLeft && hasRight) {
+        const grad = 'linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%)';
+        el.style.maskImage = grad;
+        el.style.webkitMaskImage = grad;
+      } else if (hasLeft) {
+        const grad = 'linear-gradient(to right, transparent 0, black 20px, black 100%)';
+        el.style.maskImage = grad;
+        el.style.webkitMaskImage = grad;
+      } else {
+        const grad = 'linear-gradient(to right, black calc(100% - 20px), transparent 100%)';
+        el.style.maskImage = grad;
+        el.style.webkitMaskImage = grad;
+      }
+    };
+    el.addEventListener('scroll', updateMask, { passive: true });
+    window.addEventListener('resize', updateMask, { passive: true });
+    setTimeout(updateMask, 120);
   }
 
   function setSplit(split) {
@@ -2462,6 +2724,9 @@
       setupGridResizeObserver();
       setupSidebarSwipeClose();
       setupMobileEscape();
+      setupPresetDialog();
+      setupScrollAffordance(document.querySelector('.gpu-dock-center'));
+      setupScrollAffordance(document.querySelector('.gpu-toolbar'));
       toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
       const ptzDrawerEl = document.getElementById('gpu-ptz-drawer');
       if (ptzDrawerEl) ptzDrawerEl.inert = ptzDrawerEl.classList.contains('hidden');
@@ -2508,9 +2773,14 @@
     toggleTour,
     saveCurrentViewPreset,
     loadViewPreset,
+    openPresetDialog,
+    closePresetDialog,
+    confirmSavePreset,
+    deletePreset,
     toggleDrawer,
     closeMobileDrawers,
     cycleSelectedSlot,
+    stepSelectedSlot,
     adjustGridLayout,
     filterTree,
     ptzGotoPreset,

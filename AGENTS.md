@@ -212,7 +212,28 @@ Codified from **WCAG 2.2**, **Apple Human Interface Guidelines (HIG)**, **Google
   - **Landscape Phones (`max-height: 540px` & `orientation: landscape`)**: Compact the top header and toolbar (`34px`) so wide 16:9 streams retain maximum vertical viewing area.
   - **Off-Canvas Drawers**: Tree sidebar ($\le 1024\text{px}$) and PTZ controls open as slide-over drawers with tap-backdrop and swipe-dismiss support.
 
-### 4. Quick-Reference Standard Matrix (PC vs. Mobile)
+### 4. Codified Mobile Ergonomic Mandates (Thumb-Zone & Gesture Architecture)
+To deliver true single-handed surveillance operations on smartphones ($\le 640\text{px}$), the mobile interface strictly follows six ergonomic mandates:
+1. **Bottom Thumb Cockpit Primacy & Drawer Triggers**:
+   - All core camera operations and drawer triggers must be accessible within the bottom 40% thumb zone (`.gpu-dock-bar`).
+   - On mobile screens, the bottom dock's left cluster (`.gpu-dock-left`) houses an immediate `Cameras` drawer trigger alongside the active slot indicator, removing the need to reach up to the top header for camera switching.
+2. **Bidirectional Slot Stepper (`<` / `>`)**:
+   - The active slot indicator in `.gpu-dock-left` features adjacent Prev (`<`) and Next (`>`) stepper buttons. Operators can cycle through active slots rapidly with one thumb without manually tapping distant grid tiles.
+3. **Dock Action Frequency Ordering (Front-to-Back)**:
+   - Controls in `.gpu-dock-center` must strictly follow a front-to-back layout ordered by operator frequency:
+     `1x1 Focus` $\rightarrow$ `SUB / HD Quality` $\rightarrow$ `Digital Zoom` (`-` / `+`) $\rightarrow$ `Snapshot` $\rightarrow$ `Audio` $\rightarrow$ `Record` $\rightarrow$ `FIT / Aspect` $\rightarrow$ `PTZ` $\rightarrow$ `Close`.
+   - The most frequent operations sit at the natural rest point of the operator's thumb (left edge of the center strip).
+4. **Scroll Affordances & Horizontal Edge Fades**:
+   - Horizontally scrollable strips (`.gpu-dock-center`, `.gpu-toolbar`) must feature CSS alpha edge masks (`mask-image: linear-gradient(...)`) to signal hidden overflow cleanly without permanent scrollbars.
+5. **Natural Touch & Swipe Gestures**:
+   - **Edge Swipe**: Swiping right from the left edge of the screen ($\le 30\text{px}$) smoothly opens the off-canvas Cameras tree drawer.
+   - **Feed Swipe in 1x1 Focus**: Swiping left or right across a camera feed in `1x1` Focus mode (when digital zoom is not active) advances or retreats to the next active slot.
+6. **Destructive Protection & Non-Blocking Modals**:
+   - Destructive buttons (e.g., `Logout`) must maintain a minimum of $8\text{px}$ separation from adjacent controls to prevent mis-taps.
+   - Never use blocking browser dialogs (`window.prompt()`, `window.alert()`). Presets, layouts, and mutations must use styled, non-blocking bottom sheets or `<dialog>` elements with inline name entry and deletion.
+   - Toolbar inputs and dropdowns must use `font-size: 16px` on coarse pointers to avoid unwanted iOS Safari viewport auto-zooming.
+
+### 5. Quick-Reference Standard Matrix (PC vs. Mobile)
 
 | Dimension | PC / Desktop (`pointer: fine`) | Mobile / Touch (`pointer: coarse`) |
 | :--- | :--- | :--- |
