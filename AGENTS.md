@@ -165,6 +165,68 @@ Structure information across three progressive levels to prevent operator cognit
 
 ---
 
+## 📐 Cross-Platform UI/UX Engineering Standards (PC & Mobile)
+
+Codified from **WCAG 2.2**, **Apple Human Interface Guidelines (HIG)**, **Google Material Design 3 (M3)**, **Nielsen Norman Group (NN/g)** usability heuristics, **Fitts's & Hick's Laws**, **ISO 11064-5 / High-Performance HMI (HPHMI)** control-room standards, and **Core Web Vitals (`INP`, `CLS`)**.
+
+### 1. Universal Control-Room & Accessibility Baseline
+- **WCAG 2.2 Color & Contrast (`SC 1.4.3`, `SC 1.4.11`)**:
+  - Normal text must achieve **$\ge 4.5:1$ contrast** (Level AA), targeting **$\ge 7:1$** (Level AAA) for daylight Light Mode visibility.
+  - Large text ($\ge 18\text{pt}$ regular or $\ge 14\text{pt}$ bold) and interactive UI components/borders/icons must achieve **$\ge 3:1$ contrast** against adjacent backgrounds.
+  - **Color-Blind & CVD Redundancy**: Color must never be the sole carrier of meaning; pair status colors (`online`, `offline`, `fault`, `recording`) with crisp labels, tooltips, or shape/opacity states (e.g., strict greyed-out disabled states).
+- **ISO 11064-5 / HPHMI ("Quiet Screen" Philosophy)**:
+  - Use calm dark-slate chrome (`#020617` / `#0f172a` dark, `#f8fafc` / `#ffffff` daylight) with crisp `1px` flat borders instead of skeuomorphic gradients or neon glows to prevent 8–12 hour operator fatigue.
+  - Reserve saturated alert hues (`red`, `amber`) strictly for abnormal hardware states, critical faults, or active recording—never decorative badges.
+- **Core Web Vitals for Live Monitoring**:
+  - **Interaction to Next Paint (`INP` $\le 200\text{ms}$)**: All buttons, slot selections, toggles, and drawers must respond instantaneously without main-thread stalls during concurrent live video decoding.
+  - **Cumulative Layout Shift (`CLS` $= 0$)**: Always reserve fixed dock heights, header heights, and explicit grid cell dimensions (`gridAutoRows`, fixed aspect containers) so loading feeds or async labels never shift UI targets under an operator's pointer or thumb.
+
+### 2. PC / Desktop Workstation Standards (`@media (pointer: fine)`, $\ge 1025\text{px}$)
+- **Fitts's Law & Target Acquisition (`WCAG 2.2 SC 2.5.8`)**:
+  - Interactive pointer hit areas must be at least **$24 \times 24\text{ CSS px}$** (spacing adjacent compact controls so 24px bounding circles never intersect), with primary toolbars/docks sized at **$30\text{px} - 36\text{px}$** height for high-accuracy density without sacrificing speed.
+  - Anchor persistent strips (top header, left camera tree sidebar, bottom slot dock, right PTZ drawer) flush against viewport edges so cursor travel stops naturally at screen boundaries.
+- **Hick's Law & Multi-Column Spatial Efficiency (NN/g)**:
+  - Use a non-overlapping **3-column workstation flow** (`Sidebar | Fluid Live Wall Grid | Optional PTZ Inspector`) using container-aware sizing (`container-type: inline-size` / `ResizeObserver`) so toggling panels expands usable feed width without occluding streams.
+  - Consolidate complex grid modes (`Split`, `Columns`, `Slot Size`, `Aspect`, `Engine`) into compact single-select dropdowns instead of sprawling multi-button toolbars.
+- **Keyboard Focus & Power-Operator Flows (`WCAG 2.2 SC 2.4.11`, `SC 2.4.13`)**:
+  - Preserve high-contrast `:focus-visible` outlines ($\ge 2\text{px}$ perimeter) and ensure focused controls are never hidden underneath fixed bars or overlays (`SC 2.4.11`).
+  - Support mouse hover previews, native browser tooltips (`title`), drag-and-drop camera assignment, right-click context menus (`contextmenu`), double-click `1x1` expand, and keyboard shortcuts (`Alt+T`, `Escape`, arrow navigation).
+- **Zero Outer Page Scroll**: Root viewport stays locked (`100dvh`, `overflow: hidden`); only dedicated inner panes (camera tree list and multi-row video grid) scroll cleanly.
+
+### 3. Mobile & Touch Handheld Standards (`@media (pointer: coarse)`, $\le 1024\text{px}$)
+- **Touch Target Dimensions & Mis-Tap Prevention (Apple HIG, Material Design 3, WCAG `SC 2.5.5`)**:
+  - Primary touch targets should target **$40 \times 40\text{px} - 48 \times 48\text{ CSS px}$** (aligning with Apple HIG **$44 \times 44\text{ pt}$** and Material Design 3 **$48 \times 48\text{ dp}$**); compact secondary buttons must remain **$\ge 34\text{px} - 38\text{px}$** with expanded touch padding and **$\ge 6\text{px} - 8\text{px}$** gaps between adjacent destructive/critical controls.
+  - **Zero Hover-Only Functionality**: Every control accessible via PC `:hover` or right-click must be directly reachable via tap controls in the mobile bottom dock or drawer toggles.
+- **One-Handed Thumb-Zone Ergonomics & Bottom-Bar Primacy**:
+  - Primary operational controls live in the **bottom operational dock (`.gpu-dock-bar`)** inside the natural thumb arc (bottom 40% of screen); keep `.vosctv-bar` minimal and strictly single-row (`flex-wrap: nowrap`) to maximize vertical feed real estate.
+  - On portrait phones ($\le 640\text{px}$), split `.gpu-dock-bar` cleanly into a two-tier ergonomic thumb cockpit (camera/slot title strip above touch-sized action buttons).
+- **Dynamic Viewport Units & Hardware Safe Areas**:
+  - Always size full-screen roots with **`100dvh`** (`100vh` fallback) so mobile browser URL bars appearing/disappearing never cut off the bottom dock.
+  - Apply `env(safe-area-inset-top)`, `env(safe-area-inset-bottom)`, `env(safe-area-inset-left)`, and `env(safe-area-inset-right)` across top header, drawers, and bottom dock to clear iOS notches/Dynamic Island and home-indicator swipe bars.
+- **Touch Gestures, Horizontal Swipe Strips & Auto-Zoom Prevention**:
+  - Apply `touch-action: manipulation` on clickable controls to eliminate tap delay and accidental double-tap browser zoom; apply `overscroll-behavior: contain` on drawers/scrollers to prevent rubber-band bleed.
+  - Horizontally scrollable toolbars (`.bar-right`, `.gpu-toolbar`) must use `scrollbar-width: none`, `-webkit-overflow-scrolling: touch`, and `flex: 0 1 auto; margin-left: auto; justify-content: flex-start;` when constrained so leftmost items never clip out of scroll reach.
+  - Keep text inputs on mobile **$\ge 16\text{px}$** where appropriate to prevent unintended iOS Safari auto-zoom on input focus.
+- **Portrait vs. Landscape & Off-Canvas Adaptation**:
+  - **Portrait Phones ($\le 620\text{px}$)**: Default `COLS: Auto` + `SIZE: Large` (`380px+`) renders 1 full-width column per row with smooth vertical scroll instead of shrinking multi-camera tiles below readable size.
+  - **Landscape Phones (`max-height: 540px` & `orientation: landscape`)**: Compact the top header and toolbar (`34px`) so wide 16:9 streams retain maximum vertical viewing area.
+  - **Off-Canvas Drawers**: Tree sidebar ($\le 1024\text{px}$) and PTZ controls open as slide-over drawers with tap-backdrop and swipe-dismiss support.
+
+### 4. Quick-Reference Standard Matrix (PC vs. Mobile)
+
+| Dimension | PC / Desktop (`pointer: fine`) | Mobile / Touch (`pointer: coarse`) |
+| :--- | :--- | :--- |
+| **Target Size Minimum** | $\ge 24 \times 24\text{ CSS px}$ (`SC 2.5.8`); $30\text{–}36\text{px}$ toolbar height | $40 \times 40\text{px}$ to $48 \times 48\text{px}$ (HIG `44pt` / M3 `48dp`; $\ge 34\text{px}$ dense strips) |
+| **Target Spacing** | Clean $4\text{–}8\text{px}$ gaps; non-intersecting 24px bounds | $\ge 6\text{–}8\text{px}$ spacing around destructive/critical buttons |
+| **Primary Control Zone** | Screen-edge docks & 3-column in-flow workspace | Bottom Operational Dock (bottom 40% thumb zone) + single-row header |
+| **Secondary Inputs** | Keyboard shortcuts, `:hover` tooltips, drag-drop, right-click menu | Tap buttons, off-canvas drawers, backdrop tap & horizontal swipe gestures |
+| **Grid Density Default** | Multi-column auto-grid based on pane width (`380px+` per slot) | 1 full-width column per row on portrait phones (`<= 620px`) |
+| **Viewport & Edge Safety** | `100dvh` fixed shell; `ResizeObserver` + container queries | `100dvh` + `env(safe-area-inset-*)` on top bar, drawers & bottom dock |
+| **Touch / Click Latency** | Instant `INP <= 200ms`, zero layout shift (`CLS = 0`) | `touch-action: manipulation`, `overscroll-behavior: contain`, `INP <= 200ms` |
+| **Contrast (WCAG 2.2)** | $\ge 4.5:1$ text / $\ge 3:1$ UI controls (Dark control room) | $\ge 7:1$ target in Light Mode for direct outdoor daylight legibility |
+
+---
+
 ## 🎯 Key Design & Functional Rules
 
 ### 1. PTZ & Capability Detection
