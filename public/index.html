@@ -18,39 +18,18 @@
       if (meta) meta.content = theme;
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="/css/style.css?v=vosctv11">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv12">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Slim VOSCTV Header with Session Tabs -->
+  <!-- Slim VOSCTV Header -->
   <header class="vosctv-bar">
     <div class="bar-left">
       <div class="vosctv-brand">
         <span class="vosctv-title">VOSC<span class="accent">CTV</span></span>
       </div>
-
-      <nav class="session-tabs">
-        <button class="session-tab active" id="tab-gpu" onclick="switchTab('gpu')">
-          <span>Live Wall<span class="tab-extra"> (GPU)</span></span>
-        </button>
-
-        <button class="session-tab" id="tab-nvr1" onclick="switchTab('nvr1')">
-          <span class="dot online" id="dot-nvr1" title="Online"></span>
-          <span>NVR 1<span class="tab-extra"> (192.168.1.200)</span></span>
-        </button>
-
-        <button class="session-tab" id="tab-nvr2" onclick="switchTab('nvr2')">
-          <span class="dot online" id="dot-nvr2" title="Online"></span>
-          <span>NVR 2<span class="tab-extra"> (192.168.1.181)</span></span>
-        </button>
-
-        <button class="session-tab" id="tab-split" onclick="switchTab('split')">
-          <span class="split-icon" aria-hidden="true">⬚⬚</span>
-          <span>Split<span class="tab-extra"> View</span></span>
-        </button>
-      </nav>
     </div>
 
     <div class="bar-right">
@@ -60,8 +39,7 @@
       <button class="tool-btn theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Switch Light/Dark Mode" aria-label="Toggle theme">
         <span class="theme-label" id="theme-toggle-label">Light</span>
       </button>
-      <button class="tool-btn" onclick="openDirectTab()" title="Open active NVR in direct browser tab">Direct Tab</button>
-      <button class="tool-btn" onclick="reloadActive()" title="Reload active session">Reload</button>
+      <button class="tool-btn" onclick="reloadActive()" title="Reload live wall">Reload</button>
       <button class="tool-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">Fullscreen</button>
       <button class="tool-btn logout-btn" id="logout-btn" onclick="handleLogout()" title="Sign out of console">
         <span>Logout</span>
@@ -69,48 +47,8 @@
     </div>
   </header>
 
-  <!-- Main Viewports (Shared Persistent NVR Sessions Across Single & Split Views) -->
+  <!-- Main Viewport -->
   <main class="viewport-area" id="viewport-area" data-view="gpu">
-    <!-- NVR 1 Session Pane -->
-    <div class="nvr-pane" id="pane-nvr1">
-      <div class="split-title">NVR 1 (192.168.1.200)</div>
-
-      <!-- Simple Loading / Timeout Overlay -->
-      <div class="nvr-overlay" id="overlay-nvr1">
-        <div class="simple-loading" id="card-loading-nvr1">
-          <div class="simple-spinner"></div>
-          <span class="simple-text" id="title-nvr1">Connecting to NVR 1...</span>
-        </div>
-
-        <div class="simple-timeout" id="card-timeout-nvr1" style="display: none;">
-          <span class="simple-timeout-msg">Connection timed out</span>
-          <button class="simple-retry-btn" onclick="retryPane('nvr1')">Retry</button>
-        </div>
-      </div>
-
-      <iframe id="frame-nvr1" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
-    </div>
-
-    <!-- NVR 2 Session Pane -->
-    <div class="nvr-pane" id="pane-nvr2">
-      <div class="split-title">NVR 2 (192.168.1.181)</div>
-
-      <!-- Simple Loading / Timeout Overlay -->
-      <div class="nvr-overlay" id="overlay-nvr2">
-        <div class="simple-loading" id="card-loading-nvr2">
-          <div class="simple-spinner"></div>
-          <span class="simple-text" id="title-nvr2">Connecting to NVR 2...</span>
-        </div>
-
-        <div class="simple-timeout" id="card-timeout-nvr2" style="display: none;">
-          <span class="simple-timeout-msg">Connection timed out</span>
-          <button class="simple-retry-btn" onclick="retryPane('nvr2')">Retry</button>
-        </div>
-      </div>
-
-      <iframe id="frame-nvr2" class="nvr-frame" allow="autoplay; fullscreen; clipboard-read; clipboard-write; camera; microphone"></iframe>
-    </div>
-
     <!-- GPU Live Wall Session Pane (Dahua-Style Interactive Grid with 100% Client GPU) -->
     <div class="nvr-pane gpu-pane" id="pane-gpu">
       <!-- Backdrop overlay for mobile drawer -->
@@ -335,7 +273,7 @@
   </main>
 
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv7"></script>
-  <script src="/js/app.js?v=vosctv9"></script>
+  <script src="/js/gpu-wall.js?v=vosctv8"></script>
+  <script src="/js/app.js?v=vosctv10"></script>
 </body>
 </html>

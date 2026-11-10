@@ -168,7 +168,7 @@
       groupEl.innerHTML = `
         <div class="gpu-tree-group-header" onclick="this.parentElement.classList.toggle('collapsed')">
           <span class="gpu-tree-group-arrow">▼</span>
-          <span class="dot online" style="margin-right:2px;"></span>
+          <span class="dot loading" id="dot-${nvr.id}" style="margin-right:2px;"></span>
           <span>${nvr.name}</span>
         </div>
         <div class="gpu-tree-group-items" id="tree-items-${nvr.id}"></div>
@@ -2296,6 +2296,9 @@
       // 2. Fetch metadata asynchronously in background without blocking stream startup
       loadCameraNames().then(() => {
         renderTree();
+        if (window.VOSCCTV_APP && typeof window.VOSCCTV_APP.syncHealthDots === 'function') {
+          window.VOSCCTV_APP.syncHealthDots();
+        }
         Object.keys(state.slots).forEach((idx) => updateSlotBadges(parseInt(idx, 10)));
         updateBottomDock();
       });
