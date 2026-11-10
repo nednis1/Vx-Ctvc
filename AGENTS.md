@@ -86,7 +86,10 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
    - Reject stretched horizontal arrangements and sprawling rows of buttons.
    - Consolidate sprawling horizontal button strips into sleek, compact dropdown selectors (e.g., `Split: 1 | 2 | 4 | 6...` ➔ dropdown; `Cols: Auto | 2 | 3` ➔ dropdown).
    - Arrange directional limits and parameters in intuitive vertical "thermometer" order (Max / High Limit on top, Min / Low Limit on bottom), never horizontal side-by-side grids.
-   - Mobile navigation must reside in the natural reach zone (bottom 40% viewport / bottom dock).
+   - **Mobile Thumb Ergonomics & Bottom-Bar Primacy**:
+     - **The user explicitly prefers the bottom-bar on mobile view**: All primary operational controls must reside in the dedicated bottom bar (`.gpu-dock-bar`).
+     - **Mobile view must be dynamic and ergonomic**: Smartphone surveillance interfaces must be operable with one hand within the natural reach zone (bottom 40% viewport).
+     - Controls must feature generous touch targets ($\ge 34\text{px} - 44\text{px}$), finger-friendly padding, safe-area inset preservation (`env(safe-area-inset-bottom)`), and smooth horizontal swipe navigation.
 
 4. **No Alarming, Hysterical, or Flashing Visual Feedback**:
    - **Never** use flashing card borders, bright red outline rings, shaking keyframe animations (`@keyframes shake`), or screaming amber/red full-card backgrounds.
@@ -144,6 +147,21 @@ Structure information across three progressive levels to prevent operator cognit
 - **Level 1 (At-a-Glance Canvas)**: 100% video feed, camera name, and subtle hardware state indicator (LED dot).
 - **Level 2 (Dock Controls)**: Stream quality, aspect ratio, 1x1 focus, snapshot, record, audio, zoom, and PTZ triggers.
 - **Level 3 (Deep Diagnostics & Management)**: In-flow PTZ drawer (Column 3), NVR stream proxies, bitrates, WebRTC gateway stats, and Dahua channel configurations.
+
+#### D. Mobile Dynamic Layout & Ergonomic Bottom-Bar
+- **The Bottom Bar is the Preferred Mobile Cockpit**: The user explicitly loves and prioritizes the bottom-bar on mobile view. The bottom dock (`.gpu-dock-bar`) houses all active slot manipulations (slot switcher, camera title, stream quality, aspect ratio, snapshot, record, audio, zoom, 1x1 focus, and PTZ triggers) within easy thumb reach.
+- **Dynamic Mobile Viewport Ergonomics**:
+  - Smartphone surveillance interfaces must be fully operable with one hand within the natural reach zone (bottom 40% viewport).
+  - Touch targets must be generous ($\ge 34\text{px} - 44\text{px}$) with comfortable tap spacing.
+  - Safe-area insets (`padding-bottom: max(6px, env(safe-area-inset-bottom))`) prevent collisions with edge-to-edge phone navigation bars.
+  - Horizontal swipe navigation: Both `.gpu-dock-bar` and `.gpu-toolbar` must support smooth momentum-based horizontal scrolling (`-webkit-overflow-scrolling: touch`) with hidden scrollbars (`scrollbar-width: none`), never wrapping awkwardly onto multiple staggered lines.
+- **Dynamic Container Query Reflow (`@container livewall`)**:
+  - Single slot on ultra-narrow portrait devices ($\le 380\text{px}$).
+  - 2 columns dynamic reflow on mobile phones ($\le 620\text{px}$).
+  - 3 columns dynamic reflow on tablets and compact viewports ($621\text{px} - 1080\text{px}$).
+- **Off-Canvas Mobile Drawers**:
+  - Left device/camera tree collapses into an off-canvas slide-out drawer on devices $\le 1024\text{px}$, dismissed with smooth backdrop taps.
+  - PTZ drawer acts as an off-canvas drawer on mobile, preserving full-bleed video feeds without obstruction.
 
 ---
 

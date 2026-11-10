@@ -1934,24 +1934,104 @@ video::-webkit-media-controls-fullscreen-button {
   }
 
   .gpu-tree-item {
-    padding: 8px; /* Larger tap targets for touch */
-    min-height: 40px;
+    padding: 10px 12px; /* Generous touch target for handheld phones */
+    min-height: 44px;
   }
 
   .gpu-active-slot-pill {
-    padding: 2px 6px;
-    font-size: 9px;
+    padding: 3px 8px;
+    font-size: 10px;
   }
 
+  /* Highly Ergonomic Mobile Bottom Control Dock (Thumb-Zone Primacy) */
   .gpu-dock-bar {
+    height: auto;
+    min-height: 46px;
+    padding: 6px 10px max(6px, env(safe-area-inset-bottom)) 10px;
     overflow-x: auto;
+    overflow-y: hidden;
     justify-content: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 10px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    z-index: 30;
+  }
+
+  .gpu-dock-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .gpu-dock-left,
-  .gpu-dock-center {
+  .gpu-dock-center,
+  .gpu-dock-right {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .gpu-dock-slot-pill {
+    padding: 4px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+
+  .gpu-dock-cam-title {
+    max-width: 120px;
+    font-size: 11.5px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .gpu-dock-btn {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 11px;
+    border-radius: 5px;
+    touch-action: manipulation;
+  }
+
+  .gpu-dock-btn.btn-close {
+    padding: 0 8px;
+  }
+
+  /* Ergonomic mobile toolbar scrolling */
+  .gpu-toolbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    height: 38px;
+    padding: 0 8px;
+  }
+
+  .gpu-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gpu-toolbar-left,
+  .gpu-toolbar-right {
+    flex-shrink: 0;
+  }
+
+  .gpu-select-btn {
+    height: 28px;
+    padding: 0 7px;
+    font-size: 10.5px;
+  }
+
+  /* Top bar session tabs touch scrolling */
+  .session-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .session-tabs::-webkit-scrollbar {
+    display: none;
   }
 }
 
