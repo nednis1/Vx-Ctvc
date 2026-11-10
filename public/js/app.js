@@ -20,13 +20,28 @@ function reloadActive() {
 }
 
 /**
- * Toggle Fullscreen
+ * Toggle Fullscreen (with iOS Safari video fallback)
  */
 function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  } else if (document.exitFullscreen) {
-    document.exitFullscreen();
+  const docEl = document.documentElement;
+  const activeFs = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!activeFs) {
+    if (typeof docEl.requestFullscreen === 'function') {
+      docEl.requestFullscreen().catch(() => {});
+    } else if (typeof docEl.webkitRequestFullscreen === 'function') {
+      docEl.webkitRequestFullscreen();
+    } else {
+      const activeVideo = document.querySelector('.gpu-slot.selected video') || document.querySelector('.gpu-slot.playing video');
+      if (activeVideo && typeof activeVideo.webkitEnterFullscreen === 'function') {
+        activeVideo.webkitEnterFullscreen();
+      } else if (window.VOSCCTV_GPU_WALL && typeof window.VOSCCTV_GPU_WALL.showToast === 'function') {
+        window.VOSCCTV_GPU_WALL.showToast('Fullscreen is only available once a video feed is active on this browser');
+      }
+    }
+  } else if (typeof document.exitFullscreen === 'function') {
+    document.exitFullscreen().catch(() => {});
+  } else if (typeof document.webkitExitFullscreen === 'function') {
+    document.webkitExitFullscreen();
   }
 }
 

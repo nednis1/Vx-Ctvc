@@ -192,7 +192,20 @@
           <span class="gpu-tree-ch-tag">CH ${ch.toString().padStart(2, '0')}</span>
           <span class="gpu-tree-name-label" id="label-${nvr.id}-${ch}" title="Double-click to rename">${title}</span>
           ${ptzBadge}
+          <button type="button" class="gpu-tree-rename-btn" aria-label="Rename channel ${ch}" title="Rename camera">Rename</button>
         `;
+
+        const renameBtn = itemEl.querySelector('.gpu-tree-rename-btn');
+        if (renameBtn) {
+          renameBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.longPressTimer) {
+              clearTimeout(state.longPressTimer);
+              state.longPressTimer = null;
+            }
+            startInlineRename(nvr.id, ch, itemEl, labelEl);
+          });
+        }
 
         // Click: Assign to currently selected slot
         itemEl.addEventListener('click', () => {
@@ -218,7 +231,8 @@
         });
 
         // Mobile/Tablet: Long-Press (hold 500ms) to Inline Rename
-        itemEl.addEventListener('touchstart', () => {
+        itemEl.addEventListener('touchstart', (e) => {
+          if (e.target && e.target.closest && e.target.closest('.gpu-tree-rename-btn')) return;
           state.longPressTimer = setTimeout(() => {
             startInlineRename(nvr.id, ch, itemEl, labelEl);
           }, 500);
@@ -346,6 +360,23 @@
     updateBottomDock();
   }
 
+  function cycleSelectedSlot() {
+    const total = Math.max(1, state.split);
+    const current = state.focusedSlotIndex !== null ? state.focusedSlotIndex : state.selectedSlotIndex;
+    const nextIdx = (current + 1) % total;
+    if (state.focusedSlotIndex !== null) {
+      state.focusedSlotIndex = nextIdx;
+      state.selectedSlotIndex = nextIdx;
+      renderGrid();
+      return;
+    }
+    selectSlot(nextIdx);
+    const slotEl = document.getElementById(`gpu-slot-${nextIdx}`);
+    if (slotEl && typeof slotEl.scrollIntoView === 'function') {
+      slotEl.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+  }
+
   function advanceSelectedSlot() {
     const total = state.focusedSlotIndex !== null ? 1 : state.split;
     // Find next empty slot
@@ -425,6 +456,9 @@
     state.slots = {};
     saveLayout();
     selectSlot(0);
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024 && state.drawerOpen) {
+      toggleDrawer(false);
+    }
   }
 
   function openAll(nvrId) {
@@ -434,6 +468,9 @@
       assignCameraToSlot(i, nvrId, i + 1, 'sub');
     }
     selectSlot(0);
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024 && state.drawerOpen) {
+      toggleDrawer(false);
+    }
   }
 
   /**
@@ -671,6 +708,13 @@
     const wrapper = slotEl.querySelector('.gpu-video-wrapper');
 
     if (item.digitalZoom.active) {
+      if (item.digitalZoom.scale <= 1.0) {
+        item.digitalZoom.scale = 2.0;
+        const clamped = clampPan(slotIndex, 0, 0);
+        item.digitalZoom.x = clamped.x;
+        item.digitalZoom.y = clamped.y;
+      }
+      applyVideoTransform(slotIndex);
       if (wrapper) wrapper.classList.add('zoom-active');
     } else {
       item.digitalZoom.scale = 1;
@@ -682,6 +726,29 @@
       }
     }
 
+    updateSlotBadges(slotIndex);
+    if (slotIndex === state.selectedSlotIndex) {
+      updateBottomDock();
+    }
+  }
+
+  function stepDigitalZoom(slotIndex, delta) {
+    const item = state.slots[slotIndex];
+    if (!item || !item.videoPlaying || !item.digitalZoom || !item.digitalZoom.active) return;
+
+    const newScale = Math.min(8.0, Math.max(1.0, Math.round((item.digitalZoom.scale + delta) * 100) / 100));
+    item.digitalZoom.scale = newScale;
+    if (newScale <= 1.0) {
+      item.digitalZoom.scale = 1.0;
+      item.digitalZoom.x = 0;
+      item.digitalZoom.y = 0;
+    } else {
+      const clamped = clampPan(slotIndex, item.digitalZoom.x, item.digitalZoom.y);
+      item.digitalZoom.x = clamped.x;
+      item.digitalZoom.y = clamped.y;
+    }
+
+    applyVideoTransform(slotIndex);
     updateSlotBadges(slotIndex);
     if (slotIndex === state.selectedSlotIndex) {
       updateBottomDock();
@@ -833,6 +900,9 @@
     const aspectBtn = document.getElementById('dock-btn-aspect');
     const aspectLabel = document.getElementById('dock-aspect-label');
     const zoomBtn = document.getElementById('dock-btn-zoom');
+    const zoomLabel = document.getElementById('dock-zoom-label');
+    const zoomOutBtn = document.getElementById('dock-btn-zoom-out');
+    const zoomInBtn = document.getElementById('dock-btn-zoom-in');
     const ptzBtn = document.getElementById('dock-btn-ptz');
     const audioBtn = document.getElementById('dock-btn-audio');
     const audioLabel = document.getElementById('dock-audio-label');
@@ -853,6 +923,9 @@
       if (qualityBtn) { qualityBtn.disabled = true; qualityBtn.classList.add('disabled'); qualityBtn.classList.remove('active', 'btn-hd'); qualityBtn.setAttribute('aria-pressed', 'false'); qualityBtn.title = "No camera assigned to this slot"; }
       if (aspectBtn) { aspectBtn.disabled = true; aspectBtn.classList.add('disabled'); aspectBtn.classList.remove('active'); aspectBtn.setAttribute('aria-pressed', 'false'); aspectBtn.title = "No camera assigned to this slot"; }
       if (zoomBtn) { zoomBtn.disabled = true; zoomBtn.classList.add('disabled'); zoomBtn.classList.remove('active'); zoomBtn.setAttribute('aria-pressed', 'false'); zoomBtn.title = "No camera assigned to this slot"; }
+      if (zoomLabel) zoomLabel.textContent = 'Zoom';
+      if (zoomOutBtn) zoomOutBtn.classList.add('hidden');
+      if (zoomInBtn) zoomInBtn.classList.add('hidden');
       if (ptzBtn) { ptzBtn.disabled = true; ptzBtn.classList.add('disabled'); ptzBtn.classList.remove('active'); ptzBtn.setAttribute('aria-expanded', 'false'); ptzBtn.title = "No camera assigned to this slot"; }
       if (audioBtn) { audioBtn.disabled = true; audioBtn.classList.add('disabled'); audioBtn.classList.remove('active', 'btn-audio'); audioBtn.setAttribute('aria-pressed', 'false'); audioBtn.title = "No camera assigned to this slot"; }
       if (audioLabel) audioLabel.textContent = 'Audio';
@@ -972,15 +1045,30 @@
         zoomBtn.classList.remove('active');
         zoomBtn.setAttribute('aria-pressed', 'false');
         zoomBtn.title = "Waiting for live video feed to connect before enabling digital zoom...";
+        if (zoomLabel) zoomLabel.textContent = 'Zoom';
+        if (zoomOutBtn) zoomOutBtn.classList.add('hidden');
+        if (zoomInBtn) zoomInBtn.classList.add('hidden');
       } else {
         const isZoomActive = !!(item.digitalZoom && item.digitalZoom.active);
+        const curScale = isZoomActive ? Math.round(item.digitalZoom.scale * 10) / 10 : 1;
         zoomBtn.disabled = false;
         zoomBtn.classList.remove('disabled');
         zoomBtn.classList.toggle('active', isZoomActive);
         zoomBtn.setAttribute('aria-pressed', String(isZoomActive));
         zoomBtn.title = isZoomActive
-          ? `Digital Zoom Active (${Math.round(item.digitalZoom.scale * 10) / 10}x) - Mouse wheel to zoom, drag to pan`
-          : "Digital Zoom (Mouse wheel or drag to pan)";
+          ? `Digital Zoom Active (${curScale}x) - Use +/-, pinch, or wheel to zoom; drag to pan`
+          : "Digital Zoom (Tap to zoom 2x, drag to pan)";
+        if (zoomLabel) zoomLabel.textContent = isZoomActive ? `Zoom ${curScale}x` : 'Zoom';
+        if (zoomOutBtn) {
+          zoomOutBtn.classList.toggle('hidden', !isZoomActive);
+          zoomOutBtn.disabled = curScale <= 1.0;
+          zoomOutBtn.classList.toggle('disabled', curScale <= 1.0);
+        }
+        if (zoomInBtn) {
+          zoomInBtn.classList.toggle('hidden', !isZoomActive);
+          zoomInBtn.disabled = curScale >= 8.0;
+          zoomInBtn.classList.toggle('disabled', curScale >= 8.0);
+        }
       }
     }
 
@@ -1045,6 +1133,10 @@
     const btn = document.getElementById('dock-btn-zoom');
     if (btn && (btn.disabled || btn.classList.contains('disabled'))) return;
     toggleDigitalZoom(state.selectedSlotIndex);
+  }
+
+  function dockStepDigitalZoom(delta) {
+    stepDigitalZoom(state.selectedSlotIndex, delta);
   }
 
   function dockTogglePtz(forceState) {
@@ -1112,10 +1204,12 @@
     if (!item || !isPtzSupported) {
       // Force closed if not supported or no camera selected
       drawer.classList.add('hidden');
+      drawer.inert = true;
       if (ptzBtn) {
         ptzBtn.classList.remove('active');
         ptzBtn.setAttribute('aria-expanded', 'false');
       }
+      syncMobileBackdrop();
       return;
     }
 
@@ -1123,11 +1217,13 @@
     const shouldOpen = typeof forceState === 'boolean' ? forceState : isHidden;
 
     drawer.classList.toggle('hidden', !shouldOpen);
+    drawer.inert = !shouldOpen;
     if (ptzBtn) {
       ptzBtn.classList.toggle('active', shouldOpen);
       ptzBtn.setAttribute('aria-expanded', String(shouldOpen));
       ptzBtn.title = shouldOpen ? "Close Dahua PTZ Camera Controls" : "Open Dahua PTZ Camera Controls";
     }
+    syncMobileBackdrop();
 
     const titleEl = document.getElementById('gpu-ptz-drawer-title');
     if (titleEl) {
@@ -1863,11 +1959,12 @@
       slotEl.id = `gpu-slot-${slotIndex}`;
       slotEl.dataset.slotIndex = slotIndex;
 
-      // Click to select this slot; on mobile tapping an already-selected empty slot opens camera list
-      slotEl.addEventListener('click', () => {
+      // Click to select this slot; on mobile tapping + prompt or already-selected empty slot opens camera list
+      slotEl.addEventListener('click', (e) => {
         const wasSelected = state.selectedSlotIndex === slotIndex;
+        const tappedPrompt = Boolean(e.target && e.target.closest && e.target.closest('.gpu-slot-empty-prompt'));
         selectSlot(slotIndex);
-        if (window.innerWidth <= 1024 && !state.slots[slotIndex] && wasSelected && !state.drawerOpen) {
+        if (window.innerWidth <= 1024 && !state.slots[slotIndex] && (wasSelected || tappedPrompt) && !state.drawerOpen) {
           toggleDrawer(true);
         }
       });
@@ -2093,6 +2190,9 @@
         if (isNowMobile !== lastMobileState) {
           lastMobileState = isNowMobile;
           toggleDrawer(!isNowMobile);
+        } else {
+          syncDrawerAccessibility();
+          syncMobileBackdrop();
         }
       }
       requestAnimationFrame(adjustGridLayout);
@@ -2123,6 +2223,61 @@
   }
 
   let sidebarSwipeBound = false;
+  let mobileEscapeBound = false;
+
+  function syncDrawerAccessibility() {
+    const sidebar = document.getElementById('gpu-sidebar');
+    if (!sidebar || typeof window === 'undefined') return;
+    const isMobile = window.innerWidth <= 1024;
+    sidebar.inert = isMobile && !state.drawerOpen;
+    if (isMobile) {
+      sidebar.setAttribute('role', 'dialog');
+      if (state.drawerOpen) sidebar.setAttribute('aria-modal', 'true');
+      else sidebar.removeAttribute('aria-modal');
+    } else {
+      sidebar.removeAttribute('role');
+      sidebar.removeAttribute('aria-modal');
+    }
+  }
+
+  function syncMobileBackdrop() {
+    const backdrop = document.getElementById('gpu-drawer-backdrop');
+    if (!backdrop || typeof window === 'undefined') return;
+    const isMobile = window.innerWidth <= 1024;
+    const ptzDrawer = document.getElementById('gpu-ptz-drawer');
+    const ptzOpen = Boolean(window.innerWidth <= 1023 && ptzDrawer && !ptzDrawer.classList.contains('hidden'));
+    backdrop.classList.toggle('active', Boolean(isMobile && (state.drawerOpen || ptzOpen)));
+  }
+
+  function closeMobileDrawers() {
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024 && state.drawerOpen) {
+      toggleDrawer(false);
+    }
+    const ptzDrawer = document.getElementById('gpu-ptz-drawer');
+    if (typeof window !== 'undefined' && window.innerWidth <= 1023 && ptzDrawer && !ptzDrawer.classList.contains('hidden')) {
+      togglePtzDrawer(false);
+    }
+  }
+
+  function setupMobileEscape() {
+    if (mobileEscapeBound || typeof window === 'undefined') return;
+    mobileEscapeBound = true;
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (window.innerWidth <= 1024 && state.drawerOpen) {
+        toggleDrawer(false);
+        const toggleBtn = document.getElementById('gpu-drawer-toggle');
+        if (toggleBtn) toggleBtn.focus();
+      }
+      const ptzDrawer = document.getElementById('gpu-ptz-drawer');
+      if (window.innerWidth <= 1023 && ptzDrawer && !ptzDrawer.classList.contains('hidden')) {
+        togglePtzDrawer(false);
+        const ptzBtn = document.getElementById('dock-btn-ptz');
+        if (ptzBtn) ptzBtn.focus();
+      }
+    });
+  }
+
   function setupSidebarSwipeClose() {
     if (sidebarSwipeBound) return;
     const sidebar = document.getElementById('gpu-sidebar');
@@ -2146,6 +2301,26 @@
         toggleDrawer(false);
       }
     }, { passive: true });
+
+    const ptzDrawer = document.getElementById('gpu-ptz-drawer');
+    if (ptzDrawer) {
+      let ptzStartX = 0;
+      let ptzStartY = 0;
+      ptzDrawer.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        ptzStartX = e.touches[0].clientX;
+        ptzStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      ptzDrawer.addEventListener('touchend', (e) => {
+        if (window.innerWidth > 1023 || ptzDrawer.classList.contains('hidden') || e.changedTouches.length !== 1) return;
+        const dx = e.changedTouches[0].clientX - ptzStartX;
+        const dy = e.changedTouches[0].clientY - ptzStartY;
+        if (dx > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          togglePtzDrawer(false);
+        }
+      }, { passive: true });
+    }
   }
 
   function setSplit(split) {
@@ -2245,6 +2420,9 @@
       toggleIcon.textContent = state.drawerOpen ? '◀' : '▶';
     }
 
+    syncDrawerAccessibility();
+    syncMobileBackdrop();
+
     setTimeout(() => {
       adjustGridLayout();
     }, 180);
@@ -2283,7 +2461,10 @@
       setupPtzButtons();
       setupGridResizeObserver();
       setupSidebarSwipeClose();
+      setupMobileEscape();
       toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
+      const ptzDrawerEl = document.getElementById('gpu-ptz-drawer');
+      if (ptzDrawerEl) ptzDrawerEl.inert = ptzDrawerEl.classList.contains('hidden');
       renderGrid();
       updateBottomDock();
 
@@ -2328,6 +2509,8 @@
     saveCurrentViewPreset,
     loadViewPreset,
     toggleDrawer,
+    closeMobileDrawers,
+    cycleSelectedSlot,
     adjustGridLayout,
     filterTree,
     ptzGotoPreset,
@@ -2336,6 +2519,7 @@
     dockToggleQuality,
     dockCycleAspect,
     dockToggleDigitalZoom,
+    dockStepDigitalZoom,
     dockTogglePtz,
     dockToggleAudio,
     dockToggleRecord,

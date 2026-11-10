@@ -239,6 +239,7 @@ body {
 }
 
 .gpu-sidebar-header {
+  flex-shrink: 0;
   padding: 10px 10px 8px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: #0b1120;
@@ -297,6 +298,7 @@ body {
 /* Tree Container */
 .gpu-tree-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -366,6 +368,7 @@ body {
   color: #cbd5e1;
   cursor: pointer;
   user-select: none;
+  -webkit-touch-callout: none;
   transition: all 0.12s ease;
   position: relative;
   min-height: 28px;
@@ -403,6 +406,44 @@ body {
   font-weight: 500;
 }
 
+.gpu-tree-rename-btn {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
+}
+
+.gpu-tree-item:hover .gpu-tree-rename-btn,
+.gpu-tree-item:focus-within .gpu-tree-rename-btn {
+  opacity: 1;
+}
+
+.gpu-tree-rename-btn:hover,
+.gpu-tree-rename-btn:focus-visible {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #f8fafc;
+}
+
+.gpu-tree-item.editing .gpu-tree-rename-btn,
+.gpu-tree-item.editing .gpu-tree-ptz-badge {
+  display: none;
+}
+
+@media (hover: none) {
+  .gpu-tree-rename-btn {
+    opacity: 1;
+  }
+}
+
 /* Clean Inline Rename Input (No pencil icon clutter!) */
 .gpu-rename-input {
   flex: 1;
@@ -419,6 +460,7 @@ body {
 
 /* Sidebar Batch Action Footer */
 .gpu-sidebar-footer {
+  flex-shrink: 0;
   padding: 8px;
   border-top: 1px solid var(--border-sidebar-footer, rgba(255, 255, 255, 0.06));
   background: var(--bg-sidebar-footer, #0b1120);
@@ -437,7 +479,7 @@ body {
   border-radius: 3px;
   cursor: pointer;
   text-align: center;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .gpu-tree-action-btn:hover {
@@ -832,6 +874,48 @@ body {
   border-color: #38bdf8;
 }
 
+/* Quick Batch Actions in Toolbar (shown on mobile & when desktop sidebar is collapsed) */
+.gpu-toolbar-quick {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+#gpu-sidebar.collapsed ~ .gpu-main-area .gpu-toolbar-quick {
+  display: inline-flex;
+}
+
+.gpu-toolbar-action-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  height: 26px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  touch-action: manipulation;
+}
+
+.gpu-toolbar-action-btn:hover {
+  background: #334155;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.gpu-toolbar-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+  color: #f87171;
+}
+
 /* Slot Tile (Base) - 100% Full-Bleed Video Canvas */
 .gpu-slot {
   background: #000000;
@@ -843,6 +927,8 @@ body {
   justify-content: center;
   position: relative;
   cursor: pointer;
+  user-select: none;
+  -webkit-touch-callout: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   aspect-ratio: 16 / 9;
   width: 100%;
@@ -1060,10 +1146,25 @@ video::-webkit-media-controls-fullscreen-button {
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.4);
   border-radius: 4px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   font-size: 11px;
   font-weight: 700;
+  font-family: inherit;
   white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+
+.gpu-dock-slot-pill:hover {
+  background: rgba(56, 189, 248, 0.32);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.dock-zoom-step.hidden {
+  display: none !important;
 }
 
 .gpu-dock-cam-title {
@@ -1270,12 +1371,15 @@ video::-webkit-media-controls-fullscreen-button {
     backdrop-filter: blur(12px);
     border-left: 1px solid rgba(56, 189, 248, 0.35);
     box-shadow: -6px 0 24px rgba(0, 0, 0, 0.7);
-    z-index: 40;
+    z-index: 50;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear;
   }
 
   .gpu-ptz-drawer.hidden {
     transform: translateX(100%);
     pointer-events: none;
+    visibility: hidden;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.25s;
   }
 }
 
@@ -1569,13 +1673,58 @@ video::-webkit-media-controls-fullscreen-button {
   inset: 0;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(2px);
-  z-index: 15;
+  z-index: 40;
+}
+
+.gpu-drawer-backdrop.active {
+  display: block;
 }
 
 @media (pointer: coarse) {
   .gpu-search-box input,
   .gpu-rename-input {
     font-size: 16px;
+  }
+
+  .gpu-tree-item {
+    padding: 8px 10px;
+    min-height: 44px;
+  }
+
+  .gpu-tree-rename-btn {
+    opacity: 1;
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .gpu-tree-action-btn,
+  .gpu-toolbar-action-btn,
+  .gpu-drawer-toggle-btn,
+  .gpu-tour-btn,
+  .gpu-view-save-btn {
+    min-height: 38px;
+    padding: 4px 10px;
+    touch-action: manipulation;
+  }
+
+  .gpu-toolbar-select {
+    min-height: 38px;
+    height: 38px;
+    touch-action: manipulation;
+  }
+
+  .gpu-dock-slot-pill,
+  .gpu-dock-btn {
+    min-height: 40px;
+    height: 40px;
+    padding: 0 11px;
+    touch-action: manipulation;
+  }
+
+  .gpu-ptz-drawer-close {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .gpu-menu-item {
@@ -1593,7 +1742,7 @@ video::-webkit-media-controls-fullscreen-button {
 }
 
 @media (max-width: 1024px) {
-  /* Sidebar becomes off-canvas drawer without zeroing width */
+  /* Sidebar becomes off-canvas drawer overlaying dock & canvas without zeroing width */
   .gpu-sidebar {
     position: absolute;
     left: 0;
@@ -1603,8 +1752,12 @@ video::-webkit-media-controls-fullscreen-button {
     min-width: 0;
     max-width: 84vw;
     transform: translateX(-100%);
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 45;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6);
     padding-left: env(safe-area-inset-left, 0px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.25s;
   }
 
   .gpu-sidebar.collapsed {
@@ -1616,10 +1769,30 @@ video::-webkit-media-controls-fullscreen-button {
 
   .gpu-sidebar.drawer-open {
     transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear;
   }
 
-  .gpu-sidebar.drawer-open ~ .gpu-drawer-backdrop {
-    display: block;
+  #pane-gpu .gpu-toolbar-quick {
+    display: inline-flex;
+  }
+
+  .gpu-toolbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gpu-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gpu-toolbar-left,
+  .gpu-toolbar-right {
+    flex-shrink: 0;
   }
 
   .gpu-drawer-toggle-btn {
@@ -1632,17 +1805,17 @@ video::-webkit-media-controls-fullscreen-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     margin: -6px -4px -6px 0;
   }
 
   .gpu-sidebar-footer {
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .gpu-tree-action-btn {
-    min-height: 40px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1804,9 +1977,10 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-toolbar-select,
   .gpu-drawer-toggle-btn,
   .gpu-tour-btn,
+  .gpu-toolbar-action-btn,
   .gpu-view-save-btn {
-    min-height: 32px;
-    height: 32px;
+    min-height: 34px;
+    height: 34px;
     touch-action: manipulation;
   }
 
@@ -1908,18 +2082,22 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-toolbar-select,
   .gpu-drawer-toggle-btn,
   .gpu-tour-btn,
+  .gpu-toolbar-action-btn,
   .gpu-view-save-btn {
-    min-height: 26px;
-    height: 26px;
+    min-height: 28px;
+    height: 28px;
   }
 
   .gpu-group-label {
-    display: none;
+    display: inline-block;
+    font-size: 9px;
+    margin-right: 1px;
   }
 
   .gpu-dock-bar {
     flex-direction: row;
     align-items: center;
+    justify-content: flex-start;
     height: auto;
     min-height: 40px;
     overflow-x: auto;
@@ -1931,6 +2109,12 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-dock-left {
     width: auto;
     flex-shrink: 0;
+  }
+
+  .gpu-dock-slot-pill {
+    min-height: 32px;
+    height: 32px;
+    padding: 0 8px;
   }
 
   .gpu-dock-cam-title {
@@ -2068,6 +2252,17 @@ video::-webkit-media-controls-fullscreen-button {
     border-left: 2px solid #0284c7;
     color: #0284c7;
   }
+  .gpu-tree-rename-btn {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.14);
+    color: #475569;
+  }
+  .gpu-tree-rename-btn:hover,
+  .gpu-tree-rename-btn:focus-visible {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+  }
   .gpu-sidebar-footer,
   .gpu-tree-actions {
     background: #f8fafc;
@@ -2198,6 +2393,26 @@ video::-webkit-media-controls-fullscreen-button {
     background: #f1f5f9;
     color: #0f172a;
   }
+  .gpu-toolbar-action-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    color: #334155;
+  }
+  .gpu-toolbar-action-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.25);
+  }
+  .gpu-toolbar-action-btn.danger {
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.25);
+    background: rgba(220, 38, 38, 0.04);
+  }
+  .gpu-toolbar-action-btn.danger:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+  }
 
   /* Central Grid & Slots */
   .gpu-main-area {
@@ -2264,6 +2479,11 @@ video::-webkit-media-controls-fullscreen-button {
     background: #f1f5f9;
     border: 1px solid rgba(0, 0, 0, 0.12);
     color: #0f172a;
+  }
+  .gpu-dock-slot-pill:hover {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
   }
   .gpu-dock-cam-title {
     color: #0f172a;
