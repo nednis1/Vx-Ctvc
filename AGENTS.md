@@ -235,7 +235,7 @@ To deliver true single-handed surveillance operations on smartphones ($\le 640\t
    - Never use blocking browser dialogs (`window.prompt()`, `window.alert()`). Presets, layouts, and mutations must use styled, non-blocking bottom sheets or `<dialog>` elements with inline name entry and deletion.
    - Toolbar inputs and dropdowns must use `font-size: 16px` on coarse pointers to avoid unwanted iOS Safari viewport auto-zooming.
 7. **Thumb-Zone Grid & Split Quick Sheet (`#gpu-grid-sheet`)**:
-   - Central grid configuration (Split 1/2/4/6/9/16, Columns Auto/1/2/3/4, Slot Size Large/Fit, Presets, and Batch Quick Actions) must be accessible from within the bottom 40% thumb zone on mobile via `#dock-btn-grid`. Operators must never be forced to stretch to the sub-top toolbar on smartphones.
+   - Central grid configuration (Split 1/2/4/6/9/16/25/32, Columns Auto/1/2/3/4, Slot Size Large/Fit, Presets, and Batch Quick Actions) must be accessible from within the bottom 40% thumb zone on mobile via `#dock-btn-grid`. Operators must never be forced to stretch to the sub-top toolbar on smartphones.
 8. **Bottom Sheet Downward Swipe Dismiss & Virtual Keyboard Auto-Retract**:
    - Bottom sheets (`#gpu-preset-dialog`, `#gpu-grid-sheet`) must support downward swipe-to-dismiss (`dy > 70px`) with touch drag handles (`.sheet-drag-handle`).
    - Camera search input must feature an inline one-tap clear button (`✕`, `#gpu-cam-search-clear`).
