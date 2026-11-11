@@ -2141,6 +2141,7 @@
   let dialogPlaybackPlayer = null;
   let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
   let is24hDragging = false;
+  let currentPlaybackSpeed = 1; // 1, 2, 4, 8, 16
 
   function secToHms(sec) {
     const s = Math.max(0, Math.floor(sec || 0));
@@ -2220,6 +2221,10 @@
 
     const player = document.createElement('video-rtc');
     player.className = 'gpu-player-el';
+    player.isPlayback = true;
+    if (currentPlaybackSpeed !== 1) {
+      player.customPlaybackRate = currentPlaybackSpeed;
+    }
     const engineMode = state.streamEngine === 'mse' ? 'mse' : (state.streamEngine === 'webrtc' ? 'webrtc' : 'mse,webrtc');
     player.mode = engineMode;
     player.src = wsUrl;
@@ -2232,12 +2237,18 @@
       player.video.muted = true;
       player.video.autoplay = true;
       player.video.playsInline = true;
+      if (currentPlaybackSpeed !== 1) {
+        player.video.playbackRate = currentPlaybackSpeed;
+      }
 
       const playBtn = document.getElementById('playback-btn-toggle-play');
 
       const onStreamReady = () => {
         if (spinnerEl) spinnerEl.style.display = 'none';
         if (playBtn) playBtn.textContent = '⏸';
+        if (currentPlaybackSpeed !== 1) {
+          player.video.playbackRate = currentPlaybackSpeed;
+        }
       };
 
       player.video.addEventListener('playing', onStreamReady, { once: true });
@@ -2352,6 +2363,9 @@
     } else {
       dialog.removeAttribute('open');
     }
+
+    // Reset speed to normal on dialog close
+    setPlaybackSpeed(1);
 
     // Sync wall slot player and badges
     reconnectSlot(state.selectedSlotIndex);
@@ -2565,6 +2579,7 @@
     const liveBtn = document.getElementById('playback-header-btn-live');
     if (liveBtn) liveBtn.classList.add('hidden');
     updatePlayheadPosition(0);
+    setPlaybackSpeed(1);
 
     reconnectSlot(state.selectedSlotIndex);
     updateBottomDock();
@@ -2577,11 +2592,58 @@
     const btn = document.getElementById('playback-btn-toggle-play');
     if (v.paused) {
       v.play().catch(() => {});
+      if (currentPlaybackSpeed !== 1) {
+        v.playbackRate = currentPlaybackSpeed;
+      }
       if (btn) btn.textContent = '⏸';
     } else {
       v.pause();
       if (btn) btn.textContent = '▶';
     }
+    triggerHaptic(6);
+  }
+
+  function cyclePlaybackSpeed() {
+    const speeds = [1, 2, 4, 8, 16];
+    const currentIdx = speeds.indexOf(currentPlaybackSpeed);
+    const nextSpeed = speeds[(currentIdx + 1) % speeds.length];
+    setPlaybackSpeed(nextSpeed);
+  }
+
+  function setPlaybackSpeed(speed) {
+    currentPlaybackSpeed = Number(speed) || 1;
+    const btn = document.getElementById('playback-btn-speed');
+    const ffIndicator = document.getElementById('playback-ff-indicator');
+    if (btn) {
+      btn.textContent = currentPlaybackSpeed === 1 ? '1x' : `${currentPlaybackSpeed}x`;
+      btn.classList.toggle('active-speed', currentPlaybackSpeed > 1);
+    }
+    if (ffIndicator) {
+      ffIndicator.textContent = `⏩ ${currentPlaybackSpeed}x`;
+      ffIndicator.style.display = currentPlaybackSpeed > 1 ? 'block' : 'none';
+    }
+
+    if (dialogPlaybackPlayer) {
+      if (typeof dialogPlaybackPlayer.setPlaybackSpeed === 'function') {
+        dialogPlaybackPlayer.setPlaybackSpeed(currentPlaybackSpeed);
+      } else if (dialogPlaybackPlayer.video) {
+        dialogPlaybackPlayer.video.playbackRate = currentPlaybackSpeed;
+      }
+    }
+
+    const slotItem = state.slots[state.selectedSlotIndex];
+    if (slotItem && slotItem.playbackStreamId) {
+      const slotEl = document.getElementById(`gpu-slot-${state.selectedSlotIndex}`);
+      const slotPlayer = slotEl?.querySelector('video-rtc');
+      if (slotPlayer) {
+        if (typeof slotPlayer.setPlaybackSpeed === 'function') {
+          slotPlayer.setPlaybackSpeed(currentPlaybackSpeed);
+        } else if (slotPlayer.video) {
+          slotPlayer.video.playbackRate = currentPlaybackSpeed;
+        }
+      }
+    }
+
     triggerHaptic(6);
   }
 
@@ -2714,6 +2776,31 @@
         if (hoverIndicator) hoverIndicator.style.display = 'none';
       });
     }
+
+    // Keyboard shortcuts for playback (Space=Play/Pause, Arrows=Seek, F=Fast Forward speed, M=Mute)
+    window.addEventListener('keydown', (e) => {
+      const dialog = document.getElementById('gpu-playback-dialog');
+      if (!dialog || !dialog.open) return;
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT')) {
+        return;
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        togglePlaybackPlay();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        seekPlaybackRelative(e.shiftKey ? 30 : 10);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        seekPlaybackRelative(e.shiftKey ? -30 : -10);
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        cyclePlaybackSpeed();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        togglePlaybackAudio();
+      }
+    });
   }
 
   function loadViewPreset(id) {
@@ -3046,6 +3133,12 @@
 
     const player = document.createElement('video-rtc');
     player.className = 'gpu-player-el';
+    if (item.playbackStreamId) {
+      player.isPlayback = true;
+      if (currentPlaybackSpeed !== 1) {
+        player.customPlaybackRate = currentPlaybackSpeed;
+      }
+    }
 
     // Stream engine mode: 'auto' (MSE fast start + WebRTC) | 'mse' (pure MediaSource WebSocket) | 'webrtc' (direct UDP)
     const engineMode = state.streamEngine === 'mse' ? 'mse' : (state.streamEngine === 'webrtc' ? 'webrtc' : 'mse,webrtc');
@@ -3059,6 +3152,9 @@
       player.video.muted = item.audioMuted;
       player.video.autoplay = true;
       player.video.playsInline = true;
+      if (item.playbackStreamId && currentPlaybackSpeed !== 1) {
+        player.video.playbackRate = currentPlaybackSpeed;
+      }
 
       const spinnerEl = slotEl.querySelector(`#spinner-slot-${slotIndex}`);
       const onStreamReady = () => {
@@ -3067,6 +3163,9 @@
           spinnerEl.classList.remove('stream-stalled');
         }
         item.videoPlaying = true;
+        if (item.playbackStreamId && currentPlaybackSpeed !== 1) {
+          player.video.playbackRate = currentPlaybackSpeed;
+        }
         updateSlotBadges(slotIndex);
         if (slotIndex === state.selectedSlotIndex) {
           updateBottomDock();
@@ -3857,6 +3956,8 @@
     startNvrPlayback,
     returnToLive,
     togglePlaybackPlay,
+    cyclePlaybackSpeed,
+    setPlaybackSpeed,
     seekPlaybackRelative,
     togglePlaybackAudio,
     fullscreenPlayback,

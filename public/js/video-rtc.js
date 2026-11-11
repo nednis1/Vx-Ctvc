@@ -51,6 +51,18 @@ class VideoRTC extends HTMLElement {
         this.background = false;
 
         /**
+         * [config] Whether this stream is recorded NVR playback rather than live feed.
+         * @type {boolean}
+         */
+        this.isPlayback = false;
+
+        /**
+         * [config] Custom user playback speed rate for NVR playback (1, 2, 4, 8, 16).
+         * @type {number}
+         */
+        this.customPlaybackRate = 1;
+
+        /**
          * [config] Run stream only when player in the viewport. Stop when user scroll out player.
          * Value is percentage of visibility from `0` (not visible) to `1` (full visible).
          * Default `0` - disable;
@@ -184,6 +196,17 @@ class VideoRTC extends HTMLElement {
                 });
             }
         });
+    }
+
+    /**
+     * Set playback rate for NVR recordings (1, 2, 4, 8, 16).
+     * @param {number} speed
+     */
+    setPlaybackSpeed(speed) {
+        this.customPlaybackRate = Number(speed) || 1;
+        if (this.video) {
+            this.video.playbackRate = this.customPlaybackRate;
+        }
     }
 
     /**
@@ -487,7 +510,7 @@ class VideoRTC extends HTMLElement {
 
                 if (!sb.updating && sb.buffered && sb.buffered.length) {
                     const end = sb.buffered.end(sb.buffered.length - 1);
-                    const start = end - 5;
+                    const start = this.isPlayback ? (end - 120) : (end - 5);
                     const start0 = sb.buffered.start(0);
                     if (start > start0) {
                         sb.remove(start0, start);
@@ -496,8 +519,14 @@ class VideoRTC extends HTMLElement {
                     if (this.video.currentTime < start) {
                         this.video.currentTime = start;
                     }
-                    const gap = end - this.video.currentTime;
-                    this.video.playbackRate = gap > 0.1 ? gap : 0.1;
+                    if (this.customPlaybackRate && this.customPlaybackRate !== 1) {
+                        this.video.playbackRate = this.customPlaybackRate;
+                    } else if (this.isPlayback) {
+                        this.video.playbackRate = 1.0;
+                    } else {
+                        const gap = end - this.video.currentTime;
+                        this.video.playbackRate = gap > 0.1 ? gap : 0.1;
+                    }
                     // console.debug('VideoRTC.buffered', gap, this.video.playbackRate, this.video.readyState);
                 }
             });

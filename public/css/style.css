@@ -3518,7 +3518,38 @@ video::-webkit-media-controls-fullscreen-button {
   background: #0369a1;
 }
 
-@media (max-width: 520px) {
+.playback-transport-btn.speed-btn {
+  min-width: 36px;
+  font-family: monospace, ui-monospace, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.playback-transport-btn.speed-btn.active-speed {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.playback-ff-indicator {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 9px;
+  background: rgba(2, 132, 199, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.8);
+  border-radius: 4px;
+  color: #ffffff;
+  font-family: monospace, ui-monospace, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 580px) {
   .playback-transport-btn.hour-btn {
     display: none;
   }
@@ -3745,6 +3776,12 @@ video::-webkit-media-controls-fullscreen-button {
 
 [data-theme="light"] .playback-transport-btn:hover {
   background: #e2e8f0;
+}
+
+[data-theme="light"] .playback-transport-btn.speed-btn.active-speed {
+  background: #0284c7;
+  border-color: #0369a1;
+  color: #ffffff;
 }
 
 [data-theme="light"] .playback-video-placeholder {
