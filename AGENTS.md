@@ -213,7 +213,7 @@ Codified from **WCAG 2.2**, **Apple Human Interface Guidelines (HIG)**, **Google
   - **Off-Canvas Drawers**: Tree sidebar ($\le 1024\text{px}$) and PTZ controls open as slide-over drawers with tap-backdrop and swipe-dismiss support.
 
 ### 4. Codified Mobile Ergonomic Mandates (Thumb-Zone & Gesture Architecture)
-To deliver true single-handed surveillance operations on smartphones ($\le 640\text{px}$), the mobile interface strictly follows six ergonomic mandates:
+To deliver true single-handed surveillance operations on smartphones ($\le 640\text{px}$), the mobile interface strictly follows nine ergonomic mandates:
 1. **Bottom Thumb Cockpit Primacy & Drawer Triggers**:
    - All core camera operations and drawer triggers must be accessible within the bottom 40% thumb zone (`.gpu-dock-bar`).
    - On mobile screens, the bottom dock's left cluster (`.gpu-dock-left`) houses an immediate `Cameras` drawer trigger alongside the active slot indicator, removing the need to reach up to the top header for camera switching.
@@ -232,6 +232,16 @@ To deliver true single-handed surveillance operations on smartphones ($\le 640\t
    - Destructive buttons (e.g., `Logout`) must maintain a minimum of $8\text{px}$ separation from adjacent controls to prevent mis-taps.
    - Never use blocking browser dialogs (`window.prompt()`, `window.alert()`). Presets, layouts, and mutations must use styled, non-blocking bottom sheets or `<dialog>` elements with inline name entry and deletion.
    - Toolbar inputs and dropdowns must use `font-size: 16px` on coarse pointers to avoid unwanted iOS Safari viewport auto-zooming.
+7. **Thumb-Zone Grid & Split Quick Sheet (`#gpu-grid-sheet`)**:
+   - Central grid configuration (Split 1/2/4/6/9/16, Columns Auto/1/2/3/4, Slot Size Large/Fit, Presets, and Batch Quick Actions) must be accessible from within the bottom 40% thumb zone on mobile via `#dock-btn-grid`. Operators must never be forced to stretch to the sub-top toolbar on smartphones.
+8. **Bottom Sheet Downward Swipe Dismiss & Virtual Keyboard Auto-Retract**:
+   - Bottom sheets (`#gpu-preset-dialog`, `#gpu-grid-sheet`) must support downward swipe-to-dismiss (`dy > 70px`) with touch drag handles (`.sheet-drag-handle`).
+   - Camera search input must feature an inline one-tap clear button (`✕`, `#gpu-cam-search-clear`).
+   - Tapping any camera in the device drawer must immediately blur the active input (`document.activeElement.blur()`), auto-retracting the virtual keyboard before closing the drawer.
+9. **One-Tap Stalled Stream Recovery & Tactile Micro-Haptics**:
+   - Stalled or disconnected video feeds (e.g. following cellular or Wi-Fi handoffs) must display a calm "Stream Offline • Tap to Reconnect" affordance.
+   - Tapping directly on a stalled slot immediately re-initiates its individual WebRTC/MSE socket without full-page reloads or disruption of sibling camera feeds.
+   - Core touch operations (steppers, slot switching, 1x1 toggle, camera selection, and reconnect) deliver subtle 10ms micro-haptic feedback (`navigator.vibrate`) on supported handheld devices.
 
 ### 5. Quick-Reference Standard Matrix (PC vs. Mobile)
 

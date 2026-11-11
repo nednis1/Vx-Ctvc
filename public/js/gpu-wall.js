@@ -30,6 +30,15 @@
   };
 
   /**
+   * Subtle haptic pulse for mobile touch confirmation
+   */
+  function triggerHaptic(duration = 10) {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(duration); } catch (e) {}
+    }
+  }
+
+  /**
    * Fetch custom and official camera names from backend
    */
   async function loadCameraNames() {
@@ -210,6 +219,10 @@
         // Click: Assign to currently selected slot
         itemEl.addEventListener('click', () => {
           if (itemEl.classList.contains('editing')) return;
+          if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+          }
+          triggerHaptic(10);
           assignCameraToSelectedSlot(nvr.id, ch);
 
           // On mobile screens (<1024px), auto-close drawer so user sees video
@@ -332,6 +345,10 @@
 
   function filterTree(query) {
     const q = (query || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('gpu-cam-search-clear');
+    if (clearBtn) {
+      clearBtn.classList.toggle('hidden', !q);
+    }
     const items = document.querySelectorAll('.gpu-tree-item');
 
     items.forEach((item) => {
@@ -341,6 +358,19 @@
       const match = !q || title.includes(q) || `ch ${ch}`.includes(q) || ch === q;
       item.style.display = match ? 'flex' : 'none';
     });
+  }
+
+  function clearCameraSearch() {
+    const input = document.getElementById('gpu-cam-search');
+    const clearBtn = document.getElementById('gpu-cam-search-clear');
+    if (input) {
+      input.value = '';
+    }
+    if (clearBtn) {
+      clearBtn.classList.add('hidden');
+    }
+    filterTree('');
+    triggerHaptic(10);
   }
 
   // -------------------------------------------------------------
@@ -361,6 +391,7 @@
   }
 
   function stepSelectedSlot(delta = 1) {
+    triggerHaptic(10);
     const total = Math.max(1, state.split);
     const current = state.focusedSlotIndex !== null ? state.focusedSlotIndex : state.selectedSlotIndex;
     const nextIdx = (current + delta + total) % total;
@@ -1703,6 +1734,167 @@
         }
       });
     }
+
+    setupSheetSwipeDismiss('gpu-preset-dialog');
+  }
+
+  /**
+   * Universal downward swipe-to-dismiss gesture for mobile bottom sheets
+   */
+  function setupSheetSwipeDismiss(dialogId) {
+    const dialog = document.getElementById(dialogId);
+    if (!dialog) return;
+    const content = dialog.querySelector('.gpu-preset-dialog-content');
+    if (!content) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+
+    dialog.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      if (content.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      currentY = startY;
+      isDragging = true;
+    }, { passive: true });
+
+    dialog.addEventListener('touchmove', (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0) {
+        currentY = e.touches[0].clientY;
+        content.style.transition = 'none';
+        content.style.transform = `translateY(${Math.min(dy, 220)}px)`;
+      }
+    }, { passive: true });
+
+    const endDrag = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      const dy = currentY - startY;
+      if (dy > 70) {
+        content.style.transition = 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)';
+        content.style.transform = 'translateY(100%)';
+        setTimeout(() => {
+          if (dialogId === 'gpu-preset-dialog') {
+            closePresetDialog();
+          } else if (dialogId === 'gpu-grid-sheet') {
+            closeGridSheet();
+          } else if (typeof dialog.close === 'function') {
+            try { dialog.close(); } catch (err) {}
+          }
+          content.style.transform = '';
+          content.style.transition = '';
+        }, 180);
+      } else {
+        content.style.transition = 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)';
+        content.style.transform = 'translateY(0)';
+        setTimeout(() => {
+          content.style.transform = '';
+          content.style.transition = '';
+        }, 180);
+      }
+    };
+
+    dialog.addEventListener('touchend', endDrag, { passive: true });
+    dialog.addEventListener('touchcancel', endDrag, { passive: true });
+  }
+
+  // -------------------------------------------------------------
+  // Grid & Display Bottom Sheet (Thumb Zone Cockpit)
+  // -------------------------------------------------------------
+
+  function openGridSheet() {
+    const dialog = document.getElementById('gpu-grid-sheet');
+    if (!dialog) return;
+    updateGridSheetChips();
+    triggerHaptic(10);
+    if (typeof dialog.showModal === 'function') {
+      try {
+        if (!dialog.open) dialog.showModal();
+      } catch (e) {
+        dialog.setAttribute('open', '');
+      }
+    } else {
+      dialog.setAttribute('open', '');
+    }
+  }
+
+  function closeGridSheet() {
+    const dialog = document.getElementById('gpu-grid-sheet');
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') {
+      try {
+        if (dialog.open) dialog.close();
+      } catch (e) {
+        dialog.removeAttribute('open');
+      }
+    } else {
+      dialog.removeAttribute('open');
+    }
+  }
+
+  function updateGridSheetChips() {
+    const splitChips = document.querySelectorAll('#sheet-split-chips .sheet-chip');
+    splitChips.forEach((chip) => {
+      const splitVal = parseInt(chip.dataset.split, 10);
+      const isActive = (state.focusedSlotIndex !== null && splitVal === 1) || (state.focusedSlotIndex === null && splitVal === state.split);
+      chip.classList.toggle('active', Boolean(isActive));
+    });
+
+    const colChips = document.querySelectorAll('#sheet-col-chips .sheet-chip');
+    colChips.forEach((chip) => {
+      const colVal = chip.dataset.col;
+      const isColActive = String(state.columnMode) === String(colVal);
+      chip.classList.toggle('active', isColActive);
+    });
+
+    const sizeChips = document.querySelectorAll('#sheet-size-chips .sheet-chip');
+    sizeChips.forEach((chip) => {
+      const sizeVal = chip.dataset.size;
+      chip.classList.toggle('active', state.slotSize === sizeVal);
+    });
+  }
+
+  function setSplitFromSheet(split) {
+    triggerHaptic(10);
+    setSplit(split);
+    updateGridSheetChips();
+  }
+
+  function setColumnModeFromSheet(mode) {
+    triggerHaptic(10);
+    setColumnMode(mode);
+    updateGridSheetChips();
+  }
+
+  function setSlotSizeFromSheet(size) {
+    triggerHaptic(10);
+    setSlotSize(size);
+    updateGridSheetChips();
+  }
+
+  function setupGridSheetDialog() {
+    const dialog = document.getElementById('gpu-grid-sheet');
+    if (!dialog) return;
+
+    dialog.addEventListener('click', (e) => {
+      const rect = dialog.getBoundingClientRect();
+      const inDialog = (
+        rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+      );
+      if (!inDialog) {
+        closeGridSheet();
+      }
+    });
+
+    dialog.addEventListener('cancel', () => {
+      closeGridSheet();
+    });
+
+    setupSheetSwipeDismiss('gpu-grid-sheet');
   }
 
   function loadViewPreset(id) {
@@ -2017,6 +2209,11 @@
       selectSlot(slotIndex);
     }, { passive: false });
 
+    mountPlayer(slotIndex, slotEl, item, wrapper);
+    updateSlotBadges(slotIndex);
+  }
+
+  function mountPlayer(slotIndex, slotEl, item, wrapper) {
     // Mount VideoRTC hardware-accelerated video element
     const streamKey = `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
     const host = window.location.host;
@@ -2041,7 +2238,10 @@
 
       const spinnerEl = slotEl.querySelector(`#spinner-slot-${slotIndex}`);
       const onStreamReady = () => {
-        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (spinnerEl) {
+          spinnerEl.style.display = 'none';
+          spinnerEl.classList.remove('stream-stalled');
+        }
         item.videoPlaying = true;
         updateSlotBadges(slotIndex);
         if (slotIndex === state.selectedSlotIndex) {
@@ -2053,8 +2253,9 @@
         item.videoPlaying = false;
         if (spinnerEl) {
           spinnerEl.style.display = 'flex';
+          spinnerEl.classList.add('stream-stalled');
           const label = spinnerEl.querySelector('span');
-          if (label) label.textContent = 'Stream Offline / Reconnecting...';
+          if (label) label.textContent = 'Stream Offline • Tap to Reconnect';
         }
         updateSlotBadges(slotIndex);
         if (slotIndex === state.selectedSlotIndex) {
@@ -2074,8 +2275,37 @@
         onStreamReady();
       }
     }
+  }
 
-    updateSlotBadges(slotIndex);
+  function reconnectSlot(slotIndex) {
+    const item = state.slots[slotIndex];
+    if (!item) return;
+    triggerHaptic(10);
+
+    const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
+    if (!slotEl) return;
+    const wrapper = slotEl.querySelector('.gpu-video-wrapper');
+    if (!wrapper) return;
+
+    const spinnerEl = slotEl.querySelector(`#spinner-slot-${slotIndex}`);
+    if (spinnerEl) {
+      spinnerEl.style.display = 'flex';
+      spinnerEl.classList.remove('stream-stalled');
+      const label = spinnerEl.querySelector('span');
+      if (label) label.textContent = 'Reconnecting GPU Stream...';
+    }
+
+    const oldPlayer = slotEl.querySelector('video-rtc');
+    if (oldPlayer) {
+      try {
+        if (typeof oldPlayer.ondisconnect === 'function') oldPlayer.ondisconnect();
+        oldPlayer.src = '';
+        oldPlayer.remove();
+      } catch (e) {}
+    }
+
+    mountPlayer(slotIndex, slotEl, item, wrapper);
+    showToast(`Reconnecting CAM ${item.channel.toString().padStart(2, '0')}...`);
   }
 
   function renderGrid() {
@@ -2116,7 +2346,16 @@
       slotEl.addEventListener('click', (e) => {
         const wasSelected = state.selectedSlotIndex === slotIndex;
         const tappedPrompt = Boolean(e.target && e.target.closest && e.target.closest('.gpu-slot-empty-prompt'));
+        const tappedSpinner = Boolean(e.target && e.target.closest && e.target.closest('.gpu-slot-spinner'));
+        const isStalled = state.slots[slotIndex] && !state.slots[slotIndex].videoPlaying;
+
         selectSlot(slotIndex);
+
+        if (isStalled && (wasSelected || tappedSpinner)) {
+          reconnectSlot(slotIndex);
+          return;
+        }
+
         if (window.innerWidth <= 1024 && !state.slots[slotIndex] && (wasSelected || tappedPrompt) && !state.drawerOpen) {
           toggleDrawer(true);
         }
@@ -2725,6 +2964,7 @@
       setupSidebarSwipeClose();
       setupMobileEscape();
       setupPresetDialog();
+      setupGridSheetDialog();
       setupScrollAffordance(document.querySelector('.gpu-dock-center'));
       setupScrollAffordance(document.querySelector('.gpu-toolbar'));
       toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
@@ -2777,6 +3017,13 @@
     closePresetDialog,
     confirmSavePreset,
     deletePreset,
+    openGridSheet,
+    closeGridSheet,
+    setSplitFromSheet,
+    setColumnModeFromSheet,
+    setSlotSizeFromSheet,
+    clearCameraSearch,
+    reconnectSlot,
     toggleDrawer,
     closeMobileDrawers,
     cycleSelectedSlot,

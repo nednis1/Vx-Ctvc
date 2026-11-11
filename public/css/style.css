@@ -275,6 +275,30 @@ body {
   border-radius: 4px;
   padding: 4px 8px;
   gap: 6px;
+  position: relative;
+}
+
+.gpu-search-clear {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.gpu-search-clear:hover {
+  color: #f1f5f9;
+}
+
+.gpu-search-clear.hidden {
+  display: none;
 }
 
 .gpu-search-icon {
@@ -1728,6 +1752,35 @@ video::-webkit-media-controls-fullscreen-button {
   animation: spinSimple 0.8s linear infinite;
 }
 
+.gpu-slot-spinner.stream-stalled {
+  background: rgba(2, 6, 23, 0.88);
+  cursor: pointer;
+  border: 1px dashed rgba(239, 68, 68, 0.45);
+  border-radius: 6px;
+  margin: 6px;
+  transition: background 0.15s, border-color 0.15s;
+  pointer-events: auto;
+}
+
+.gpu-slot-spinner.stream-stalled:hover,
+.gpu-slot-spinner.stream-stalled:active {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: #38bdf8;
+}
+
+.gpu-slot-spinner.stream-stalled .spinner-ring {
+  border-top-color: #f59e0b;
+  animation: none;
+}
+
+.gpu-slot-spinner.stream-stalled span {
+  color: #f8fafc;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
 /* -------------------------------------------------------------
  * 4. Responsive Dynamics (Phone, Tablet & Landscape)
  * ------------------------------------------------------------- */
@@ -3044,7 +3097,7 @@ video::-webkit-media-controls-fullscreen-button {
   border-color: #ef4444;
 }
 
-/* Mobile Bottom Sheet Mode for Presets Dialog */
+/* Mobile Bottom Sheet Mode for Presets Dialog & Grid Sheet */
 @media (max-width: 640px) {
   .gpu-preset-dialog {
     position: fixed;
@@ -3074,4 +3127,109 @@ video::-webkit-media-controls-fullscreen-button {
     padding: 0 12px;
     font-size: 12px;
   }
+}
+
+/* Bottom Sheet Drag Handle Bar */
+.sheet-drag-handle-bar {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-drag-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+}
+
+/* Grid & Display Bottom Sheet */
+.gpu-grid-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sheet-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+.sheet-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sheet-chip {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 60px;
+  height: 38px;
+  padding: 0 10px;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+  user-select: none;
+  touch-action: manipulation;
+}
+.sheet-chip:active {
+  transform: scale(0.96);
+}
+.sheet-chip.active {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  font-weight: 600;
+}
+.sheet-chip.danger {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.sheet-chip.danger:active {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* Light Theme Overrides for Mobile Sheets & Affordances */
+[data-theme="light"] .sheet-chip {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #334155;
+}
+[data-theme="light"] .sheet-chip.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+[data-theme="light"] .sheet-drag-handle {
+  background: rgba(100, 116, 139, 0.4);
+}
+[data-theme="light"] .gpu-search-clear {
+  color: #64748b;
+}
+[data-theme="light"] .gpu-search-clear:hover {
+  color: #0f172a;
+}
+[data-theme="light"] .gpu-slot-spinner.stream-stalled {
+  background: rgba(248, 250, 252, 0.94);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+[data-theme="light"] .gpu-slot-spinner.stream-stalled span {
+  color: #0f172a;
 }
