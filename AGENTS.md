@@ -97,7 +97,8 @@ This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remo
    - Alerts and excursions must use quiet in-place data coloring (e.g., text transitioning cleanly to rose-red or steady semantic status dots) rather than jarring animations.
 
 5. **No Disruptive Popups, Routine Toasts, or Action Spam**:
-   - **Never** trigger toast notifications or popup banners for routine user actions or background state changes (e.g., "Switched to Light Mode", "Stream quality: Main HD", "Connecting stream...", "Feed minimized", "Filtered cameras", "Telemetry refreshed", "Digital zoom active").
+   - **Never** trigger toast notifications or popup banners for routine user actions or background state changes (e.g., "Switched to Light Mode", "Stream quality: Main HD", "Connecting stream...", "Connecting to NVR Playback stream...", "Playing NVR Recording...", "Returned to Live Camera Feed", "Reconnecting CAM...", "Feed minimized", "Filtered cameras", "Telemetry refreshed", "Digital zoom active").
+   - **Zero Playback & Stream Popups**: Triggering NVR Playback, switching time ranges, returning to live feed, or reconnecting video feeds must NEVER trigger popup notifications or toasts. Visual confirmation must be conveyed purely through ambient in-place indicators: the slot's quiet corner badge (`⏪ PLAYBACK`), active chip states, the slot spinner, and button state flips.
    - **Ambient Inline Visual State**: Confirm user actions visually through the element itself—toggled active classes, subtle borders, depression states (`transform: scale(0.96)`), or icon state flips.
    - **Strict Toast Whitelist**: Toasts (`showToast`) are strictly reserved for:
      1. High-priority hardware alarms or critical sensor faults.

@@ -2340,7 +2340,6 @@
     }
 
     try {
-      showToast('Connecting to NVR Playback stream...');
       const res = await fetch('/api/playback/start-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2367,7 +2366,6 @@
       closePlaybackDialog();
       updateBottomDock();
       updateCameraOptionsSheet();
-      showToast(`Playing NVR Recording (${startTime.slice(-8)} - ${endTime.slice(-8)})`);
     } catch (err) {
       console.error('[VOSCTV] Start NVR playback error:', err);
       showToast(`Failed to start NVR playback: ${err.message}`);
@@ -2394,7 +2392,6 @@
     closePlaybackDialog();
     updateBottomDock();
     updateCameraOptionsSheet();
-    showToast('Returned to Live Camera Feed');
   }
 
   function setupPlaybackDialog() {
@@ -2832,7 +2829,6 @@
     }
 
     mountPlayer(slotIndex, slotEl, item, wrapper);
-    showToast(`Reconnecting CAM ${item.channel.toString().padStart(2, '0')}...`);
   }
 
   function renderGrid() {
