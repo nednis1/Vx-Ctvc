@@ -1109,7 +1109,7 @@ app.get('/api/playback/recordings', async (req, res) => {
 
 // API: Register dynamic Dahua NVR playback RTSP stream in go2rtc
 app.post('/api/playback/start-stream', async (req, res) => {
-  const { nvrId, channel = 1, startTime, endTime, subtype = 1 } = req.body;
+  const { nvrId, channel = 1, startTime, endTime, subtype = 0, oldStreamId } = req.body;
   const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
   if (!nvr) return res.status(404).json({ error: 'NVR not found' });
 
@@ -1133,11 +1133,22 @@ app.post('/api/playback/start-stream', async (req, res) => {
   const ip = nvr.ip;
   const port = nvr.rtspPort || 554;
   const ch = parseInt(channel, 10) || 1;
-  const sub = parseInt(subtype, 10) === 0 ? 0 : 1;
+  // Dahua NVR hard-drives record only Main Stream (subtype 0); default strictly to 0
+  const sub = parseInt(subtype, 10) === 1 ? 1 : 0;
 
   const rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/playback?channel=${ch}&subtype=${sub}&starttime=${startFormatted}&endtime=${endFormatted}#backchannel=0`;
   const streamId = `playback_${nvrId}_ch${ch}_${Date.now()}`;
   const go2rtcPort = go2rtcManager.GO2RTC_PORT || 1984;
+
+  // Cleanup old playback stream in go2rtc if provided to prevent orphaned RTSP sessions
+  if (oldStreamId) {
+    try {
+      const delUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(oldStreamId)}`;
+      const delReq = http.request(delUrl, { method: 'DELETE', timeout: 2000 }, (delRes) => delRes.resume());
+      delReq.on('error', () => {});
+      delReq.end();
+    } catch (e) {}
+  }
 
   try {
     const putUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(streamId)}&src=${encodeURIComponent(rtspUrl)}`;
