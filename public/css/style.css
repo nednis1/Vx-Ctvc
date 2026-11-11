@@ -2603,7 +2603,7 @@ video::-webkit-media-controls-fullscreen-button {
   }
   .gpu-dock-cam-trigger {
     background: #f1f5f9;
-    border-color: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.15);
     color: #0f172a;
   }
   .gpu-dock-cam-trigger:hover,

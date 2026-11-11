@@ -174,7 +174,7 @@ function pollHealth() {
 
 window.VOSCCTV_APP = { syncHealthDots };
 
-document.addEventListener('DOMContentLoaded', () => {
+function bootApp() {
   initAuth();
   initTheme();
 
@@ -188,4 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', (e) => {
     if (e.altKey && e.key.toLowerCase() === 't') toggleTheme();
   });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+  bootApp();
+}

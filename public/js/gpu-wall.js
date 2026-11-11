@@ -1653,7 +1653,7 @@
     });
 
     state.viewPresets[id] = {
-      name: name,
+      name: name.trim(),
       split: state.split,
       columnMode: state.columnMode,
       slotSize: state.slotSize,
