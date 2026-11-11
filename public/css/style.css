@@ -2093,20 +2093,24 @@ video::-webkit-media-controls-fullscreen-button {
   }
 }
 
-/* Portrait Phone Two-Tier Ergonomic Thumb Cockpit */
+/* Portrait Phone Single-Row Unified Ergonomic Thumb Cockpit */
 @media (max-width: 640px) {
   .gpu-dock-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     gap: 6px;
-    overflow: visible;
-    padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    overflow: hidden;
+    padding: 4px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }
 
   .gpu-dock-left {
     width: 100%;
     min-width: 0;
-    flex-shrink: 1;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -2118,59 +2122,34 @@ video::-webkit-media-controls-fullscreen-button {
     min-height: 36px;
     padding: 0 10px;
     font-size: 11.5px;
+    flex-shrink: 0;
   }
 
+  /* Redundant sub-bottom slot steppers and slot pills are eliminated on mobile */
   .gpu-dock-slot-group {
-    height: 36px;
-    min-height: 36px;
+    display: none !important;
   }
 
-  .gpu-dock-slot-nav {
-    height: 36px;
-    min-height: 36px;
-    min-width: 28px;
-    font-size: 10px;
-    padding: 0 5px;
+  /* Sprawling action button strip is collapsed into the single Camera Options button */
+  .gpu-dock-center {
+    display: none !important;
   }
 
-  .gpu-dock-slot-group .gpu-dock-slot-pill {
-    height: 36px;
-    min-height: 36px;
-    font-size: 11.5px;
-    padding: 0 8px;
+  .gpu-dock-options-trigger {
+    display: inline-flex !important;
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .gpu-dock-cam-title {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
-    max-width: none;
+    text-align: center;
     font-size: 11.5px;
-  }
-
-  .gpu-dock-center {
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
-    padding-bottom: 1px;
-    padding-right: 12px;
-  }
-
-  .gpu-dock-center::-webkit-scrollbar {
-    display: none;
-  }
-
-  .gpu-dock-btn {
-    min-height: 42px;
-    height: 42px;
-    min-width: 52px;
-    padding: 0 12px;
-    font-size: 12px;
-    border-radius: 6px;
-    scroll-snap-align: start;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -2204,41 +2183,45 @@ video::-webkit-media-controls-fullscreen-button {
   .gpu-dock-bar {
     flex-direction: row;
     align-items: center;
-    justify-content: flex-start;
-    height: auto;
-    min-height: 40px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    justify-content: space-between;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    overflow: hidden;
+    padding: 2px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     gap: 8px;
   }
 
   .gpu-dock-left {
-    width: auto;
-    flex-shrink: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
-  .gpu-dock-slot-pill {
-    min-height: 32px;
-    height: 32px;
+  .gpu-dock-slot-group {
+    display: none !important;
+  }
+
+  .gpu-dock-center {
+    display: none !important;
+  }
+
+  .gpu-dock-options-trigger {
+    display: inline-flex !important;
+    margin-left: auto;
+    flex-shrink: 0;
+    height: 30px;
+    min-height: 30px;
     padding: 0 8px;
   }
 
   .gpu-dock-cam-title {
-    max-width: 115px;
-    flex: 0 1 auto;
-  }
-
-  .gpu-dock-center {
-    width: auto;
-    overflow: visible;
-    flex-shrink: 0;
-  }
-
-  .gpu-dock-btn {
-    height: 34px;
-    min-height: 34px;
-    min-width: 44px;
+    flex: 1 1 auto;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding: 0 10px;
     font-size: 11px;
   }
@@ -3160,4 +3143,32 @@ video::-webkit-media-controls-fullscreen-button {
 }
 [data-theme="light"] .gpu-slot-spinner.stream-stalled span {
   color: #0f172a;
+}
+
+/* Camera Options Sheet */
+.gpu-options-sheet-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gpu-options-sheet-subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+[data-theme="light"] .gpu-options-sheet-subtitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .gpu-dock-options-trigger {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+[data-theme="light"] .gpu-dock-options-trigger:hover,
+[data-theme="light"] .gpu-dock-options-trigger:active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
 }

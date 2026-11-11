@@ -199,6 +199,9 @@
               <button type="button" class="gpu-dock-slot-nav" id="dock-slot-next" onclick="window.VOSCCTV_GPU_WALL.stepSelectedSlot(1)" title="Next Slot" aria-label="Next Slot">▶</button>
             </div>
             <span class="gpu-dock-cam-title" id="gpu-dock-cam-title">No Camera Assigned</span>
+            <button type="button" class="gpu-dock-cam-trigger gpu-dock-options-trigger" id="dock-btn-cam-options" onclick="window.VOSCCTV_GPU_WALL.openCameraOptionsSheet()" title="Camera Options" aria-label="Camera Options">
+              <span class="dock-options-text">Camera Options</span>
+            </button>
           </div>
 
           <div class="gpu-dock-center">
@@ -376,8 +379,71 @@
     </div>
   </dialog>
 
+  <!-- Camera Options Mobile Bottom Sheet -->
+  <dialog class="gpu-preset-dialog gpu-options-sheet" id="gpu-options-sheet" aria-labelledby="gpu-options-sheet-title">
+    <div class="gpu-preset-dialog-content">
+      <div class="sheet-drag-handle-bar"><div class="sheet-drag-handle"></div></div>
+      <div class="gpu-preset-dialog-header">
+        <div class="gpu-options-sheet-title-wrap">
+          <span class="gpu-preset-dialog-title" id="gpu-options-sheet-title">Camera Options</span>
+          <span class="gpu-options-sheet-subtitle" id="gpu-options-sheet-subtitle">No Camera Assigned</span>
+        </div>
+        <button type="button" class="gpu-preset-dialog-close" onclick="window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet()" title="Close dialog" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="gpu-grid-sheet-body">
+        <div class="sheet-section">
+          <span class="sheet-section-title">View & Quality</span>
+          <div class="sheet-chip-group">
+            <button type="button" class="sheet-chip" id="sheet-btn-1x1" onclick="window.VOSCCTV_GPU_WALL.dockToggleZoom1x1(); window.VOSCCTV_GPU_WALL.updateCameraOptionsSheet();">
+              1x1 Focus
+            </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-quality" onclick="window.VOSCCTV_GPU_WALL.dockToggleQuality(); window.VOSCCTV_GPU_WALL.updateCameraOptionsSheet();">
+              Quality: <span id="sheet-quality-label">SUB</span>
+            </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect(); window.VOSCCTV_GPU_WALL.updateCameraOptionsSheet();">
+              Aspect: <span id="sheet-aspect-label">FIT</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-section">
+          <span class="sheet-section-title">Stream Tools</span>
+          <div class="sheet-chip-group">
+            <button type="button" class="sheet-chip" id="sheet-btn-snap" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot();">
+              Snapshot
+            </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-audio" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio(); window.VOSCCTV_GPU_WALL.updateCameraOptionsSheet();">
+              <span id="sheet-audio-label">Audio: Muted</span>
+            </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-record" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord(); window.VOSCCTV_GPU_WALL.updateCameraOptionsSheet();">
+              <span id="sheet-record-label">Record Clip</span>
+            </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-zoom" onclick="window.VOSCCTV_GPU_WALL.dockToggleDigitalZoom(); window.VOSCCTV_GPU_WALL.updateCameraOptionsSheet();">
+              <span id="sheet-zoom-label">Digital Zoom</span>
+            </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
+              PTZ Controls
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-section">
+          <span class="sheet-section-title">Feed Management</span>
+          <div class="sheet-chip-group">
+            <button type="button" class="sheet-chip" id="sheet-btn-reconnect" onclick="window.VOSCCTV_GPU_WALL.reconnectSelectedSlot(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
+              Reconnect Feed
+            </button>
+            <button type="button" class="sheet-chip danger" id="sheet-btn-close" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
+              Close Feed
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv13"></script>
+  <script src="/js/gpu-wall.js?v=vosctv14"></script>
   <script src="/js/app.js?v=vosctv13"></script>
 </body>
 </html>

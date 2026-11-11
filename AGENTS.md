@@ -214,15 +214,17 @@ Codified from **WCAG 2.2**, **Apple Human Interface Guidelines (HIG)**, **Google
 
 ### 4. Codified Mobile Ergonomic Mandates (Thumb-Zone & Gesture Architecture)
 To deliver true single-handed surveillance operations on smartphones ($\le 640\text{px}$), the mobile interface strictly follows nine ergonomic mandates:
-1. **Bottom Thumb Cockpit Primacy & Drawer Triggers**:
-   - All core camera operations and drawer triggers must be accessible within the bottom 40% thumb zone (`.gpu-dock-bar`).
-   - On mobile screens, the bottom dock's left cluster (`.gpu-dock-left`) houses an immediate `Cameras` drawer trigger alongside the active slot indicator, removing the need to reach up to the top header for camera switching.
-2. **Bidirectional Slot Stepper (`<` / `>`)**:
-   - The active slot indicator in `.gpu-dock-left` features adjacent Prev (`<`) and Next (`>`) stepper buttons. Operators can cycle through active slots rapidly with one thumb without manually tapping distant grid tiles.
-3. **Dock Action Frequency Ordering (Front-to-Back)**:
-   - Controls in `.gpu-dock-center` must strictly follow a front-to-back layout ordered by operator frequency:
-     `1x1 Focus` $\rightarrow$ `SUB / HD Quality` $\rightarrow$ `Digital Zoom` (`-` / `+`) $\rightarrow$ `Snapshot` $\rightarrow$ `Audio` $\rightarrow$ `Record` $\rightarrow$ `FIT / Aspect` $\rightarrow$ `PTZ` $\rightarrow$ `Close`.
-   - The most frequent operations sit at the natural rest point of the operator's thumb (left edge of the center strip).
+1. **Single-Row Bottom Cockpit Primacy**:
+   - The mobile bottom bar (`.gpu-dock-bar`) flattens into a clean, single-row 40px cockpit (`[ Cameras ] [ Grid ] ── Title ── [ Camera Options ]`).
+   - All core drawer triggers and options reside within the bottom 40% thumb zone, preserving maximum vertical feed real estate.
+2. **Direct Canvas Slot Selection & Zero Stepper Redundancy**:
+   - Grid slots are selected directly by tapping on the video feeds themselves, with 1x1 focus mode cycled via double-tap or horizontal feed swipe.
+   - Redundant in-dock slot steppers (`◀`, `Slot 1`, `▶`) and slot pills are eliminated from the mobile bottom bar.
+3. **Unified Camera Options Bottom Sheet (`#gpu-options-sheet`)**:
+   - Sprawling horizontal button strips in the dock are collapsed into a single thumb trigger (`#dock-btn-cam-options`).
+   - Tapping `Camera Options` opens a non-blocking bottom sheet housing all per-slot controls:
+     `1x1 Focus`, `Quality: SUB/HD`, `Aspect: Fit/Stretch/Crop`, `Snapshot`, `Audio`, `Record Clip`, `Digital Zoom`, `PTZ Controls`, `Reconnect Stream`, and `Close Feed`.
+   - Each control provides live inline visual feedback of active hardware state.
 4. **Scroll Affordances & Horizontal Edge Fades**:
    - Horizontally scrollable strips (`.gpu-dock-center`, `.gpu-toolbar`) must feature CSS alpha edge masks (`mask-image: linear-gradient(...)`) to signal hidden overflow cleanly without permanent scrollbars.
 5. **Natural Touch & Swipe Gestures**:

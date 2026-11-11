@@ -1150,6 +1150,8 @@
         }
       }
     }
+
+    updateCameraOptionsSheet();
   }
 
   function dockToggleQuality() {
@@ -1918,6 +1920,180 @@
     });
 
     setupSheetSwipeDismiss('gpu-grid-sheet');
+  }
+
+  // -------------------------------------------------------------
+  // Camera Options Mobile Bottom Sheet
+  // -------------------------------------------------------------
+
+  function updateCameraOptionsSheet() {
+    const dialog = document.getElementById('gpu-options-sheet');
+    if (!dialog) return;
+
+    const subtitleEl = document.getElementById('gpu-options-sheet-subtitle');
+    const item = state.slots[state.selectedSlotIndex];
+    const isPlaying = item && item.videoPlaying;
+
+    if (subtitleEl) {
+      if (item) {
+        subtitleEl.textContent = `Slot ${state.selectedSlotIndex + 1} • ${getCameraTitle(item.nvrId, item.channel)}`;
+      } else {
+        subtitleEl.textContent = `Slot ${state.selectedSlotIndex + 1} • Empty`;
+      }
+    }
+
+    // 1x1 chip
+    const btn1x1 = document.getElementById('sheet-btn-1x1');
+    if (btn1x1) {
+      const is1x1 = state.focusedSlotIndex !== null;
+      btn1x1.classList.toggle('active', is1x1);
+      btn1x1.disabled = !item;
+    }
+
+    // Quality chip
+    const btnQuality = document.getElementById('sheet-btn-quality');
+    const qualityLabel = document.getElementById('sheet-quality-label');
+    if (btnQuality) {
+      btnQuality.disabled = !item;
+      if (qualityLabel) {
+        qualityLabel.textContent = item && item.subtype === 'hd' ? 'HD' : 'SUB';
+      }
+      btnQuality.classList.toggle('active', item && item.subtype === 'hd');
+    }
+
+    // Aspect chip
+    const btnAspect = document.getElementById('sheet-btn-aspect');
+    const aspectLabel = document.getElementById('sheet-aspect-label');
+    if (btnAspect) {
+      btnAspect.disabled = !item;
+      const curAspect = (item && item.aspect) || state.globalAspect;
+      if (aspectLabel) {
+        aspectLabel.textContent = curAspect === 'contain' ? 'FIT' : (curAspect === 'fill' ? 'STRETCH' : 'CROP');
+      }
+    }
+
+    // Snapshot chip
+    const btnSnap = document.getElementById('sheet-btn-snap');
+    if (btnSnap) {
+      btnSnap.disabled = !isPlaying;
+    }
+
+    // Audio chip
+    const btnAudio = document.getElementById('sheet-btn-audio');
+    const audioLabel = document.getElementById('sheet-audio-label');
+    if (btnAudio) {
+      const hasAudioHardware = item && state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel]
+        ? state.capabilities[item.nvrId][item.channel].audio === true
+        : false;
+      const audioAvailable = isPlaying && hasAudioHardware;
+      btnAudio.disabled = !audioAvailable;
+      const isUnmuted = item && !item.audioMuted;
+      btnAudio.classList.toggle('active', Boolean(isUnmuted));
+      if (audioLabel) {
+        audioLabel.textContent = isUnmuted ? 'Audio: Live' : 'Audio: Muted';
+      }
+    }
+
+    // Record chip
+    const btnRecord = document.getElementById('sheet-btn-record');
+    const recordLabel = document.getElementById('sheet-record-label');
+    if (btnRecord) {
+      btnRecord.disabled = !isPlaying;
+      const isRecording = item && item.recording && item.recording.active;
+      btnRecord.classList.toggle('active', Boolean(isRecording));
+      if (recordLabel) {
+        recordLabel.textContent = isRecording ? `Recording (${item.recording.seconds}s)` : 'Record Clip';
+      }
+    }
+
+    // Zoom chip
+    const btnZoom = document.getElementById('sheet-btn-zoom');
+    const zoomLabel = document.getElementById('sheet-zoom-label');
+    if (btnZoom) {
+      btnZoom.disabled = !isPlaying;
+      const isZooming = item && item.digitalZoom && item.digitalZoom.active;
+      btnZoom.classList.toggle('active', Boolean(isZooming));
+      if (zoomLabel) {
+        zoomLabel.textContent = isZooming ? `Zoom: ${item.digitalZoom.scale.toFixed(1)}x` : 'Digital Zoom';
+      }
+    }
+
+    // PTZ chip
+    const btnPtz = document.getElementById('sheet-btn-ptz');
+    if (btnPtz) {
+      const isPtz = item && state.capabilities[item.nvrId] && state.capabilities[item.nvrId][item.channel]
+        ? state.capabilities[item.nvrId][item.channel].ptz === true
+        : false;
+      btnPtz.disabled = !isPtz;
+    }
+
+    // Reconnect chip
+    const btnReconnect = document.getElementById('sheet-btn-reconnect');
+    if (btnReconnect) {
+      btnReconnect.disabled = !item;
+    }
+
+    // Close chip
+    const btnClose = document.getElementById('sheet-btn-close');
+    if (btnClose) {
+      btnClose.disabled = !item;
+    }
+  }
+
+  function openCameraOptionsSheet() {
+    const dialog = document.getElementById('gpu-options-sheet');
+    if (!dialog) return;
+    updateCameraOptionsSheet();
+    triggerHaptic(10);
+    if (typeof dialog.showModal === 'function') {
+      try {
+        if (!dialog.open) dialog.showModal();
+      } catch (e) {
+        dialog.setAttribute('open', '');
+      }
+    } else {
+      dialog.setAttribute('open', '');
+    }
+  }
+
+  function closeCameraOptionsSheet() {
+    const dialog = document.getElementById('gpu-options-sheet');
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') {
+      try {
+        if (dialog.open) dialog.close();
+      } catch (e) {
+        dialog.removeAttribute('open');
+      }
+    } else {
+      dialog.removeAttribute('open');
+    }
+  }
+
+  function reconnectSelectedSlot() {
+    reconnectSlot(state.selectedSlotIndex);
+  }
+
+  function setupCameraOptionsDialog() {
+    const dialog = document.getElementById('gpu-options-sheet');
+    if (!dialog) return;
+
+    dialog.addEventListener('click', (e) => {
+      const rect = dialog.getBoundingClientRect();
+      const inDialog = (
+        rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+      );
+      if (!inDialog) {
+        closeCameraOptionsSheet();
+      }
+    });
+
+    dialog.addEventListener('cancel', () => {
+      closeCameraOptionsSheet();
+    });
+
+    setupSheetSwipeDismiss('gpu-options-sheet');
   }
 
   function loadViewPreset(id) {
@@ -2988,6 +3164,7 @@
       setupMobileEscape();
       setupPresetDialog();
       setupGridSheetDialog();
+      setupCameraOptionsDialog();
       setupScrollAffordance(document.querySelector('.gpu-dock-center'));
       setupScrollAffordance(document.querySelector('.gpu-toolbar'));
       toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
@@ -3042,6 +3219,10 @@
     deletePreset,
     openGridSheet,
     closeGridSheet,
+    openCameraOptionsSheet,
+    closeCameraOptionsSheet,
+    updateCameraOptionsSheet,
+    reconnectSelectedSlot,
     setSplitFromSheet,
     setColumnModeFromSheet,
     setSlotSizeFromSheet,
