@@ -184,6 +184,8 @@ process.on('SIGTERM', stopGo2rtc);
 process.on('exit', stopGo2rtc);
 
 module.exports = {
+  GO2RTC_PORT,
+  GO2RTC_WEBRTC_PORT,
   startGo2rtc,
   stopGo2rtc,
   setupGo2rtcProxy,

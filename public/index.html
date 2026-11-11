@@ -18,7 +18,7 @@
       if (meta) meta.content = theme;
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="/css/style.css?v=vosctv17">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv18">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -229,6 +229,9 @@
             <button class="gpu-dock-btn" id="dock-btn-record" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord()" title="Record Video Clip to PC" aria-pressed="false">
               <span class="dock-btn-label" id="dock-rec-label">Record</span>
             </button>
+            <button type="button" class="gpu-dock-btn" id="dock-btn-playback" onclick="window.VOSCCTV_GPU_WALL.openPlaybackDialog()" title="Open Dahua NVR Hard-Drive Playback" aria-pressed="false">
+              <span class="dock-btn-label" id="dock-playback-label">Playback</span>
+            </button>
             <button type="button" class="gpu-dock-btn" id="dock-btn-aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()" title="Cycle Aspect: Fit / Stretch / Crop">
               <span class="dock-btn-label" id="dock-aspect-label">FIT</span>
             </button>
@@ -249,6 +252,7 @@
           <div class="gpu-menu-item" data-menu="snap" onclick="window.VOSCCTV_GPU_WALL.dockTakeSnapshot()">Take Snapshot</div>
           <div class="gpu-menu-item" data-menu="audio" onclick="window.VOSCCTV_GPU_WALL.dockToggleAudio()">Toggle Audio</div>
           <div class="gpu-menu-item" data-menu="rec" onclick="window.VOSCCTV_GPU_WALL.dockToggleRecord()">Record Clip</div>
+          <div class="gpu-menu-item" data-menu="playback" onclick="window.VOSCCTV_GPU_WALL.openPlaybackDialog()">NVR Playback...</div>
           <div class="gpu-menu-item" data-menu="aspect" onclick="window.VOSCCTV_GPU_WALL.dockCycleAspect()">Cycle Aspect Ratio</div>
           <div class="gpu-menu-item" data-menu="ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz()">PTZ Controller</div>
           <div class="gpu-menu-sep"></div>
@@ -424,6 +428,9 @@
             <button type="button" class="sheet-chip" id="sheet-btn-ptz" onclick="window.VOSCCTV_GPU_WALL.dockTogglePtz(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
               PTZ Controls
             </button>
+            <button type="button" class="sheet-chip" id="sheet-btn-playback" onclick="window.VOSCCTV_GPU_WALL.openPlaybackDialog(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
+              <span id="sheet-playback-label">NVR Playback</span>
+            </button>
           </div>
         </div>
 
@@ -432,6 +439,9 @@
           <div class="sheet-chip-group">
             <button type="button" class="sheet-chip" id="sheet-btn-reconnect" onclick="window.VOSCCTV_GPU_WALL.reconnectSelectedSlot(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
               Reconnect Feed
+            </button>
+            <button type="button" class="sheet-chip hidden" id="sheet-btn-live" onclick="window.VOSCCTV_GPU_WALL.returnToLive(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
+              ● Return to Live
             </button>
             <button type="button" class="sheet-chip danger" id="sheet-btn-close" onclick="window.VOSCCTV_GPU_WALL.dockClearSlot(); window.VOSCCTV_GPU_WALL.closeCameraOptionsSheet();">
               Close Feed
@@ -442,8 +452,85 @@
     </div>
   </dialog>
 
+  <!-- Dahua NVR Hard-Drive Playback Modal / Bottom Sheet -->
+  <dialog class="gpu-preset-dialog gpu-playback-dialog" id="gpu-playback-dialog" aria-labelledby="gpu-playback-title">
+    <div class="gpu-preset-dialog-content">
+      <div class="sheet-drag-handle-bar"><div class="sheet-drag-handle"></div></div>
+      <div class="gpu-preset-dialog-header">
+        <div class="gpu-playback-title-wrap">
+          <span class="gpu-preset-dialog-title" id="gpu-playback-title">NVR Playback</span>
+          <span class="gpu-options-sheet-subtitle" id="gpu-playback-subtitle">Slot 1 • No Camera Assigned</span>
+        </div>
+        <button type="button" class="gpu-preset-dialog-close" onclick="window.VOSCCTV_GPU_WALL.closePlaybackDialog()" title="Close dialog" aria-label="Close dialog">✕</button>
+      </div>
+
+      <div class="gpu-grid-sheet-body">
+        <!-- Date & Time Selection -->
+        <div class="sheet-section">
+          <span class="sheet-section-title">Date & Time Range</span>
+          <div class="playback-controls-grid">
+            <div class="playback-input-group">
+              <label for="playback-date" class="playback-label">Date</label>
+              <input type="date" class="playback-input" id="playback-date">
+            </div>
+            <div class="playback-input-group">
+              <label for="playback-start-time" class="playback-label">From</label>
+              <input type="time" class="playback-input" id="playback-start-time" step="60" value="08:00">
+            </div>
+            <div class="playback-input-group">
+              <label for="playback-end-time" class="playback-label">To</label>
+              <input type="time" class="playback-input" id="playback-end-time" step="60" value="09:00">
+            </div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="sheet-chip-group playback-presets">
+            <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('last15m')">Last 15m</button>
+            <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('last1h')">Last 1h</button>
+            <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('last4h')">Last 4h</button>
+            <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('todayMorning')">Today 08:00 - 12:00</button>
+            <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('todayAfternoon')">Today 12:00 - 17:00</button>
+          </div>
+        </div>
+
+        <!-- Playback Stream Quality -->
+        <div class="sheet-section">
+          <span class="sheet-section-title">Stream Quality</span>
+          <div class="sheet-chip-group" id="playback-quality-chips">
+            <button type="button" class="sheet-chip active" data-quality="1" onclick="window.VOSCCTV_GPU_WALL.setPlaybackSubtype(1)">Sub Stream (Fast & Fluid)</button>
+            <button type="button" class="sheet-chip" data-quality="0" onclick="window.VOSCCTV_GPU_WALL.setPlaybackSubtype(0)">Main Stream (Full HD)</button>
+          </div>
+        </div>
+
+        <!-- Primary Action Buttons -->
+        <div class="playback-action-bar">
+          <button type="button" class="playback-btn primary" id="playback-btn-start" onclick="window.VOSCCTV_GPU_WALL.startNvrPlaybackFromInputs()">
+            ▶ Start Playback
+          </button>
+          <button type="button" class="playback-btn secondary" id="playback-btn-search" onclick="window.VOSCCTV_GPU_WALL.searchNvrRecordings()">
+            🔍 Search Clips on NVR
+          </button>
+          <button type="button" class="playback-btn danger hidden" id="playback-btn-live-toggle" onclick="window.VOSCCTV_GPU_WALL.returnToLive()">
+            ● Return to Live Feed
+          </button>
+        </div>
+
+        <!-- Recorded File Segments List -->
+        <div class="sheet-section playback-results-section" id="playback-results-section">
+          <div class="playback-results-header">
+            <span class="sheet-section-title">NVR Hard Drive Recordings</span>
+            <span class="playback-results-count" id="playback-results-count">---</span>
+          </div>
+          <div class="playback-records-list" id="playback-records-list">
+            <div class="playback-empty-msg">Tap "Search Clips on NVR" to view recorded video blocks stored on this camera's hard drive.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv14"></script>
+  <script src="/js/gpu-wall.js?v=vosctv15"></script>
   <script src="/js/app.js?v=vosctv13"></script>
 </body>
 </html>

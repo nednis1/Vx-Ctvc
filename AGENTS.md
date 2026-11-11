@@ -223,7 +223,7 @@ To deliver true single-handed surveillance operations on smartphones ($\le 640\t
 3. **Unified Camera Options Bottom Sheet (`#gpu-options-sheet`)**:
    - Sprawling horizontal button strips in the dock are collapsed into a single thumb trigger (`#dock-btn-cam-options`).
    - Tapping `Camera Options` opens a non-blocking bottom sheet housing all per-slot controls:
-     `1x1 Focus`, `Quality: SUB/HD`, `Aspect: Fit/Stretch/Crop`, `Snapshot`, `Audio`, `Record Clip`, `Digital Zoom`, `PTZ Controls`, `Reconnect Stream`, and `Close Feed`.
+     `1x1 Focus`, `Quality: SUB/HD`, `Aspect: Fit/Stretch/Crop`, `Snapshot`, `Audio`, `Record Clip`, `Digital Zoom`, `PTZ Controls`, `NVR Playback`, `Reconnect Stream`, and `Close Feed`.
    - Each control provides live inline visual feedback of active hardware state.
 4. **Scroll Affordances & Horizontal Edge Fades**:
    - Horizontally scrollable strips (`.gpu-dock-center`, `.gpu-toolbar`) must feature CSS alpha edge masks (`mask-image: linear-gradient(...)`) to signal hidden overflow cleanly without permanent scrollbars.

@@ -461,6 +461,13 @@
     if (item && item.recording && item.recording.active) {
       stopRecording(slotIndex);
     }
+    if (item && item.playbackStreamId) {
+      fetch('/api/playback/stop-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId: item.playbackStreamId })
+      }).catch(() => {});
+    }
 
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
     if (slotEl) {
@@ -1149,6 +1156,20 @@
           recLabel.textContent = 'Record';
         }
       }
+    }
+
+    const playbackBtn = document.getElementById('dock-btn-playback');
+    const playbackLabel = document.getElementById('dock-playback-label');
+    if (playbackBtn) {
+      playbackBtn.disabled = !item;
+      playbackBtn.classList.toggle('disabled', !item);
+      const isPlayback = item && Boolean(item.playbackStreamId);
+      playbackBtn.classList.toggle('active', Boolean(isPlayback));
+      playbackBtn.setAttribute('aria-pressed', String(Boolean(isPlayback)));
+      if (playbackLabel) {
+        playbackLabel.textContent = isPlayback ? 'Live Feed' : 'Playback';
+      }
+      playbackBtn.title = isPlayback ? "Click to return to Live Camera Feed" : "Open Dahua NVR Hard-Drive Playback";
     }
 
     updateCameraOptionsSheet();
@@ -2027,6 +2048,23 @@
       btnPtz.disabled = !isPtz;
     }
 
+    // NVR Playback chip
+    const btnPlayback = document.getElementById('sheet-btn-playback');
+    const playbackLabel = document.getElementById('sheet-playback-label');
+    const btnLive = document.getElementById('sheet-btn-live');
+    if (btnPlayback) {
+      btnPlayback.disabled = !item;
+      const isPlayback = item && Boolean(item.playbackStreamId);
+      btnPlayback.classList.toggle('active', Boolean(isPlayback));
+      if (playbackLabel) {
+        playbackLabel.textContent = isPlayback ? 'Playback Active' : 'NVR Playback';
+      }
+    }
+    if (btnLive) {
+      const isPlayback = item && Boolean(item.playbackStreamId);
+      btnLive.classList.toggle('hidden', !isPlayback);
+    }
+
     // Reconnect chip
     const btnReconnect = document.getElementById('sheet-btn-reconnect');
     if (btnReconnect) {
@@ -2094,6 +2132,291 @@
     });
 
     setupSheetSwipeDismiss('gpu-options-sheet');
+  }
+
+  // -------------------------------------------------------------
+  // Dahua NVR Playback Modal & Stream Controls
+  // -------------------------------------------------------------
+  let currentPlaybackSubtype = 1; // 1 = Sub stream, 0 = Main HD
+
+  function openPlaybackDialog() {
+    const dialog = document.getElementById('gpu-playback-dialog');
+    if (!dialog) return;
+
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) {
+      showToast('Select an active camera slot first');
+      return;
+    }
+
+    const subtitleEl = document.getElementById('gpu-playback-subtitle');
+    if (subtitleEl) {
+      const isPlayback = Boolean(item.playbackStreamId);
+      const camTitle = getCameraTitle(item.nvrId, item.channel);
+      subtitleEl.textContent = `Slot ${state.selectedSlotIndex + 1} • ${camTitle} (${item.nvrId === 'nvr1' ? 'NVR 1' : 'NVR 2'} Ch ${item.channel})${isPlayback ? ' [PLAYING]' : ''}`;
+    }
+
+    // Set default date to today if empty
+    const dateInput = document.getElementById('playback-date');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    // If currently playing, show return to live toggle
+    const liveToggle = document.getElementById('playback-btn-live-toggle');
+    if (liveToggle) {
+      liveToggle.classList.toggle('hidden', !item.playbackStreamId);
+    }
+
+    triggerHaptic(10);
+    if (typeof dialog.showModal === 'function') {
+      try {
+        if (!dialog.open) dialog.showModal();
+      } catch (e) {
+        dialog.setAttribute('open', '');
+      }
+    } else {
+      dialog.setAttribute('open', '');
+    }
+  }
+
+  function closePlaybackDialog() {
+    const dialog = document.getElementById('gpu-playback-dialog');
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') {
+      try {
+        if (dialog.open) dialog.close();
+      } catch (e) {
+        dialog.removeAttribute('open');
+      }
+    } else {
+      dialog.removeAttribute('open');
+    }
+  }
+
+  function setPlaybackSubtype(sub) {
+    currentPlaybackSubtype = sub === 0 ? 0 : 1;
+    const chips = document.querySelectorAll('#playback-quality-chips .sheet-chip');
+    chips.forEach(c => {
+      c.classList.toggle('active', parseInt(c.dataset.quality, 10) === currentPlaybackSubtype);
+    });
+    triggerHaptic(6);
+  }
+
+  function applyPlaybackPreset(presetName) {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const dateInput = document.getElementById('playback-date');
+    const startInput = document.getElementById('playback-start-time');
+    const endInput = document.getElementById('playback-end-time');
+
+    if (dateInput) {
+      dateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    }
+
+    if (presetName === 'last15m') {
+      const past = new Date(now.getTime() - 15 * 60000);
+      if (startInput) startInput.value = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
+      if (endInput) endInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    } else if (presetName === 'last1h') {
+      const past = new Date(now.getTime() - 60 * 60000);
+      if (startInput) startInput.value = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
+      if (endInput) endInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    } else if (presetName === 'last4h') {
+      const past = new Date(now.getTime() - 240 * 60000);
+      if (startInput) startInput.value = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
+      if (endInput) endInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    } else if (presetName === 'todayMorning') {
+      if (startInput) startInput.value = '08:00';
+      if (endInput) endInput.value = '12:00';
+    } else if (presetName === 'todayAfternoon') {
+      if (startInput) startInput.value = '12:00';
+      if (endInput) endInput.value = '17:00';
+    }
+
+    triggerHaptic(6);
+  }
+
+  async function searchNvrRecordings() {
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) {
+      showToast('Select an active camera slot first');
+      return;
+    }
+
+    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+    const startVal = document.getElementById('playback-start-time')?.value || '00:00';
+    const endVal = document.getElementById('playback-end-time')?.value || '23:59';
+    const listEl = document.getElementById('playback-records-list');
+    const countEl = document.getElementById('playback-results-count');
+
+    if (listEl) {
+      listEl.innerHTML = '<div class="playback-empty-msg">Searching NVR hard drive recordings...</div>';
+    }
+    if (countEl) countEl.textContent = 'Searching...';
+
+    const sTime = startVal.length === 5 ? `${startVal}:00` : startVal;
+    const eTime = endVal.length === 5 ? `${endVal}:00` : endVal;
+
+    try {
+      const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(item.nvrId)}&channel=${item.channel}&date=${encodeURIComponent(dateVal)}&startTime=${encodeURIComponent(sTime)}&endTime=${encodeURIComponent(eTime)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      if (!data.recordings || data.recordings.length === 0) {
+        if (listEl) listEl.innerHTML = '<div class="playback-empty-msg">No recorded video blocks found on NVR hard drive for this time range.</div>';
+        if (countEl) countEl.textContent = '0 clips';
+        return;
+      }
+
+      if (countEl) countEl.textContent = `${data.recordings.length} clips found`;
+
+      let html = '';
+      data.recordings.forEach((rec) => {
+        const startStr = rec.startTime.split(' ')[1] || rec.startTime;
+        const endStr = rec.endTime.split(' ')[1] || rec.endTime;
+        const mins = Math.floor(rec.durationSec / 60);
+        const secs = rec.durationSec % 60;
+        const durationFormatted = `${mins}m ${secs}s`;
+        const flagsStr = rec.flags ? rec.flags.join(', ') : 'Continuous';
+
+        html += `
+          <div class="playback-record-item">
+            <div class="playback-record-meta">
+              <span class="playback-record-time">${startStr} ➔ ${endStr}</span>
+              <span class="playback-record-details">${durationFormatted} • ${rec.sizeMb} MB • ${rec.stream} • ${flagsStr}</span>
+            </div>
+            <button type="button" class="playback-clip-play-btn" onclick="window.VOSCCTV_GPU_WALL.startNvrPlayback('${item.nvrId}', ${item.channel}, '${rec.startTime}', '${rec.endTime}', ${currentPlaybackSubtype})">
+              ▶ Play
+            </button>
+          </div>
+        `;
+      });
+
+      if (listEl) listEl.innerHTML = html;
+    } catch (err) {
+      console.warn('[VOSCTV] Search NVR recordings error:', err.message);
+      if (listEl) listEl.innerHTML = `<div class="playback-empty-msg danger">Failed to query NVR recordings: ${err.message}</div>`;
+      if (countEl) countEl.textContent = 'Error';
+    }
+  }
+
+  function startNvrPlaybackFromInputs() {
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) {
+      showToast('Select an active camera slot first');
+      return;
+    }
+
+    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+    const startVal = document.getElementById('playback-start-time')?.value || '08:00';
+    const endVal = document.getElementById('playback-end-time')?.value || '09:00';
+
+    const sTime = startVal.length === 5 ? `${startVal}:00` : startVal;
+    const eTime = endVal.length === 5 ? `${endVal}:00` : endVal;
+
+    const fullStart = `${dateVal} ${sTime}`;
+    const fullEnd = `${dateVal} ${eTime}`;
+
+    startNvrPlayback(item.nvrId, item.channel, fullStart, fullEnd, currentPlaybackSubtype);
+  }
+
+  async function startNvrPlayback(nvrId, channel, startTime, endTime, subtype = 1) {
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) return;
+
+    // If currently recording a clip to browser, stop it first
+    if (item.recording && item.recording.active) {
+      stopRecording(state.selectedSlotIndex);
+    }
+
+    // If an existing playback stream is active, release it
+    if (item.playbackStreamId) {
+      fetch('/api/playback/stop-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId: item.playbackStreamId })
+      }).catch(() => {});
+    }
+
+    try {
+      showToast('Connecting to NVR Playback stream...');
+      const res = await fetch('/api/playback/start-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nvrId,
+          channel,
+          startTime,
+          endTime,
+          subtype
+        })
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      if (!data.streamId) throw new Error(data.error || 'No stream ID returned');
+
+      item.playbackStreamId = data.streamId;
+      item.playbackRange = { start: startTime, end: endTime };
+      item.videoPlaying = false;
+
+      // Re-mount player to load the new playback stream
+      reconnectSlot(state.selectedSlotIndex);
+      closePlaybackDialog();
+      updateBottomDock();
+      updateCameraOptionsSheet();
+      showToast(`Playing NVR Recording (${startTime.slice(-8)} - ${endTime.slice(-8)})`);
+    } catch (err) {
+      console.error('[VOSCTV] Start NVR playback error:', err);
+      showToast(`Failed to start NVR playback: ${err.message}`);
+    }
+  }
+
+  async function returnToLive() {
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) return;
+
+    if (item.playbackStreamId) {
+      const oldId = item.playbackStreamId;
+      delete item.playbackStreamId;
+      delete item.playbackRange;
+
+      fetch('/api/playback/stop-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId: oldId })
+      }).catch(() => {});
+    }
+
+    reconnectSlot(state.selectedSlotIndex);
+    closePlaybackDialog();
+    updateBottomDock();
+    updateCameraOptionsSheet();
+    showToast('Returned to Live Camera Feed');
+  }
+
+  function setupPlaybackDialog() {
+    const dialog = document.getElementById('gpu-playback-dialog');
+    if (!dialog) return;
+
+    dialog.addEventListener('click', (e) => {
+      const rect = dialog.getBoundingClientRect();
+      const inDialog = (
+        rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+      );
+      if (!inDialog) {
+        closePlaybackDialog();
+      }
+    });
+
+    dialog.addEventListener('cancel', () => {
+      closePlaybackDialog();
+    });
+
+    setupSheetSwipeDismiss('gpu-playback-dialog');
   }
 
   function loadViewPreset(id) {
@@ -2292,6 +2615,11 @@
       badges.push('<span class="slot-badge badge-audio" title="Audio Unmuted">AUDIO</span>');
     }
 
+    // NVR Hard-Drive Playback Badge
+    if (item.playbackStreamId) {
+      badges.push('<span class="slot-badge badge-playback" title="NVR Playback Active">⏪ PLAYBACK</span>');
+    }
+
     // Video Recording Badge
     if (item.recording && item.recording.active) {
       const mins = Math.floor(item.recording.seconds / 60).toString().padStart(2, '0');
@@ -2413,8 +2741,8 @@
   }
 
   function mountPlayer(slotIndex, slotEl, item, wrapper) {
-    // Mount VideoRTC hardware-accelerated video element
-    const streamKey = `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
+    // Mount VideoRTC hardware-accelerated video element (Live or NVR Playback stream)
+    const streamKey = item.playbackStreamId ? item.playbackStreamId : `${item.nvrId}_ch${item.channel}${item.subtype === 'hd' ? '_hd' : ''}`;
     const host = window.location.host;
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${proto}//${host}/api/go2rtc/ws?src=${streamKey}`;
@@ -3165,6 +3493,7 @@
       setupPresetDialog();
       setupGridSheetDialog();
       setupCameraOptionsDialog();
+      setupPlaybackDialog();
       setupScrollAffordance(document.querySelector('.gpu-dock-center'));
       setupScrollAffordance(document.querySelector('.gpu-toolbar'));
       toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
@@ -3223,6 +3552,14 @@
     closeCameraOptionsSheet,
     updateCameraOptionsSheet,
     reconnectSelectedSlot,
+    openPlaybackDialog,
+    closePlaybackDialog,
+    setPlaybackSubtype,
+    applyPlaybackPreset,
+    searchNvrRecordings,
+    startNvrPlaybackFromInputs,
+    startNvrPlayback,
+    returnToLive,
     setSplitFromSheet,
     setColumnModeFromSheet,
     setSlotSizeFromSheet,

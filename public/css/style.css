@@ -3172,3 +3172,278 @@ video::-webkit-media-controls-fullscreen-button {
   border-color: #0284c7;
   color: #ffffff;
 }
+
+/* =============================================================
+ * Dahua NVR Playback Modal & Bottom Sheet Styling
+ * ============================================================= */
+.gpu-playback-dialog {
+  max-width: 480px;
+}
+
+.gpu-playback-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.playback-controls-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 440px) {
+  .playback-controls-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+.playback-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playback-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.playback-input {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.playback-input:focus {
+  border-color: #38bdf8;
+  outline: none;
+}
+
+.playback-presets {
+  margin-top: 6px;
+}
+
+.playback-action-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+.playback-btn {
+  flex: 1 1 auto;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  border: 1px solid transparent;
+  touch-action: manipulation;
+}
+
+.playback-btn:active {
+  transform: scale(0.97);
+}
+
+.playback-btn.primary {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.playback-btn.primary:hover {
+  background: #0369a1;
+}
+
+.playback-btn.secondary {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.playback-btn.secondary:hover {
+  background: #334155;
+}
+
+.playback-btn.danger {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.playback-btn.danger:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.playback-results-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+}
+
+.playback-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.playback-results-count {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.playback-records-list {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.playback-empty-msg {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.playback-empty-msg.danger {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.playback-record-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  gap: 8px;
+}
+
+.playback-record-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.playback-record-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.playback-record-details {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.playback-clip-play-btn {
+  height: 28px;
+  min-width: 60px;
+  padding: 0 10px;
+  background: #0284c7;
+  color: #ffffff;
+  border: 1px solid #38bdf8;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.playback-clip-play-btn:hover {
+  background: #0369a1;
+}
+
+/* Slot Badge for Playback */
+.slot-badge.badge-playback {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* Light Theme Overrides for NVR Playback */
+[data-theme="light"] .playback-label {
+  color: #64748b;
+}
+
+[data-theme="light"] .playback-input {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .playback-btn.secondary {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .playback-btn.secondary:hover {
+  background: #e2e8f0;
+}
+
+[data-theme="light"] .playback-results-section {
+  border-top-color: #e2e8f0;
+}
+
+[data-theme="light"] .playback-results-count {
+  color: #64748b;
+}
+
+[data-theme="light"] .playback-empty-msg {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .playback-record-item {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .playback-record-time {
+  color: #0f172a;
+}
+
+[data-theme="light"] .playback-record-details {
+  color: #64748b;
+}
+
+[data-theme="light"] .slot-badge.badge-playback {
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284c7;
+  border-color: rgba(2, 132, 199, 0.3);
+}

@@ -998,6 +998,193 @@ app.post('/api/camera-names', (req, res) => {
 });
 
 // -------------------------------------------------------------
+// NVR Playback & Recording APIs (Direct Hard-Drive Storage Access)
+// -------------------------------------------------------------
+
+// API: Search NVR recorded video blocks via Dahua mediaFileFind.cgi
+app.get('/api/playback/recordings', async (req, res) => {
+  const { nvrId, channel = 1, date, startTime, endTime } = req.query;
+  const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
+  if (!nvr) return res.status(404).json({ error: 'NVR not found' });
+
+  const chNum = parseInt(channel, 10) || 1;
+  const queryDate = date || new Date().toISOString().split('T')[0];
+  const queryStart = startTime ? `${queryDate} ${startTime}` : `${queryDate} 00:00:00`;
+  const queryEnd = endTime ? `${queryDate} ${endTime}` : `${queryDate} 23:59:59`;
+
+  const user = nvr.username;
+  const pass = nvr.password;
+  const baseUrl = `http://${nvr.ip}:${nvr.port}`;
+
+  let session = null;
+  try {
+    // 1. Create finder session on Dahua NVR
+    const createRes = await dahuaDigestRequest(`${baseUrl}/cgi-bin/mediaFileFind.cgi?action=factory.create`, user, pass);
+    const sessionMatch = createRes.body.match(/result=(\d+)/i) || createRes.body.match(/session=(\d+)/i);
+    if (!sessionMatch) {
+      return res.status(502).json({ error: 'Failed to create NVR file search session', details: createRes.body });
+    }
+    session = sessionMatch[1];
+
+    // 2. Set search condition (channel index is chNum)
+    const findUrl = `${baseUrl}/cgi-bin/mediaFileFind.cgi?action=findFile&object=${session}&condition.Channel=${chNum}&condition.StartTime=${encodeURIComponent(queryStart)}&condition.EndTime=${encodeURIComponent(queryEnd)}&condition.Types[0]=dav`;
+    const findRes = await dahuaDigestRequest(findUrl, user, pass);
+    if (findRes.status !== 200 || !findRes.body.includes('OK')) {
+      return res.status(502).json({ error: 'NVR findFile search failed', details: findRes.body });
+    }
+
+    // 3. Query found recording files
+    const nextUrl = `${baseUrl}/cgi-bin/mediaFileFind.cgi?action=findNextFile&object=${session}&count=64`;
+    const nextRes = await dahuaDigestRequest(nextUrl, user, pass);
+
+    const recordings = [];
+    if (nextRes.status === 200 && nextRes.body) {
+      const items = {};
+      nextRes.body.split('\n').forEach(line => {
+        const m = line.trim().match(/items\[(\d+)\]\.(.*)=(.*)/);
+        if (m) {
+          const idx = parseInt(m[1], 10);
+          const key = m[2];
+          const val = m[3];
+          if (!items[idx]) items[idx] = {};
+          if (key.startsWith('Flags[')) {
+            if (!items[idx].flags) items[idx].flags = [];
+            items[idx].flags.push(val);
+          } else {
+            items[idx][key] = val;
+          }
+        }
+      });
+
+      Object.keys(items).forEach(idx => {
+        const item = items[idx];
+        const bytes = parseInt(item.Length || item.CutLength || '0', 10);
+        const sTime = item.StartTime || '';
+        const eTime = item.EndTime || '';
+        let durationSec = 0;
+        try {
+          if (sTime && eTime) {
+            durationSec = Math.max(0, Math.round((new Date(eTime.replace(' ', 'T')).getTime() - new Date(sTime.replace(' ', 'T')).getTime()) / 1000));
+          }
+        } catch (e) {}
+
+        recordings.push({
+          index: parseInt(idx, 10),
+          channel: chNum,
+          startTime: sTime,
+          endTime: eTime,
+          durationSec,
+          sizeBytes: bytes,
+          sizeMb: (bytes / (1024 * 1024)).toFixed(1),
+          type: item.Type || 'dav',
+          stream: item.VideoStream || 'Main',
+          flags: item.flags || ['Timing'],
+          filePath: item.FilePath || ''
+        });
+      });
+    }
+
+    // Sort chronologically ascending
+    recordings.sort((a, b) => (a.startTime > b.startTime ? 1 : -1));
+
+    res.json({
+      success: true,
+      nvrId,
+      channel: chNum,
+      date: queryDate,
+      startTime: queryStart,
+      endTime: queryEnd,
+      count: recordings.length,
+      recordings
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'NVR playback query failed', details: err.message });
+  } finally {
+    if (session) {
+      dahuaDigestRequest(`${baseUrl}/cgi-bin/mediaFileFind.cgi?action=close&object=${session}`, user, pass).catch(() => {});
+      dahuaDigestRequest(`${baseUrl}/cgi-bin/mediaFileFind.cgi?action=destroy&object=${session}`, user, pass).catch(() => {});
+    }
+  }
+});
+
+// API: Register dynamic Dahua NVR playback RTSP stream in go2rtc
+app.post('/api/playback/start-stream', async (req, res) => {
+  const { nvrId, channel = 1, startTime, endTime, subtype = 1 } = req.body;
+  const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
+  if (!nvr) return res.status(404).json({ error: 'NVR not found' });
+
+  // Format start & end times into Dahua RTSP format: YYYY_MM_DD_HH_MM_SS
+  let startFormatted = String(startTime || '');
+  let endFormatted = String(endTime || '');
+
+  if (startFormatted.includes('-') || startFormatted.includes(':') || startFormatted.includes(' ')) {
+    startFormatted = startFormatted.replace(/[- :]/g, '_');
+  }
+  if (endFormatted.includes('-') || endFormatted.includes(':') || endFormatted.includes(' ')) {
+    endFormatted = endFormatted.replace(/[- :]/g, '_');
+  }
+
+  // Ensure trailing seconds if format was YYYY_MM_DD_HH_MM
+  if (startFormatted.split('_').length === 5) startFormatted += '_00';
+  if (endFormatted.split('_').length === 5) endFormatted += '_00';
+
+  const user = encodeURIComponent(nvr.username);
+  const pass = encodeURIComponent(nvr.password);
+  const ip = nvr.ip;
+  const port = nvr.rtspPort || 554;
+  const ch = parseInt(channel, 10) || 1;
+  const sub = parseInt(subtype, 10) === 0 ? 0 : 1;
+
+  const rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/playback?channel=${ch}&subtype=${sub}&starttime=${startFormatted}&endtime=${endFormatted}#backchannel=0`;
+  const streamId = `playback_${nvrId}_ch${ch}_${Date.now()}`;
+  const go2rtcPort = go2rtcManager.GO2RTC_PORT || 1984;
+
+  try {
+    const putUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(streamId)}&src=${encodeURIComponent(rtspUrl)}`;
+    const putReq = http.request(putUrl, { method: 'PUT', timeout: 5000 }, (putRes) => {
+      putRes.resume();
+      res.json({
+        success: true,
+        streamId,
+        nvrId,
+        channel: ch,
+        subtype: sub,
+        startTime: startFormatted,
+        endTime: endFormatted
+      });
+    });
+    putReq.on('error', (err) => {
+      console.warn('[VOSCTV] Failed to register playback stream in go2rtc:', err.message);
+      res.status(502).json({ error: 'Failed to register playback stream in go2rtc', details: err.message });
+    });
+    putReq.end();
+  } catch (err) {
+    res.status(500).json({ error: 'Playback stream initialization failed', details: err.message });
+  }
+});
+
+// API: Stop/Unregister dynamic playback stream
+app.post('/api/playback/stop-stream', (req, res) => {
+  const { streamId } = req.body;
+  if (!streamId) return res.status(400).json({ error: 'streamId required' });
+
+  try {
+    const go2rtcPort = go2rtcManager.GO2RTC_PORT || 1984;
+    const deleteUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(streamId)}`;
+    const delReq = http.request(deleteUrl, { method: 'DELETE', timeout: 3000 }, (delRes) => {
+      delRes.resume();
+      res.json({ success: true, streamId });
+    });
+    delReq.on('error', () => {
+      res.json({ success: true, streamId }); // Non-critical cleanup
+    });
+    delReq.end();
+  } catch (e) {
+    res.json({ success: true, streamId });
+  }
+});
+
+// -------------------------------------------------------------
 // Camera Hardware Capabilities (PTZ, Audio) Probing & Cache
 // -------------------------------------------------------------
 let cameraCapabilitiesCache = null;
