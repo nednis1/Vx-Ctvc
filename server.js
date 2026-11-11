@@ -1033,8 +1033,8 @@ app.get('/api/playback/recordings', async (req, res) => {
       return res.status(502).json({ error: 'NVR findFile search failed', details: findRes.body });
     }
 
-    // 3. Query found recording files
-    const nextUrl = `${baseUrl}/cgi-bin/mediaFileFind.cgi?action=findNextFile&object=${session}&count=64`;
+    // 3. Query found recording files (fetch up to 128 blocks to cover full 24-hour day)
+    const nextUrl = `${baseUrl}/cgi-bin/mediaFileFind.cgi?action=findNextFile&object=${session}&count=128`;
     const nextRes = await dahuaDigestRequest(nextUrl, user, pass);
 
     const recordings = [];

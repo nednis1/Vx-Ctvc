@@ -2135,22 +2135,61 @@
   }
 
   // -------------------------------------------------------------
-  // Dahua NVR Playback Modal & Stream Controls (Unified Player & Picker)
+  // Dahua NVR 24-Hour Playback Modal & Stream Controls
   // -------------------------------------------------------------
   let currentPlaybackSubtype = 0; // 0 = Main HD (recorded on NVR hard drives), 1 = Sub stream
   let dialogPlaybackPlayer = null;
-  let isScrubbingTimeline = false;
+  let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
+  let is24hDragging = false;
 
-  function formatDuration(sec) {
+  function secToHms(sec) {
     const s = Math.max(0, Math.floor(sec || 0));
-    const m = Math.floor(s / 60);
-    const remainingSec = s % 60;
-    if (m >= 60) {
-      const h = Math.floor(m / 60);
-      const remM = m % 60;
-      return `${h}:${String(remM).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const remSec = s % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(remSec).padStart(2, '0')}`;
+  }
+
+  function hmsToSec(timeStr) {
+    if (!timeStr) return 0;
+    const parts = timeStr.trim().split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    const s = parseInt(parts[2], 10) || 0;
+    return h * 3600 + m * 60 + s;
+  }
+
+  function updatePlayheadPosition(sec) {
+    const playheadEl = document.getElementById('playback-24h-playhead');
+    const clockEl = document.getElementById('playback-clock-readout');
+    const clampedSec = Math.max(0, Math.min(86399, sec));
+    const fraction = clampedSec / 86400;
+
+    if (playheadEl) {
+      playheadEl.style.left = `${(fraction * 100).toFixed(3)}%`;
     }
-    return `${String(m).padStart(2, '0')}:${String(remainingSec).padStart(2, '0')}`;
+    if (clockEl) {
+      clockEl.textContent = secToHms(clampedSec);
+    }
+  }
+
+  function init24hRuler() {
+    const rulerEl = document.getElementById('playback-24h-ruler');
+    if (!rulerEl || rulerEl.dataset.initialized) return;
+
+    let html = '';
+    // 25 ticks: 0h, 1h, 2h ... 24h
+    for (let i = 0; i <= 24; i++) {
+      const pct = (i / 24) * 100;
+      const isMajor = (i % 2 === 0);
+      html += `<div class="playback-ruler-tick ${isMajor ? 'major' : ''}" style="left: ${pct.toFixed(3)}%;"></div>`;
+      if (isMajor) {
+        const timeLabel = `${String(i).padStart(2, '0')}:00`;
+        html += `<span class="playback-ruler-mark" style="left: ${pct.toFixed(3)}%;">${timeLabel}</span>`;
+      }
+    }
+    rulerEl.innerHTML = html;
+    rulerEl.dataset.initialized = 'true';
   }
 
   function mountDialogPlaybackPlayer(streamId) {
@@ -2195,8 +2234,6 @@
       player.video.playsInline = true;
 
       const playBtn = document.getElementById('playback-btn-toggle-play');
-      const timeEl = document.getElementById('playback-timeline-time');
-      const rangeEl = document.getElementById('playback-timeline-range');
 
       const onStreamReady = () => {
         if (spinnerEl) spinnerEl.style.display = 'none';
@@ -2207,14 +2244,10 @@
       player.video.addEventListener('loadeddata', onStreamReady, { once: true });
       player.video.addEventListener('timeupdate', () => {
         if (player.video.currentTime > 0) onStreamReady();
-        const item = state.slots[state.selectedSlotIndex];
-        const dur = (item && item.playbackRange && item.playbackRange.durationSec) ? item.playbackRange.durationSec : (player.video.duration || 0);
-        const cur = player.video.currentTime || 0;
-        if (timeEl && dur > 0) {
-          timeEl.textContent = `${formatDuration(cur)} / ${formatDuration(dur)}`;
-        }
-        if (rangeEl && dur > 0 && !isScrubbingTimeline) {
-          rangeEl.value = Math.min(100, Math.round((cur / dur) * 100));
+        if (!is24hDragging) {
+          const elapsedSec = Math.floor(player.video.currentTime);
+          const currentTotalSec = playbackStreamStartSec + elapsedSec;
+          updatePlayheadPosition(currentTotalSec);
         }
       });
 
@@ -2262,6 +2295,8 @@
       return;
     }
 
+    init24hRuler();
+
     const subtitleEl = document.getElementById('gpu-playback-subtitle');
     const headerStatus = document.getElementById('playback-header-status');
     const liveBtn = document.getElementById('playback-header-btn-live');
@@ -2289,6 +2324,8 @@
         headerStatus.classList.remove('hidden');
       }
       if (liveBtn) liveBtn.classList.remove('hidden');
+      const startParts = (item.playbackRange?.start || '').split(' ')[1];
+      if (startParts) playbackStreamStartSec = hmsToSec(startParts);
       mountDialogPlaybackPlayer(item.playbackStreamId);
     } else {
       if (headerStatus) headerStatus.classList.add('hidden');
@@ -2299,14 +2336,11 @@
       if (mountEl) mountEl.innerHTML = '';
       const spinnerEl = document.getElementById('playback-screen-spinner');
       if (spinnerEl) spinnerEl.style.display = 'none';
-      const timeEl = document.getElementById('playback-timeline-time');
-      if (timeEl) timeEl.textContent = '00:00 / 00:00';
-      const rangeEl = document.getElementById('playback-timeline-range');
-      if (rangeEl) rangeEl.value = '0';
+      updatePlayheadPosition(0);
     }
 
-    // Automatically search recordings for today
-    searchNvrRecordings();
+    // Automatically load recordings for selected date across 00:00 to 24:00
+    loadDateRecordings(dateInput?.value || new Date().toISOString().split('T')[0]);
 
     triggerHaptic(10);
     if (typeof dialog.showModal === 'function') {
@@ -2358,134 +2392,117 @@
     triggerHaptic(6);
   }
 
-  function applyPlaybackPreset(presetName) {
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
+  function shiftPlaybackDate(deltaDays) {
     const dateInput = document.getElementById('playback-date');
-    const startInput = document.getElementById('playback-start-time');
-    const endInput = document.getElementById('playback-end-time');
-
-    if (dateInput) {
-      dateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    }
-
-    if (presetName === 'last15m') {
-      const past = new Date(now.getTime() - 15 * 60000);
-      if (startInput) startInput.value = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
-      if (endInput) endInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    } else if (presetName === 'last1h') {
-      const past = new Date(now.getTime() - 60 * 60000);
-      if (startInput) startInput.value = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
-      if (endInput) endInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    } else if (presetName === 'last4h') {
-      const past = new Date(now.getTime() - 240 * 60000);
-      if (startInput) startInput.value = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
-      if (endInput) endInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    } else if (presetName === 'todayMorning') {
-      if (startInput) startInput.value = '08:00';
-      if (endInput) endInput.value = '12:00';
-    } else if (presetName === 'todayAfternoon') {
-      if (startInput) startInput.value = '12:00';
-      if (endInput) endInput.value = '17:00';
-    }
-
-    triggerHaptic(6);
-    searchNvrRecordings();
+    if (!dateInput) return;
+    const curVal = dateInput.value || new Date().toISOString().split('T')[0];
+    const d = new Date(curVal);
+    d.setDate(d.getDate() + deltaDays);
+    const pad = n => String(n).padStart(2, '0');
+    const newDateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    dateInput.value = newDateStr;
+    triggerHaptic(8);
+    loadDateRecordings(newDateStr);
   }
 
-  async function searchNvrRecordings() {
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) {
-      showToast('Select an active camera slot first');
-      return;
-    }
+  function setPlaybackDateToday() {
+    const dateInput = document.getElementById('playback-date');
+    if (!dateInput) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    dateInput.value = todayStr;
+    triggerHaptic(8);
+    loadDateRecordings(todayStr);
+  }
 
-    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
-    const startVal = document.getElementById('playback-start-time')?.value || '00:00';
-    const endVal = document.getElementById('playback-end-time')?.value || '23:59';
+  function onPlaybackDateChange() {
+    const dateInput = document.getElementById('playback-date');
+    if (dateInput) {
+      loadDateRecordings(dateInput.value);
+    }
+  }
+
+  async function loadDateRecordings(dateVal) {
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) return;
+
     const listEl = document.getElementById('playback-records-list');
     const countEl = document.getElementById('playback-results-count');
+    const blocksContainer = document.getElementById('playback-24h-blocks-container');
 
     if (listEl) {
-      listEl.innerHTML = '<div class="playback-empty-msg">Searching recorded video blocks on NVR hard drive...</div>';
+      listEl.innerHTML = '<div class="playback-empty-msg">Querying 24-hour recordings from NVR hard drive...</div>';
     }
     if (countEl) countEl.textContent = 'Searching...';
-
-    const sTime = startVal.length === 5 ? `${startVal}:00` : startVal;
-    const eTime = endVal.length === 5 ? `${endVal}:00` : endVal;
+    if (blocksContainer) blocksContainer.innerHTML = '';
 
     try {
-      const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(item.nvrId)}&channel=${item.channel}&date=${encodeURIComponent(dateVal)}&startTime=${encodeURIComponent(sTime)}&endTime=${encodeURIComponent(eTime)}`);
+      const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(item.nvrId)}&channel=${item.channel}&date=${encodeURIComponent(dateVal)}&startTime=00:00:00&endTime=23:59:59`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      const recordings = data.recordings || [];
 
-      if (!data.recordings || data.recordings.length === 0) {
-        if (listEl) listEl.innerHTML = '<div class="playback-empty-msg">No recorded video blocks found on NVR hard drive for this date/time.</div>';
-        if (countEl) countEl.textContent = '0 clips';
+      if (recordings.length === 0) {
+        if (listEl) listEl.innerHTML = '<div class="playback-empty-msg">No recorded footage found on NVR hard drive for this date.</div>';
+        if (countEl) countEl.textContent = '0 blocks';
         return;
       }
 
-      if (countEl) countEl.textContent = `${data.recordings.length} clips found`;
+      if (countEl) countEl.textContent = `${recordings.length} blocks (${data.date})`;
 
-      let html = '';
-      data.recordings.forEach((rec) => {
-        const startStr = rec.startTime.split(' ')[1] || rec.startTime;
-        const endStr = rec.endTime.split(' ')[1] || rec.endTime;
-        const mins = Math.floor(rec.durationSec / 60);
-        const secs = rec.durationSec % 60;
-        const durationFormatted = `${mins}m ${secs}s`;
-        const flagsStr = rec.flags ? rec.flags.join(', ') : 'Continuous';
-        const isPlaying = item.playbackRange && item.playbackRange.start === rec.startTime && item.playbackRange.end === rec.endTime;
+      // 1. Render green/amber recording blocks across the 24-hour track
+      if (blocksContainer) {
+        let blocksHtml = '';
+        recordings.forEach(rec => {
+          const timePart = rec.startTime.split(' ')[1] || '00:00:00';
+          const startSec = hmsToSec(timePart);
+          const leftPct = (startSec / 86400) * 100;
+          const widthPct = Math.max(0.18, (rec.durationSec / 86400) * 100);
+          const isMotion = rec.flags && rec.flags.includes('Motion');
+          blocksHtml += `<div class="playback-24h-block ${isMotion ? 'motion' : 'timing'}" style="left: ${leftPct.toFixed(3)}%; width: ${widthPct.toFixed(3)}%;" title="${rec.startTime} - ${rec.endTime} (${rec.sizeMb} MB)"></div>`;
+        });
+        blocksContainer.innerHTML = blocksHtml;
+      }
 
-        html += `
-          <div class="playback-record-item ${isPlaying ? 'playing' : ''}" data-start="${rec.startTime}" data-end="${rec.endTime}">
-            <div class="playback-record-meta">
-              <div class="playback-record-time-row">
-                <span class="playback-record-time">${startStr} ➔ ${endStr}</span>
-                ${isPlaying ? '<span class="playback-record-playing-badge">▶ PLAYING</span>' : ''}
+      // 2. Render clips list
+      if (listEl) {
+        let html = '';
+        recordings.forEach((rec) => {
+          const startStr = rec.startTime.split(' ')[1] || rec.startTime;
+          const endStr = rec.endTime.split(' ')[1] || rec.endTime;
+          const mins = Math.floor(rec.durationSec / 60);
+          const secs = rec.durationSec % 60;
+          const durationFormatted = `${mins}m ${secs}s`;
+          const flagsStr = rec.flags ? rec.flags.join(', ') : 'Continuous';
+          const isPlaying = item.playbackRange && item.playbackRange.start === rec.startTime && item.playbackRange.end === rec.endTime;
+
+          html += `
+            <div class="playback-record-item ${isPlaying ? 'playing' : ''}" data-start="${rec.startTime}" data-end="${rec.endTime}">
+              <div class="playback-record-meta">
+                <div class="playback-record-time-row">
+                  <span class="playback-record-time">${startStr} ➔ ${endStr}</span>
+                  ${isPlaying ? '<span class="playback-record-playing-badge">▶ PLAYING</span>' : ''}
+                </div>
+                <span class="playback-record-details">${durationFormatted} • ${rec.sizeMb} MB • ${flagsStr}</span>
               </div>
-              <span class="playback-record-details">${durationFormatted} • ${rec.sizeMb} MB • ${rec.stream} Stream • ${flagsStr}</span>
+              <button type="button" class="playback-clip-play-btn" onclick="window.VOSCCTV_GPU_WALL.startNvrPlayback('${item.nvrId}', ${item.channel}, '${rec.startTime}', '${rec.endTime}', ${currentPlaybackSubtype})">
+                ${isPlaying ? 'Restart' : '▶ Play'}
+              </button>
             </div>
-            <button type="button" class="playback-clip-play-btn" onclick="window.VOSCCTV_GPU_WALL.startNvrPlayback('${item.nvrId}', ${item.channel}, '${rec.startTime}', '${rec.endTime}', ${currentPlaybackSubtype})">
-              ${isPlaying ? 'Restart' : '▶ Play'}
-            </button>
-          </div>
-        `;
-      });
-
-      if (listEl) listEl.innerHTML = html;
+          `;
+        });
+        listEl.innerHTML = html;
+      }
     } catch (err) {
-      console.warn('[VOSCTV] Search NVR recordings error:', err.message);
+      console.warn('[VOSCTV] Load 24h recordings error:', err.message);
       if (listEl) listEl.innerHTML = `<div class="playback-empty-msg danger">Failed to query NVR recordings: ${err.message}</div>`;
       if (countEl) countEl.textContent = 'Error';
     }
-  }
-
-  function startNvrPlaybackFromInputs() {
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) {
-      showToast('Select an active camera slot first');
-      return;
-    }
-
-    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
-    const startVal = document.getElementById('playback-start-time')?.value || '08:00';
-    const endVal = document.getElementById('playback-end-time')?.value || '09:00';
-
-    const sTime = startVal.length === 5 ? `${startVal}:00` : startVal;
-    const eTime = endVal.length === 5 ? `${endVal}:00` : endVal;
-
-    const fullStart = `${dateVal} ${sTime}`;
-    const fullEnd = `${dateVal} ${eTime}`;
-
-    startNvrPlayback(item.nvrId, item.channel, fullStart, fullEnd, currentPlaybackSubtype);
   }
 
   async function startNvrPlayback(nvrId, channel, startTime, endTime, subtype = 0) {
     const item = state.slots[state.selectedSlotIndex];
     if (!item) return;
 
-    // If currently recording a clip to browser, stop it first
     if (item.recording && item.recording.active) {
       stopRecording(state.selectedSlotIndex);
     }
@@ -2521,6 +2538,9 @@
       const endTs = new Date(endTime.replace(/-/g, '/')).getTime();
       const durationSec = Math.max(1, Math.round((endTs - startTs) / 1000));
 
+      const timePart = startTime.split(' ')[1] || '00:00:00';
+      playbackStreamStartSec = hmsToSec(timePart);
+
       item.playbackStreamId = data.streamId;
       item.playbackRange = { start: startTime, end: endTime, startTs, endTs, durationSec };
       item.videoPlaying = false;
@@ -2544,6 +2564,7 @@
 
       // Highlight active clip in list
       updatePlaybackClipHighlight(startTime, endTime);
+      updatePlayheadPosition(playbackStreamStartSec);
 
       updateBottomDock();
       updateCameraOptionsSheet();
@@ -2593,10 +2614,7 @@
     if (headerStatus) headerStatus.classList.add('hidden');
     const liveBtn = document.getElementById('playback-header-btn-live');
     if (liveBtn) liveBtn.classList.add('hidden');
-    const timeEl = document.getElementById('playback-timeline-time');
-    if (timeEl) timeEl.textContent = '00:00 / 00:00';
-    const rangeEl = document.getElementById('playback-timeline-range');
-    if (rangeEl) rangeEl.value = '0';
+    updatePlayheadPosition(0);
 
     updatePlaybackClipHighlight('', '');
 
@@ -2620,38 +2638,21 @@
   }
 
   function seekPlaybackRelative(secDelta) {
-    if (!dialogPlaybackPlayer || !dialogPlaybackPlayer.video) return;
-    const v = dialogPlaybackPlayer.video;
-    try {
-      v.currentTime = Math.max(0, v.currentTime + secDelta);
-    } catch (e) {}
-    triggerHaptic(6);
-  }
-
-  function onPlaybackTimelineInput(val) {
-    isScrubbingTimeline = true;
     const item = state.slots[state.selectedSlotIndex];
-    const dur = (item && item.playbackRange && item.playbackRange.durationSec) ? item.playbackRange.durationSec : 0;
-    const timeEl = document.getElementById('playback-timeline-time');
-    if (timeEl && dur > 0) {
-      const targetSec = Math.round((parseInt(val, 10) / 100) * dur);
-      timeEl.textContent = `${formatDuration(targetSec)} / ${formatDuration(dur)}`;
+    if (!item) return;
+
+    let currentSec = playbackStreamStartSec;
+    if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
+      currentSec += Math.floor(dialogPlaybackPlayer.video.currentTime || 0);
     }
-  }
 
-  function onPlaybackTimelineChange(val) {
-    isScrubbingTimeline = false;
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item || !item.playbackRange || !item.playbackRange.durationSec) return;
+    const targetSec = Math.max(0, Math.min(86399, currentSec + secDelta));
+    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+    const timeStr = secToHms(targetSec);
 
-    const dur = item.playbackRange.durationSec;
-    const seekSec = Math.round((parseInt(val, 10) / 100) * dur);
-    const baseStart = new Date(item.playbackRange.start.replace(/-/g, '/')).getTime();
-    const newStartTs = new Date(baseStart + seekSec * 1000);
-    const pad = n => String(n).padStart(2, '0');
-    const newStartStr = `${newStartTs.getFullYear()}-${pad(newStartTs.getMonth() + 1)}-${pad(newStartTs.getDate())} ${pad(newStartTs.getHours())}:${pad(newStartTs.getMinutes())}:${pad(newStartTs.getSeconds())}`;
-
-    startNvrPlayback(item.nvrId, item.channel, newStartStr, item.playbackRange.end, currentPlaybackSubtype);
+    updatePlayheadPosition(targetSec);
+    startNvrPlayback(item.nvrId, item.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+    triggerHaptic(6);
   }
 
   function togglePlaybackAudio() {
@@ -2673,8 +2674,29 @@
     triggerHaptic(8);
   }
 
-  function onPlaybackDateChange() {
-    searchNvrRecordings();
+  function toggleClipsDrawer() {
+    const drawer = document.getElementById('playback-clips-drawer');
+    if (drawer) drawer.classList.toggle('collapsed');
+    triggerHaptic(6);
+  }
+
+  function handle24hTrackScrub(e) {
+    const track = document.getElementById('playback-24h-track');
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const targetSec = Math.floor(fraction * 86400);
+
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) return;
+
+    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+    const timeStr = secToHms(targetSec);
+
+    updatePlayheadPosition(targetSec);
+    startNvrPlayback(item.nvrId, item.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+    triggerHaptic(6);
   }
 
   function setupPlaybackDialog() {
@@ -2697,6 +2719,53 @@
     });
 
     setupSheetSwipeDismiss('gpu-playback-dialog');
+
+    // Attach 24-hour track mouse & touch listeners
+    const track = document.getElementById('playback-24h-track');
+    const hoverIndicator = document.getElementById('playback-24h-hover-indicator');
+    const hoverTooltip = document.getElementById('playback-24h-hover-tooltip');
+
+    if (track) {
+      track.addEventListener('click', (e) => {
+        handle24hTrackScrub(e);
+      });
+
+      track.addEventListener('mousemove', (e) => {
+        if (!hoverIndicator || !hoverTooltip) return;
+        const rect = track.getBoundingClientRect();
+        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const targetSec = Math.floor(fraction * 86400);
+        hoverIndicator.style.display = 'block';
+        hoverIndicator.style.left = `${(fraction * 100).toFixed(3)}%`;
+        hoverTooltip.textContent = secToHms(targetSec);
+      });
+
+      track.addEventListener('mouseleave', () => {
+        if (hoverIndicator) hoverIndicator.style.display = 'none';
+      });
+
+      track.addEventListener('touchstart', (e) => {
+        is24hDragging = true;
+        handle24hTrackScrub(e);
+      }, { passive: true });
+
+      track.addEventListener('touchmove', (e) => {
+        if (!is24hDragging) return;
+        if (!hoverIndicator || !hoverTooltip) return;
+        const rect = track.getBoundingClientRect();
+        const clientX = e.touches[0].clientX;
+        const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        const targetSec = Math.floor(fraction * 86400);
+        hoverIndicator.style.display = 'block';
+        hoverIndicator.style.left = `${(fraction * 100).toFixed(3)}%`;
+        hoverTooltip.textContent = secToHms(targetSec);
+      }, { passive: true });
+
+      track.addEventListener('touchend', () => {
+        is24hDragging = false;
+        if (hoverIndicator) hoverIndicator.style.display = 'none';
+      });
+    }
   }
 
   function loadViewPreset(id) {
@@ -3834,18 +3903,17 @@
     openPlaybackDialog,
     closePlaybackDialog,
     setPlaybackSubtype,
-    applyPlaybackPreset,
-    searchNvrRecordings,
-    startNvrPlaybackFromInputs,
+    shiftPlaybackDate,
+    setPlaybackDateToday,
+    loadDateRecordings,
     startNvrPlayback,
     returnToLive,
     togglePlaybackPlay,
     seekPlaybackRelative,
-    onPlaybackTimelineInput,
-    onPlaybackTimelineChange,
     togglePlaybackAudio,
     fullscreenPlayback,
     onPlaybackDateChange,
+    toggleClipsDrawer,
     setSplitFromSheet,
     setColumnModeFromSheet,
     setSlotSizeFromSheet,

@@ -476,14 +476,28 @@
         </div>
       </div>
 
+      <!-- Date & Stream Quality Bar -->
+      <div class="playback-date-bar">
+        <div class="playback-date-nav">
+          <button type="button" class="playback-date-nav-btn" onclick="window.VOSCCTV_GPU_WALL.shiftPlaybackDate(-1)" title="Previous Day">◀</button>
+          <input type="date" class="playback-date-input" id="playback-date" onchange="window.VOSCCTV_GPU_WALL.onPlaybackDateChange()">
+          <button type="button" class="playback-date-nav-btn" onclick="window.VOSCCTV_GPU_WALL.shiftPlaybackDate(1)" title="Next Day">▶</button>
+          <button type="button" class="playback-date-today-btn" onclick="window.VOSCCTV_GPU_WALL.setPlaybackDateToday()" title="Jump to Today">Today</button>
+        </div>
+        <div class="playback-quality-chips" id="playback-quality-chips">
+          <button type="button" class="sheet-chip active" data-quality="0" onclick="window.VOSCCTV_GPU_WALL.setPlaybackSubtype(0)">Main HD</button>
+          <button type="button" class="sheet-chip" data-quality="1" onclick="window.VOSCCTV_GPU_WALL.setPlaybackSubtype(1)">Sub Stream</button>
+        </div>
+      </div>
+
       <!-- Integrated Video Player Section -->
       <div class="playback-screen-section">
         <div class="playback-video-wrapper" id="playback-video-wrapper">
           <div class="playback-video-placeholder" id="playback-video-placeholder">
             <div class="playback-video-placeholder-inner">
               <span class="playback-placeholder-icon">⏪</span>
-              <span class="playback-placeholder-title" id="playback-placeholder-title">Select Recording to Play</span>
-              <span class="playback-placeholder-desc" id="playback-placeholder-desc">Choose a recorded clip or time range below</span>
+              <span class="playback-placeholder-title" id="playback-placeholder-title">Select Date to Load Recordings</span>
+              <span class="playback-placeholder-desc" id="playback-placeholder-desc">Click or scrub anywhere on the 24-hour timeline below</span>
             </div>
           </div>
           <div class="playback-screen-spinner" id="playback-screen-spinner" style="display: none;">
@@ -493,105 +507,89 @@
           <!-- Video element mounted here dynamically by JS -->
           <div class="playback-video-mount" id="playback-video-mount"></div>
         </div>
+      </div>
 
-        <!-- Video Transport Bar -->
+      <!-- 24-Hour Surveillance Timeline Bar (00:00 to 24:00) -->
+      <div class="playback-24h-cockpit" id="playback-24h-cockpit">
+        <!-- Transport & Clock Row -->
         <div class="playback-transport-bar" id="playback-transport-bar">
-          <button type="button" class="playback-transport-btn" id="playback-btn-toggle-play" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackPlay()" title="Play / Pause" aria-label="Play or Pause">
-            ▶
-          </button>
-          <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-10)" title="Rewind 10s" aria-label="Rewind 10 seconds">
-            ⏪ -10s
-          </button>
-          <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(10)" title="Forward 10s" aria-label="Forward 10 seconds">
-            +10s ⏩
-          </button>
-          
-          <div class="playback-timeline-wrap">
-            <input type="range" class="playback-timeline-range" id="playback-timeline-range" min="0" max="100" value="0" step="1" oninput="window.VOSCCTV_GPU_WALL.onPlaybackTimelineInput(this.value)" onchange="window.VOSCCTV_GPU_WALL.onPlaybackTimelineChange(this.value)">
-            <span class="playback-timeline-time" id="playback-timeline-time">00:00 / 00:00</span>
+          <div class="playback-transport-left">
+            <button type="button" class="playback-transport-btn play-btn" id="playback-btn-toggle-play" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackPlay()" title="Play / Pause" aria-label="Play or Pause">
+              ▶
+            </button>
+            <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-10)" title="Rewind 10s">
+              ⏪ -10s
+            </button>
+            <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(10)" title="Forward 10s">
+              +10s ⏩
+            </button>
+            <button type="button" class="playback-transport-btn hour-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-3600)" title="Rewind 1 Hour">
+              -1h
+            </button>
+            <button type="button" class="playback-transport-btn hour-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(3600)" title="Forward 1 Hour">
+              +1h
+            </button>
           </div>
 
-          <button type="button" class="playback-transport-btn" id="playback-btn-mute" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackAudio()" title="Mute / Unmute" aria-label="Mute or Unmute">
-            🔊
-          </button>
-          <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.fullscreenPlayback()" title="Fullscreen" aria-label="Fullscreen">
-            ⛶
-          </button>
+          <div class="playback-transport-center">
+            <span class="playback-clock-readout" id="playback-clock-readout">00:00:00</span>
+            <span class="playback-clock-total">/ 24:00</span>
+          </div>
+
+          <div class="playback-transport-right">
+            <button type="button" class="playback-transport-btn" id="playback-btn-mute" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackAudio()" title="Mute / Unmute">
+              🔊
+            </button>
+            <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.fullscreenPlayback()" title="Fullscreen">
+              ⛶
+            </button>
+          </div>
         </div>
-      </div>
 
-      <!-- Unified Body: Controls & Recorded Clips -->
-      <div class="gpu-grid-sheet-body playback-sheet-body">
-        <div class="playback-unified-grid">
-          <!-- Left / Primary Column: Controls -->
-          <div class="playback-col-controls">
-            <!-- Date & Time Range -->
-            <div class="sheet-section">
-              <span class="sheet-section-title">Date & Time Range</span>
-              <div class="playback-controls-grid">
-                <div class="playback-input-group">
-                  <label for="playback-date" class="playback-label">Date</label>
-                  <input type="date" class="playback-input" id="playback-date" onchange="window.VOSCCTV_GPU_WALL.onPlaybackDateChange()">
-                </div>
-                <div class="playback-input-group">
-                  <label for="playback-start-time" class="playback-label">From</label>
-                  <input type="time" class="playback-input" id="playback-start-time" step="60" value="08:00">
-                </div>
-                <div class="playback-input-group">
-                  <label for="playback-end-time" class="playback-label">To</label>
-                  <input type="time" class="playback-input" id="playback-end-time" step="60" value="09:00">
-                </div>
-              </div>
-
-              <!-- Quick Presets -->
-              <div class="sheet-chip-group playback-presets">
-                <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('last15m')">Last 15m</button>
-                <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('last1h')">Last 1h</button>
-                <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('last4h')">Last 4h</button>
-                <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('todayMorning')">Today 08:00 - 12:00</button>
-                <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.applyPlaybackPreset('todayAfternoon')">Today 12:00 - 17:00</button>
-              </div>
-            </div>
-
-            <!-- Playback Stream Quality -->
-            <div class="sheet-section">
-              <span class="sheet-section-title">Stream Quality</span>
-              <div class="sheet-chip-group" id="playback-quality-chips">
-                <button type="button" class="sheet-chip active" data-quality="0" onclick="window.VOSCCTV_GPU_WALL.setPlaybackSubtype(0)">Main Stream (Full HD)</button>
-                <button type="button" class="sheet-chip" data-quality="1" onclick="window.VOSCCTV_GPU_WALL.setPlaybackSubtype(1)">Sub Stream</button>
-              </div>
-            </div>
-
-            <!-- Primary Action Buttons -->
-            <div class="playback-action-bar">
-              <button type="button" class="playback-btn primary" id="playback-btn-start" onclick="window.VOSCCTV_GPU_WALL.startNvrPlaybackFromInputs()">
-                ▶ Play Time Range
-              </button>
-              <button type="button" class="playback-btn secondary" id="playback-btn-search" onclick="window.VOSCCTV_GPU_WALL.searchNvrRecordings()">
-                🔍 Search Clips on NVR
-              </button>
-            </div>
+        <!-- 24-Hour Interactive Timeline Track with Hour Marks & Recorded Heatmap -->
+        <div class="playback-24h-timeline-wrap" id="playback-24h-timeline-wrap">
+          <!-- Hour Marks Labels (00:00 to 24:00) -->
+          <div class="playback-24h-ruler" id="playback-24h-ruler">
+            <!-- Hour ticks & labels injected by JS: 00:00, 02:00, ... 24:00 -->
           </div>
 
-          <!-- Right / Secondary Column: Recorded File Segments List -->
-          <div class="playback-col-clips">
-            <div class="sheet-section playback-results-section" id="playback-results-section">
-              <div class="playback-results-header">
-                <span class="sheet-section-title">NVR Hard Drive Recordings</span>
-                <span class="playback-results-count" id="playback-results-count">---</span>
-              </div>
-              <div class="playback-records-list" id="playback-records-list">
-                <div class="playback-empty-msg">Searching recorded video blocks on NVR hard drive...</div>
-              </div>
+          <!-- 24h Interactive Track Groove -->
+          <div class="playback-24h-track" id="playback-24h-track" title="Click or drag to scrub 24-hour timeline">
+            <!-- Green recorded blocks container -->
+            <div class="playback-24h-blocks-container" id="playback-24h-blocks-container"></div>
+            <!-- Playhead Needle -->
+            <div class="playback-24h-playhead" id="playback-24h-playhead" style="left: 0%;">
+              <div class="playhead-pin"></div>
+              <div class="playhead-line"></div>
+            </div>
+            <!-- Hover Cursor & Floating Tooltip -->
+            <div class="playback-24h-hover-indicator" id="playback-24h-hover-indicator" style="display: none;">
+              <div class="hover-line"></div>
+              <div class="hover-tooltip" id="playback-24h-hover-tooltip">00:00:00</div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Collapsible Recorded File Blocks Explorer -->
+      <div class="playback-clips-drawer" id="playback-clips-drawer">
+        <div class="playback-clips-header" onclick="window.VOSCCTV_GPU_WALL.toggleClipsDrawer()">
+          <span class="sheet-section-title">Recorded File Blocks</span>
+          <div class="playback-clips-header-right">
+            <span class="playback-results-count" id="playback-results-count">---</span>
+            <span class="playback-clips-arrow" id="playback-clips-arrow">▼</span>
+          </div>
+        </div>
+        <div class="playback-records-list" id="playback-records-list">
+          <div class="playback-empty-msg">Select a date above to display recorded footage.</div>
+        </div>
+      </div>
+
     </div>
   </dialog>
 
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv17"></script>
+  <script src="/js/gpu-wall.js?v=vosctv18"></script>
   <script src="/js/app.js?v=vosctv13"></script>
 </body>
 </html>
