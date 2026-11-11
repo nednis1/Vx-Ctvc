@@ -18,7 +18,7 @@
       if (meta) meta.content = theme;
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="/css/style.css?v=vosctv16">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv17">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -354,8 +354,18 @@
         </div>
 
         <div class="sheet-section">
+          <span class="sheet-section-title">Stream Engine</span>
+          <div class="sheet-chip-group" id="sheet-engine-chips">
+            <button type="button" class="sheet-chip active" data-engine="auto" onclick="window.VOSCCTV_GPU_WALL.setStreamEngineFromSheet('auto')">Auto</button>
+            <button type="button" class="sheet-chip" data-engine="mse" onclick="window.VOSCCTV_GPU_WALL.setStreamEngineFromSheet('mse')">MSE</button>
+            <button type="button" class="sheet-chip" data-engine="webrtc" onclick="window.VOSCCTV_GPU_WALL.setStreamEngineFromSheet('webrtc')">WebRTC</button>
+          </div>
+        </div>
+
+        <div class="sheet-section">
           <span class="sheet-section-title">Quick Actions</span>
           <div class="sheet-chip-group">
+            <button type="button" class="sheet-chip" id="sheet-tour-chip" onclick="window.VOSCCTV_GPU_WALL.toggleTourFromSheet()">Tour</button>
             <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.openAll('nvr1'); window.VOSCCTV_GPU_WALL.closeGridSheet();">NVR 1 All</button>
             <button type="button" class="sheet-chip" onclick="window.VOSCCTV_GPU_WALL.openAll('nvr2'); window.VOSCCTV_GPU_WALL.closeGridSheet();">NVR 2 All</button>
             <button type="button" class="sheet-chip danger" onclick="window.VOSCCTV_GPU_WALL.clearAll(); window.VOSCCTV_GPU_WALL.closeGridSheet();">Clear All</button>
@@ -367,7 +377,7 @@
   </dialog>
 
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv12"></script>
+  <script src="/js/gpu-wall.js?v=vosctv13"></script>
   <script src="/js/app.js?v=vosctv13"></script>
 </body>
 </html>

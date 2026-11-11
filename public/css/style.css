@@ -1915,31 +1915,9 @@ video::-webkit-media-controls-fullscreen-button {
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear;
   }
 
-  #pane-gpu .gpu-toolbar-quick {
-    display: inline-flex;
-  }
-
+  /* Mobile / Tablet: Sub-top toolbar is redundant with bottom operational dock & grid sheet */
   .gpu-toolbar {
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .gpu-toolbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .gpu-toolbar-left,
-  .gpu-toolbar-right {
-    flex-shrink: 0;
-  }
-
-  .gpu-drawer-toggle-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    display: none !important;
   }
 
   .gpu-sidebar-close-btn {
@@ -2101,36 +2079,6 @@ video::-webkit-media-controls-fullscreen-button {
     padding: 0 10px;
   }
 
-  /* Ergonomic mobile toolbar scrolling */
-  .gpu-toolbar {
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    height: 42px;
-    padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
-  }
-
-  .gpu-toolbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .gpu-toolbar-left,
-  .gpu-toolbar-right {
-    flex-shrink: 0;
-  }
-
-  .gpu-toolbar-select,
-  .gpu-drawer-toggle-btn,
-  .gpu-tour-btn,
-  .gpu-toolbar-action-btn,
-  .gpu-view-save-btn {
-    min-height: 34px;
-    height: 34px;
-    touch-action: manipulation;
-  }
-
   /* Toast safe wrapping on phones */
   .gpu-toast-container {
     bottom: max(106px, calc(96px + env(safe-area-inset-bottom)));
@@ -2251,26 +2199,6 @@ video::-webkit-media-controls-fullscreen-button {
     flex: 0 1 auto;
     margin-left: auto;
     padding-bottom: 0;
-  }
-
-  .gpu-toolbar {
-    height: 34px;
-    padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
-  }
-
-  .gpu-toolbar-select,
-  .gpu-drawer-toggle-btn,
-  .gpu-tour-btn,
-  .gpu-toolbar-action-btn,
-  .gpu-view-save-btn {
-    min-height: 28px;
-    height: 28px;
-  }
-
-  .gpu-group-label {
-    display: inline-block;
-    font-size: 9px;
-    margin-right: 1px;
   }
 
   .gpu-dock-bar {

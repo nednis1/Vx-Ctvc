@@ -1855,6 +1855,17 @@
       const sizeVal = chip.dataset.size;
       chip.classList.toggle('active', state.slotSize === sizeVal);
     });
+
+    const engineChips = document.querySelectorAll('#sheet-engine-chips .sheet-chip');
+    engineChips.forEach((chip) => {
+      const engineVal = chip.dataset.engine;
+      chip.classList.toggle('active', state.streamEngine === engineVal);
+    });
+
+    const tourChip = document.getElementById('sheet-tour-chip');
+    if (tourChip) {
+      tourChip.classList.toggle('active', state.tour.active);
+    }
   }
 
   function setSplitFromSheet(split) {
@@ -1872,6 +1883,18 @@
   function setSlotSizeFromSheet(size) {
     triggerHaptic(10);
     setSlotSize(size);
+    updateGridSheetChips();
+  }
+
+  function setStreamEngineFromSheet(engine) {
+    triggerHaptic(10);
+    setStreamEngine(engine);
+    updateGridSheetChips();
+  }
+
+  function toggleTourFromSheet() {
+    triggerHaptic(10);
+    toggleTour();
     updateGridSheetChips();
   }
 
@@ -3022,6 +3045,8 @@
     setSplitFromSheet,
     setColumnModeFromSheet,
     setSlotSizeFromSheet,
+    setStreamEngineFromSheet,
+    toggleTourFromSheet,
     clearCameraSearch,
     reconnectSlot,
     toggleDrawer,
