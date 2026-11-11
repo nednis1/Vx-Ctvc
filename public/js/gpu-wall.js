@@ -2261,30 +2261,6 @@
     }
   }
 
-  function updatePlaybackClipHighlight(startTime, endTime) {
-    const listEl = document.getElementById('playback-records-list');
-    if (!listEl) return;
-    const items = listEl.querySelectorAll('.playback-record-item');
-    items.forEach(el => {
-      const match = el.getAttribute('data-start') === startTime && el.getAttribute('data-end') === endTime;
-      el.classList.toggle('playing', match);
-      const playBtn = el.querySelector('.playback-clip-play-btn');
-      if (playBtn) playBtn.textContent = match ? 'Restart' : '▶ Play';
-      const existingBadge = el.querySelector('.playback-record-playing-badge');
-      if (match && !existingBadge) {
-        const timeRow = el.querySelector('.playback-record-time-row');
-        if (timeRow) {
-          const badge = document.createElement('span');
-          badge.className = 'playback-record-playing-badge';
-          badge.textContent = '▶ PLAYING';
-          timeRow.appendChild(badge);
-        }
-      } else if (!match && existingBadge) {
-        existingBadge.remove();
-      }
-    });
-  }
-
   function openPlaybackDialog() {
     const dialog = document.getElementById('gpu-playback-dialog');
     if (!dialog) return;
@@ -2339,7 +2315,7 @@
       updatePlayheadPosition(0);
     }
 
-    // Automatically load recordings for selected date across 00:00 to 24:00
+    // Automatically load recordings for selected date across 00:00 to 24:00 and auto-play
     loadDateRecordings(dateInput?.value || new Date().toISOString().split('T')[0]);
 
     triggerHaptic(10);
@@ -2425,14 +2401,11 @@
     const item = state.slots[state.selectedSlotIndex];
     if (!item) return;
 
-    const listEl = document.getElementById('playback-records-list');
-    const countEl = document.getElementById('playback-results-count');
     const blocksContainer = document.getElementById('playback-24h-blocks-container');
+    const placeholderEl = document.getElementById('playback-video-placeholder');
+    const pTitle = document.getElementById('playback-placeholder-title');
+    const pDesc = document.getElementById('playback-placeholder-desc');
 
-    if (listEl) {
-      listEl.innerHTML = '<div class="playback-empty-msg">Querying 24-hour recordings from NVR hard drive...</div>';
-    }
-    if (countEl) countEl.textContent = 'Searching...';
     if (blocksContainer) blocksContainer.innerHTML = '';
 
     try {
@@ -2442,12 +2415,12 @@
       const recordings = data.recordings || [];
 
       if (recordings.length === 0) {
-        if (listEl) listEl.innerHTML = '<div class="playback-empty-msg">No recorded footage found on NVR hard drive for this date.</div>';
-        if (countEl) countEl.textContent = '0 blocks';
+        if (placeholderEl) placeholderEl.style.display = 'flex';
+        if (pTitle) pTitle.textContent = 'No Footage Found';
+        if (pDesc) pDesc.textContent = `No recorded video stored on NVR hard drive for ${dateVal}`;
+        updatePlayheadPosition(0);
         return;
       }
-
-      if (countEl) countEl.textContent = `${recordings.length} blocks (${data.date})`;
 
       // 1. Render green/amber recording blocks across the 24-hour track
       if (blocksContainer) {
@@ -2463,39 +2436,18 @@
         blocksContainer.innerHTML = blocksHtml;
       }
 
-      // 2. Render clips list
-      if (listEl) {
-        let html = '';
-        recordings.forEach((rec) => {
-          const startStr = rec.startTime.split(' ')[1] || rec.startTime;
-          const endStr = rec.endTime.split(' ')[1] || rec.endTime;
-          const mins = Math.floor(rec.durationSec / 60);
-          const secs = rec.durationSec % 60;
-          const durationFormatted = `${mins}m ${secs}s`;
-          const flagsStr = rec.flags ? rec.flags.join(', ') : 'Continuous';
-          const isPlaying = item.playbackRange && item.playbackRange.start === rec.startTime && item.playbackRange.end === rec.endTime;
-
-          html += `
-            <div class="playback-record-item ${isPlaying ? 'playing' : ''}" data-start="${rec.startTime}" data-end="${rec.endTime}">
-              <div class="playback-record-meta">
-                <div class="playback-record-time-row">
-                  <span class="playback-record-time">${startStr} ➔ ${endStr}</span>
-                  ${isPlaying ? '<span class="playback-record-playing-badge">▶ PLAYING</span>' : ''}
-                </div>
-                <span class="playback-record-details">${durationFormatted} • ${rec.sizeMb} MB • ${flagsStr}</span>
-              </div>
-              <button type="button" class="playback-clip-play-btn" onclick="window.VOSCCTV_GPU_WALL.startNvrPlayback('${item.nvrId}', ${item.channel}, '${rec.startTime}', '${rec.endTime}', ${currentPlaybackSubtype})">
-                ${isPlaying ? 'Restart' : '▶ Play'}
-              </button>
-            </div>
-          `;
-        });
-        listEl.innerHTML = html;
+      // 2. Automatically play the footage immediately!
+      // If not already playing a stream on this camera for this date, start playing from the first recorded moment
+      const isAlreadyPlayingThisDate = item.playbackStreamId && item.playbackRange && item.playbackRange.start.startsWith(dateVal);
+      if (!isAlreadyPlayingThisDate) {
+        const firstRec = recordings[0];
+        startNvrPlayback(item.nvrId, item.channel, firstRec.startTime, `${dateVal} 23:59:59`, currentPlaybackSubtype);
       }
     } catch (err) {
       console.warn('[VOSCTV] Load 24h recordings error:', err.message);
-      if (listEl) listEl.innerHTML = `<div class="playback-empty-msg danger">Failed to query NVR recordings: ${err.message}</div>`;
-      if (countEl) countEl.textContent = 'Error';
+      if (placeholderEl) placeholderEl.style.display = 'flex';
+      if (pTitle) pTitle.textContent = 'Playback Query Error';
+      if (pDesc) pDesc.textContent = err.message;
     }
   }
 
@@ -2562,8 +2514,6 @@
       const liveBtn = document.getElementById('playback-header-btn-live');
       if (liveBtn) liveBtn.classList.remove('hidden');
 
-      // Highlight active clip in list
-      updatePlaybackClipHighlight(startTime, endTime);
       updatePlayheadPosition(playbackStreamStartSec);
 
       updateBottomDock();
@@ -2615,8 +2565,6 @@
     const liveBtn = document.getElementById('playback-header-btn-live');
     if (liveBtn) liveBtn.classList.add('hidden');
     updatePlayheadPosition(0);
-
-    updatePlaybackClipHighlight('', '');
 
     reconnectSlot(state.selectedSlotIndex);
     updateBottomDock();
@@ -3913,7 +3861,6 @@
     togglePlaybackAudio,
     fullscreenPlayback,
     onPlaybackDateChange,
-    toggleClipsDrawer,
     setSplitFromSheet,
     setColumnModeFromSheet,
     setSlotSizeFromSheet,
