@@ -516,23 +516,29 @@
         <!-- Transport & Clock Row -->
         <div class="playback-transport-bar" id="playback-transport-bar">
           <div class="playback-transport-left">
-            <button type="button" class="playback-transport-btn play-btn" id="playback-btn-toggle-play" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackPlay()" title="Play / Pause" aria-label="Play or Pause">
-              ▶
+            <button type="button" class="playback-transport-btn hour-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-3600)" title="Rewind 1 Hour">
+              -1h
+            </button>
+            <button type="button" class="playback-transport-btn skip-30-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-30)" title="Fast Rewind 30s">
+              ⏪ -30s
             </button>
             <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-10)" title="Rewind 10s">
               ⏪ -10s
             </button>
-            <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(10)" title="Forward 10s">
-              +10s ⏩
+            <button type="button" class="playback-transport-btn rewind-btn" id="playback-btn-rewind" onclick="window.VOSCCTV_GPU_WALL.cyclePlaybackRewind()" title="Rewind Playback (1x, 2x, 4x, 8x, 16x)" aria-label="Rewind Playback">
+              ⏪
             </button>
-            <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(30)" title="Fast Forward 30s">
-              +30s ⏩
+            <button type="button" class="playback-transport-btn play-btn" id="playback-btn-toggle-play" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackPlay()" title="Play / Pause" aria-label="Play or Pause">
+              ▶
             </button>
             <button type="button" class="playback-transport-btn speed-btn" id="playback-btn-speed" onclick="window.VOSCCTV_GPU_WALL.cyclePlaybackSpeed()" title="Fast Forward Speed (1x, 2x, 4x, 8x, 16x)" aria-label="Fast Forward Speed">
               1x
             </button>
-            <button type="button" class="playback-transport-btn hour-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-3600)" title="Rewind 1 Hour">
-              -1h
+            <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(10)" title="Forward 10s">
+              +10s ⏩
+            </button>
+            <button type="button" class="playback-transport-btn skip-30-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(30)" title="Fast Forward 30s">
+              +30s ⏩
             </button>
             <button type="button" class="playback-transport-btn hour-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(3600)" title="Forward 1 Hour">
               +1h

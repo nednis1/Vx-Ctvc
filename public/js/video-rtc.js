@@ -510,13 +510,13 @@ class VideoRTC extends HTMLElement {
 
                 if (!sb.updating && sb.buffered && sb.buffered.length) {
                     const end = sb.buffered.end(sb.buffered.length - 1);
-                    const start = this.isPlayback ? (end - 120) : (end - 5);
+                    const start = this.isPlayback ? (end - 180) : (end - 5);
                     const start0 = sb.buffered.start(0);
                     if (start > start0) {
                         sb.remove(start0, start);
                         ms.setLiveSeekableRange(start, end);
                     }
-                    if (this.video.currentTime < start) {
+                    if (!this.isPlayback && this.video.currentTime < start) {
                         this.video.currentTime = start;
                     }
                     if (this.customPlaybackRate && this.customPlaybackRate !== 1) {

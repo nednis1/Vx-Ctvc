@@ -2142,6 +2142,11 @@
   let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
   let is24hDragging = false;
   let currentPlaybackSpeed = 1; // 1, 2, 4, 8, 16
+  let isRewinding = false;
+  let currentRewindSpeed = 1; // 1, 2, 4, 8, 16
+  let rewindIntervalId = null;
+  let currentPlayheadSec = 0; // Floating or integer seconds representing active playhead
+  let lastRewindNetworkSyncTs = 0; // Throttling network requests during rewind
 
   function secToHms(sec) {
     const s = Math.max(0, Math.floor(sec || 0));
@@ -2255,9 +2260,10 @@
       player.video.addEventListener('loadeddata', onStreamReady, { once: true });
       player.video.addEventListener('timeupdate', () => {
         if (player.video.currentTime > 0) onStreamReady();
-        if (!is24hDragging) {
+        if (!is24hDragging && !isRewinding) {
           const elapsedSec = Math.floor(player.video.currentTime);
           const currentTotalSec = playbackStreamStartSec + elapsedSec;
+          currentPlayheadSec = currentTotalSec;
           updatePlayheadPosition(currentTotalSec);
         }
       });
@@ -2364,7 +2370,8 @@
       dialog.removeAttribute('open');
     }
 
-    // Reset speed to normal on dialog close
+    // Reset speed & rewind to normal on dialog close
+    stopPlaybackRewind(false);
     setPlaybackSpeed(1);
 
     // Sync wall slot player and badges
@@ -2579,6 +2586,7 @@
     const liveBtn = document.getElementById('playback-header-btn-live');
     if (liveBtn) liveBtn.classList.add('hidden');
     updatePlayheadPosition(0);
+    stopPlaybackRewind(false);
     setPlaybackSpeed(1);
 
     reconnectSlot(state.selectedSlotIndex);
@@ -2590,6 +2598,14 @@
     if (!dialogPlaybackPlayer || !dialogPlaybackPlayer.video) return;
     const v = dialogPlaybackPlayer.video;
     const btn = document.getElementById('playback-btn-toggle-play');
+
+    if (isRewinding) {
+      stopPlaybackRewind(true);
+      if (btn) btn.textContent = '⏸';
+      triggerHaptic(6);
+      return;
+    }
+
     if (v.paused) {
       v.play().catch(() => {});
       if (currentPlaybackSpeed !== 1) {
@@ -2603,7 +2619,150 @@
     triggerHaptic(6);
   }
 
+  function cyclePlaybackRewind() {
+    const speeds = [1, 2, 4, 8, 16];
+    if (!isRewinding) {
+      startPlaybackRewind(1);
+    } else {
+      const idx = speeds.indexOf(currentRewindSpeed);
+      const nextSpeed = speeds[(idx + 1) % speeds.length];
+      startPlaybackRewind(nextSpeed);
+    }
+  }
+
+  function startPlaybackRewind(speed) {
+    isRewinding = true;
+    currentRewindSpeed = Number(speed) || 1;
+
+    // Reset forward fast-forward state
+    currentPlaybackSpeed = 1;
+    const ffBtn = document.getElementById('playback-btn-speed');
+    if (ffBtn) {
+      ffBtn.textContent = '1x';
+      ffBtn.classList.remove('active-speed');
+    }
+
+    // Update Rewind button UI
+    const rewBtn = document.getElementById('playback-btn-rewind');
+    if (rewBtn) {
+      rewBtn.textContent = currentRewindSpeed === 1 ? '⏪' : `⏪ ${currentRewindSpeed}x`;
+      rewBtn.classList.add('active-rewind');
+    }
+
+    // Update Play/Pause button UI to show Play so clicking play returns to forward
+    const playBtn = document.getElementById('playback-btn-toggle-play');
+    if (playBtn) playBtn.textContent = '▶';
+
+    // Update ambient corner indicator
+    const indicator = document.getElementById('playback-ff-indicator');
+    if (indicator) {
+      indicator.textContent = `⏪ ${currentRewindSpeed}x`;
+      indicator.className = 'playback-ff-indicator rewind';
+      indicator.style.display = 'block';
+    }
+
+    // Determine current playhead position
+    if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
+      const v = dialogPlaybackPlayer.video;
+      v.pause();
+      const elapsed = v.currentTime || 0;
+      currentPlayheadSec = playbackStreamStartSec + elapsed;
+    }
+
+    if (rewindIntervalId) {
+      clearInterval(rewindIntervalId);
+      rewindIntervalId = null;
+    }
+
+    const tickMs = 200;
+    rewindIntervalId = setInterval(() => {
+      onRewindTick(tickMs);
+    }, tickMs);
+
+    triggerHaptic(6);
+  }
+
+  function onRewindTick(tickMs) {
+    if (!isRewinding) return;
+
+    const deltaSec = currentRewindSpeed * (tickMs / 1000);
+    currentPlayheadSec = Math.max(0, currentPlayheadSec - deltaSec);
+    updatePlayheadPosition(Math.floor(currentPlayheadSec));
+
+    if (currentPlayheadSec <= 0) {
+      stopPlaybackRewind(false);
+      return;
+    }
+
+    if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
+      const v = dialogPlaybackPlayer.video;
+      const streamOffset = currentPlayheadSec - playbackStreamStartSec;
+
+      let isBuffered = false;
+      if (v.buffered && v.buffered.length) {
+        for (let i = 0; i < v.buffered.length; i++) {
+          if (streamOffset >= v.buffered.start(i) && streamOffset <= v.buffered.end(i)) {
+            isBuffered = true;
+            break;
+          }
+        }
+      }
+
+      if (isBuffered) {
+        v.currentTime = streamOffset;
+      } else {
+        const now = Date.now();
+        if (now - lastRewindNetworkSyncTs > 2000) {
+          lastRewindNetworkSyncTs = now;
+          const item = state.slots[state.selectedSlotIndex];
+          if (item) {
+            const fetchStartSec = Math.max(0, Math.floor(currentPlayheadSec) - 90);
+            const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+            const timeStr = secToHms(fetchStartSec);
+            startNvrPlayback(item.nvrId, item.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+          }
+        }
+      }
+    }
+  }
+
+  function stopPlaybackRewind(resumeForward = true) {
+    if (rewindIntervalId) {
+      clearInterval(rewindIntervalId);
+      rewindIntervalId = null;
+    }
+    isRewinding = false;
+    currentRewindSpeed = 1;
+
+    const rewBtn = document.getElementById('playback-btn-rewind');
+    if (rewBtn) {
+      rewBtn.textContent = '⏪';
+      rewBtn.classList.remove('active-rewind');
+    }
+
+    const indicator = document.getElementById('playback-ff-indicator');
+    if (indicator) {
+      if (currentPlaybackSpeed > 1) {
+        indicator.textContent = `⏩ ${currentPlaybackSpeed}x`;
+        indicator.className = 'playback-ff-indicator';
+        indicator.style.display = 'block';
+      } else {
+        indicator.style.display = 'none';
+      }
+    }
+
+    if (resumeForward && dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
+      const v = dialogPlaybackPlayer.video;
+      const playBtn = document.getElementById('playback-btn-toggle-play');
+      v.play().catch(() => {});
+      if (playBtn) playBtn.textContent = '⏸';
+    }
+  }
+
   function cyclePlaybackSpeed() {
+    if (isRewinding) {
+      stopPlaybackRewind(false);
+    }
     const speeds = [1, 2, 4, 8, 16];
     const currentIdx = speeds.indexOf(currentPlaybackSpeed);
     const nextSpeed = speeds[(currentIdx + 1) % speeds.length];
@@ -2611,6 +2770,9 @@
   }
 
   function setPlaybackSpeed(speed) {
+    if (isRewinding) {
+      stopPlaybackRewind(false);
+    }
     currentPlaybackSpeed = Number(speed) || 1;
     const btn = document.getElementById('playback-btn-speed');
     const ffIndicator = document.getElementById('playback-ff-indicator');
@@ -2620,6 +2782,7 @@
     }
     if (ffIndicator) {
       ffIndicator.textContent = `⏩ ${currentPlaybackSpeed}x`;
+      ffIndicator.className = 'playback-ff-indicator';
       ffIndicator.style.display = currentPlaybackSpeed > 1 ? 'block' : 'none';
     }
 
@@ -2655,8 +2818,12 @@
     if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
       currentSec += Math.floor(dialogPlaybackPlayer.video.currentTime || 0);
     }
+    if (isRewinding) {
+      currentSec = Math.floor(currentPlayheadSec);
+    }
 
     const targetSec = Math.max(0, Math.min(86399, currentSec + secDelta));
+    currentPlayheadSec = targetSec;
     const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
     const timeStr = secToHms(targetSec);
 
@@ -2700,6 +2867,11 @@
 
     const item = state.slots[state.selectedSlotIndex];
     if (!item) return;
+
+    if (isRewinding) {
+      stopPlaybackRewind(false);
+    }
+    currentPlayheadSec = targetSec;
 
     const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
     const timeStr = secToHms(targetSec);
@@ -2793,6 +2965,9 @@
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         seekPlaybackRelative(e.shiftKey ? -30 : -10);
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        cyclePlaybackRewind();
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         cyclePlaybackSpeed();
@@ -3956,6 +4131,9 @@
     startNvrPlayback,
     returnToLive,
     togglePlaybackPlay,
+    cyclePlaybackRewind,
+    startPlaybackRewind,
+    stopPlaybackRewind,
     cyclePlaybackSpeed,
     setPlaybackSpeed,
     seekPlaybackRelative,
