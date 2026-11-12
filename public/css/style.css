@@ -3434,6 +3434,22 @@ video::-webkit-media-controls-fullscreen-button {
   font-weight: 500;
 }
 
+.playback-screen-spinner.stream-stalled {
+  cursor: pointer;
+  color: #f8fafc;
+}
+
+.playback-screen-spinner.stream-stalled .spinner-ring {
+  border-top-color: #f59e0b;
+  animation: none;
+}
+
+.playback-screen-spinner.stream-stalled span {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
 /* 24-Hour Surveillance Timeline Cockpit */
 .playback-24h-cockpit {
   background: #0b1120;

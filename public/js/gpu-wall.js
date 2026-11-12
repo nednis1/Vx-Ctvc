@@ -2142,6 +2142,7 @@
   let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
   let is24hDragging = false;
   let playbackSpeed = 1; // Unified multiplier: 1, 2, 4, 8, 16
+  let currentPlaybackSpeed = 1; // Explicitly initialized to 1 for backward compatibility & immediate init
   let isRewinding = false;
   let currentRewindSpeed = 1; // 1, 2, 4, 8, 16
   let rewindIntervalId = null;
@@ -2207,6 +2208,7 @@
     if (placeholderEl) placeholderEl.style.display = 'none';
     if (spinnerEl) {
       spinnerEl.style.display = 'flex';
+      spinnerEl.classList.remove('stream-stalled');
       const spinnerText = document.getElementById('playback-spinner-text');
       if (spinnerText) spinnerText.textContent = 'Connecting NVR Playback...';
     }
@@ -2227,14 +2229,15 @@
     const player = document.createElement('video-rtc');
     player.className = 'gpu-player-el';
     player.isPlayback = true;
-    if (currentPlaybackSpeed !== 1) {
-      player.customPlaybackRate = currentPlaybackSpeed;
+    if (playbackSpeed !== 1) {
+      player.customPlaybackRate = playbackSpeed;
     }
-    const engineMode = state.streamEngine === 'mse' ? 'mse' : (state.streamEngine === 'webrtc' ? 'webrtc' : 'mse,webrtc');
-    player.mode = engineMode;
-    player.src = wsUrl;
+    // Dahua NVR Playback strictly requires MSE for variable speed (1x-16x), buffer retention, and instant fMP4 decoding
+    player.mode = 'mse';
 
+    // Append to DOM before setting src so custom element is connected and WebSocket connects immediately
     mountEl.appendChild(player);
+    player.src = wsUrl;
     dialogPlaybackPlayer = player;
 
     if (player.video) {
@@ -2242,19 +2245,39 @@
       player.video.muted = true;
       player.video.autoplay = true;
       player.video.playsInline = true;
-      if (currentPlaybackSpeed !== 1) {
-        player.video.playbackRate = currentPlaybackSpeed;
+      if (playbackSpeed !== 1) {
+        player.video.playbackRate = playbackSpeed;
       }
 
       const playBtn = document.getElementById('playback-btn-toggle-play');
+      let streamReady = false;
+      let offlineTimeoutId = null;
 
       const onStreamReady = () => {
-        if (spinnerEl) spinnerEl.style.display = 'none';
+        streamReady = true;
+        if (offlineTimeoutId) {
+          clearTimeout(offlineTimeoutId);
+          offlineTimeoutId = null;
+        }
+        if (spinnerEl) {
+          spinnerEl.style.display = 'none';
+          spinnerEl.classList.remove('stream-stalled');
+        }
         if (playBtn) playBtn.textContent = '⏸';
-        if (currentPlaybackSpeed !== 1) {
-          player.video.playbackRate = currentPlaybackSpeed;
+        if (playbackSpeed !== 1) {
+          player.video.playbackRate = playbackSpeed;
         }
       };
+
+      // Set timeout fallback: only declare offline if Dahua NVR doesn't stream within 10 seconds
+      offlineTimeoutId = setTimeout(() => {
+        if (!streamReady && spinnerEl) {
+          spinnerEl.style.display = 'flex';
+          spinnerEl.classList.add('stream-stalled');
+          const spinnerText = document.getElementById('playback-spinner-text');
+          if (spinnerText) spinnerText.textContent = 'Playback Stream Offline • Tap to Retry';
+        }
+      }, 10000);
 
       player.video.addEventListener('playing', onStreamReady, { once: true });
       player.video.addEventListener('loadeddata', onStreamReady, { once: true });
@@ -2268,13 +2291,36 @@
         }
       });
 
-      player.video.addEventListener('error', () => {
-        if (spinnerEl) {
-          spinnerEl.style.display = 'flex';
+      player.video.addEventListener('error', (e) => {
+        console.warn('[VOSCTV] Playback video event warning:', e);
+        // Do not immediately flash "Stream Offline" while still negotiating initial stream or auto-retrying
+        if (!streamReady) {
           const spinnerText = document.getElementById('playback-spinner-text');
-          if (spinnerText) spinnerText.textContent = 'Playback Stream Offline';
+          if (spinnerText && (!spinnerText.textContent || spinnerText.textContent.includes('Connecting'))) {
+            spinnerText.textContent = 'Buffering Footage...';
+          }
+        } else {
+          // Stream was playing and lost connection
+          if (spinnerEl) {
+            spinnerEl.style.display = 'flex';
+            spinnerEl.classList.add('stream-stalled');
+            const spinnerText = document.getElementById('playback-spinner-text');
+            if (spinnerText) spinnerText.textContent = 'Playback Stalled • Tap to Retry';
+          }
         }
       });
+
+      // Quick tap-to-retry on spinner if stalled
+      if (spinnerEl) {
+        spinnerEl.onclick = () => {
+          if (spinnerEl.classList.contains('stream-stalled')) {
+            const item = state.slots[state.selectedSlotIndex];
+            if (item && item.playbackRange) {
+              startNvrPlayback(item.nvrId, item.channel, item.playbackRange.start, item.playbackRange.end, currentPlaybackSubtype);
+            }
+          }
+        };
+      }
     }
   }
 
@@ -2289,6 +2335,10 @@
     }
 
     init24hRuler();
+
+    // Ensure playback speed and rewind states are cleanly initialized to 1x at start
+    setPlaybackSpeed(1);
+    stopPlaybackRewind(false);
 
     const subtitleEl = document.getElementById('gpu-playback-subtitle');
     const headerStatus = document.getElementById('playback-header-status');
@@ -2480,9 +2530,20 @@
       stopRecording(state.selectedSlotIndex);
     }
 
+    // Immediately clean up previous dialog player so its teardown events don't trigger offline errors on spinner
+    if (dialogPlaybackPlayer) {
+      try {
+        if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
+        dialogPlaybackPlayer.src = '';
+        dialogPlaybackPlayer.remove();
+      } catch (e) {}
+      dialogPlaybackPlayer = null;
+    }
+
     const spinnerEl = document.getElementById('playback-screen-spinner');
     if (spinnerEl) {
       spinnerEl.style.display = 'flex';
+      spinnerEl.classList.remove('stream-stalled');
       const spinnerText = document.getElementById('playback-spinner-text');
       if (spinnerText) spinnerText.textContent = 'Requesting Dahua NVR Playback...';
     }
@@ -3303,36 +3364,45 @@
     player.className = 'gpu-player-el';
     if (item.playbackStreamId) {
       player.isPlayback = true;
-      if (currentPlaybackSpeed !== 1) {
-        player.customPlaybackRate = currentPlaybackSpeed;
+      if (playbackSpeed !== 1) {
+        player.customPlaybackRate = playbackSpeed;
       }
     }
 
-    // Stream engine mode: 'auto' (MSE fast start + WebRTC) | 'mse' (pure MediaSource WebSocket) | 'webrtc' (direct UDP)
-    const engineMode = state.streamEngine === 'mse' ? 'mse' : (state.streamEngine === 'webrtc' ? 'webrtc' : 'mse,webrtc');
+    // Stream engine mode: NVR playback requires pure MSE for buffering & variable speeds; live feeds use engineMode
+    const engineMode = item.playbackStreamId ? 'mse' : (state.streamEngine === 'mse' ? 'mse' : (state.streamEngine === 'webrtc' ? 'webrtc' : 'mse,webrtc'));
     player.mode = engineMode;
-    player.src = wsUrl;
 
+    // Append to wrapper before setting src so custom element is connected and WebSocket starts immediately
     wrapper.appendChild(player);
+    player.src = wsUrl;
 
     if (player.video) {
       player.video.controls = false;
       player.video.muted = item.audioMuted;
       player.video.autoplay = true;
       player.video.playsInline = true;
-      if (item.playbackStreamId && currentPlaybackSpeed !== 1) {
-        player.video.playbackRate = currentPlaybackSpeed;
+      if (item.playbackStreamId && playbackSpeed !== 1) {
+        player.video.playbackRate = playbackSpeed;
       }
 
       const spinnerEl = slotEl.querySelector(`#spinner-slot-${slotIndex}`);
+      let slotReady = false;
+      let slotOfflineTimer = null;
+
       const onStreamReady = () => {
+        slotReady = true;
+        if (slotOfflineTimer) {
+          clearTimeout(slotOfflineTimer);
+          slotOfflineTimer = null;
+        }
         if (spinnerEl) {
           spinnerEl.style.display = 'none';
           spinnerEl.classList.remove('stream-stalled');
         }
         item.videoPlaying = true;
-        if (item.playbackStreamId && currentPlaybackSpeed !== 1) {
-          player.video.playbackRate = currentPlaybackSpeed;
+        if (item.playbackStreamId && playbackSpeed !== 1) {
+          player.video.playbackRate = playbackSpeed;
         }
         updateSlotBadges(slotIndex);
         if (slotIndex === state.selectedSlotIndex) {
@@ -3341,6 +3411,25 @@
       };
 
       const onStreamFailed = () => {
+        // If it's a playback stream that hasn't finished connecting, give Dahua NVR disk seek grace period
+        if (item.playbackStreamId && !slotReady) {
+          if (!slotOfflineTimer) {
+            slotOfflineTimer = setTimeout(() => {
+              if (!slotReady) {
+                item.videoPlaying = false;
+                if (spinnerEl) {
+                  spinnerEl.style.display = 'flex';
+                  spinnerEl.classList.add('stream-stalled');
+                  const label = spinnerEl.querySelector('span');
+                  if (label) label.textContent = 'Stream Offline • Tap to Reconnect';
+                }
+                updateSlotBadges(slotIndex);
+              }
+            }, 8000);
+          }
+          return;
+        }
+
         item.videoPlaying = false;
         if (spinnerEl) {
           spinnerEl.style.display = 'flex';
