@@ -2594,6 +2594,39 @@
     updateCameraOptionsSheet();
   }
 
+  function syncSpeedSelectUI() {
+    const sel = document.getElementById('playback-speed-select');
+    if (!sel) return;
+
+    if (isRewinding) {
+      sel.value = String(-currentRewindSpeed);
+      sel.classList.remove('active-forward');
+      sel.classList.add('active-rewind');
+    } else {
+      sel.value = String(currentPlaybackSpeed);
+      sel.classList.remove('active-rewind');
+      sel.classList.toggle('active-forward', currentPlaybackSpeed > 1);
+    }
+  }
+
+  function onPlaybackSpeedSelect(valStr) {
+    const val = parseInt(valStr, 10) || 1;
+    if (val < 0) {
+      startPlaybackRewind(Math.abs(val));
+    } else {
+      if (isRewinding) {
+        stopPlaybackRewind(false);
+      }
+      setPlaybackSpeed(val);
+      if (dialogPlaybackPlayer && dialogPlaybackPlayer.video && dialogPlaybackPlayer.video.paused) {
+        dialogPlaybackPlayer.video.play().catch(() => {});
+        const playBtn = document.getElementById('playback-btn-toggle-play');
+        if (playBtn) playBtn.textContent = '⏸';
+      }
+    }
+    syncSpeedSelectUI();
+  }
+
   function togglePlaybackPlay() {
     if (!dialogPlaybackPlayer || !dialogPlaybackPlayer.video) return;
     const v = dialogPlaybackPlayer.video;
@@ -2601,6 +2634,7 @@
 
     if (isRewinding) {
       stopPlaybackRewind(true);
+      setPlaybackSpeed(1);
       if (btn) btn.textContent = '⏸';
       triggerHaptic(6);
       return;
@@ -2633,21 +2667,7 @@
   function startPlaybackRewind(speed) {
     isRewinding = true;
     currentRewindSpeed = Number(speed) || 1;
-
-    // Reset forward fast-forward state
     currentPlaybackSpeed = 1;
-    const ffBtn = document.getElementById('playback-btn-speed');
-    if (ffBtn) {
-      ffBtn.textContent = '1x';
-      ffBtn.classList.remove('active-speed');
-    }
-
-    // Update Rewind button UI
-    const rewBtn = document.getElementById('playback-btn-rewind');
-    if (rewBtn) {
-      rewBtn.textContent = currentRewindSpeed === 1 ? '⏪' : `⏪ ${currentRewindSpeed}x`;
-      rewBtn.classList.add('active-rewind');
-    }
 
     // Update Play/Pause button UI to show Play so clicking play returns to forward
     const playBtn = document.getElementById('playback-btn-toggle-play');
@@ -2660,6 +2680,8 @@
       indicator.className = 'playback-ff-indicator rewind';
       indicator.style.display = 'block';
     }
+
+    syncSpeedSelectUI();
 
     // Determine current playhead position
     if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
@@ -2734,12 +2756,6 @@
     isRewinding = false;
     currentRewindSpeed = 1;
 
-    const rewBtn = document.getElementById('playback-btn-rewind');
-    if (rewBtn) {
-      rewBtn.textContent = '⏪';
-      rewBtn.classList.remove('active-rewind');
-    }
-
     const indicator = document.getElementById('playback-ff-indicator');
     if (indicator) {
       if (currentPlaybackSpeed > 1) {
@@ -2750,6 +2766,8 @@
         indicator.style.display = 'none';
       }
     }
+
+    syncSpeedSelectUI();
 
     if (resumeForward && dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
       const v = dialogPlaybackPlayer.video;
@@ -2774,17 +2792,15 @@
       stopPlaybackRewind(false);
     }
     currentPlaybackSpeed = Number(speed) || 1;
-    const btn = document.getElementById('playback-btn-speed');
+
     const ffIndicator = document.getElementById('playback-ff-indicator');
-    if (btn) {
-      btn.textContent = currentPlaybackSpeed === 1 ? '1x' : `${currentPlaybackSpeed}x`;
-      btn.classList.toggle('active-speed', currentPlaybackSpeed > 1);
-    }
     if (ffIndicator) {
       ffIndicator.textContent = `⏩ ${currentPlaybackSpeed}x`;
       ffIndicator.className = 'playback-ff-indicator';
       ffIndicator.style.display = currentPlaybackSpeed > 1 ? 'block' : 'none';
     }
+
+    syncSpeedSelectUI();
 
     if (dialogPlaybackPlayer) {
       if (typeof dialogPlaybackPlayer.setPlaybackSpeed === 'function') {
@@ -4131,6 +4147,8 @@
     startNvrPlayback,
     returnToLive,
     togglePlaybackPlay,
+    onPlaybackSpeedSelect,
+    syncSpeedSelectUI,
     cyclePlaybackRewind,
     startPlaybackRewind,
     stopPlaybackRewind,

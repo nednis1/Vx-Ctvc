@@ -525,15 +525,23 @@
             <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(-10)" title="Rewind 10s">
               ⏪ -10s
             </button>
-            <button type="button" class="playback-transport-btn rewind-btn" id="playback-btn-rewind" onclick="window.VOSCCTV_GPU_WALL.cyclePlaybackRewind()" title="Rewind Playback (1x, 2x, 4x, 8x, 16x)" aria-label="Rewind Playback">
-              ⏪
-            </button>
             <button type="button" class="playback-transport-btn play-btn" id="playback-btn-toggle-play" onclick="window.VOSCCTV_GPU_WALL.togglePlaybackPlay()" title="Play / Pause" aria-label="Play or Pause">
               ▶
             </button>
-            <button type="button" class="playback-transport-btn speed-btn" id="playback-btn-speed" onclick="window.VOSCCTV_GPU_WALL.cyclePlaybackSpeed()" title="Fast Forward Speed (1x, 2x, 4x, 8x, 16x)" aria-label="Fast Forward Speed">
-              1x
-            </button>
+            <div class="playback-speed-select-wrap">
+              <select id="playback-speed-select" class="playback-speed-select" onchange="window.VOSCCTV_GPU_WALL.onPlaybackSpeedSelect(this.value)" title="Playback Speed & Direction" aria-label="Playback Speed and Direction">
+                <option value="-16">⏪ 16x</option>
+                <option value="-8">⏪ 8x</option>
+                <option value="-4">⏪ 4x</option>
+                <option value="-2">⏪ 2x</option>
+                <option value="-1">⏪ 1x</option>
+                <option value="1" selected>▶ 1x</option>
+                <option value="2">⏩ 2x</option>
+                <option value="4">⏩ 4x</option>
+                <option value="8">⏩ 8x</option>
+                <option value="16">⏩ 16x</option>
+              </select>
+            </div>
             <button type="button" class="playback-transport-btn" onclick="window.VOSCCTV_GPU_WALL.seekPlaybackRelative(10)" title="Forward 10s">
               +10s ⏩
             </button>
