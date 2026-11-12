@@ -2141,7 +2141,7 @@
   let dialogPlaybackPlayer = null;
   let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
   let is24hDragging = false;
-  let currentPlaybackSpeed = 1; // 1, 2, 4, 8, 16
+  let playbackSpeed = 1; // Unified multiplier: 1, 2, 4, 8, 16
   let isRewinding = false;
   let currentRewindSpeed = 1; // 1, 2, 4, 8, 16
   let rewindIntervalId = null;
@@ -2594,37 +2594,40 @@
     updateCameraOptionsSheet();
   }
 
-  function syncSpeedSelectUI() {
-    const sel = document.getElementById('playback-speed-select');
-    if (!sel) return;
+  function updateSpeedButtonUI() {
+    const btn = document.getElementById('playback-btn-speed');
+    const rewBtn = document.getElementById('playback-btn-rewind');
+    const indicator = document.getElementById('playback-ff-indicator');
 
-    if (isRewinding) {
-      sel.value = String(-currentRewindSpeed);
-      sel.classList.remove('active-forward');
-      sel.classList.add('active-rewind');
-    } else {
-      sel.value = String(currentPlaybackSpeed);
-      sel.classList.remove('active-rewind');
-      sel.classList.toggle('active-forward', currentPlaybackSpeed > 1);
+    if (btn) {
+      btn.textContent = playbackSpeed === 1 ? '1x' : `${playbackSpeed}x`;
+      btn.classList.remove('active-speed', 'active-rewind');
+      if (playbackSpeed > 1) {
+        if (isRewinding) {
+          btn.classList.add('active-rewind');
+        } else {
+          btn.classList.add('active-speed');
+        }
+      }
     }
-  }
 
-  function onPlaybackSpeedSelect(valStr) {
-    const val = parseInt(valStr, 10) || 1;
-    if (val < 0) {
-      startPlaybackRewind(Math.abs(val));
-    } else {
+    if (rewBtn) {
+      rewBtn.classList.toggle('active-rewind', isRewinding);
+    }
+
+    if (indicator) {
       if (isRewinding) {
-        stopPlaybackRewind(false);
-      }
-      setPlaybackSpeed(val);
-      if (dialogPlaybackPlayer && dialogPlaybackPlayer.video && dialogPlaybackPlayer.video.paused) {
-        dialogPlaybackPlayer.video.play().catch(() => {});
-        const playBtn = document.getElementById('playback-btn-toggle-play');
-        if (playBtn) playBtn.textContent = '⏸';
+        indicator.textContent = `⏪ ${playbackSpeed}x`;
+        indicator.className = 'playback-ff-indicator rewind';
+        indicator.style.display = 'block';
+      } else if (playbackSpeed > 1) {
+        indicator.textContent = `⏩ ${playbackSpeed}x`;
+        indicator.className = 'playback-ff-indicator';
+        indicator.style.display = 'block';
+      } else {
+        indicator.style.display = 'none';
       }
     }
-    syncSpeedSelectUI();
   }
 
   function togglePlaybackPlay() {
@@ -2633,8 +2636,8 @@
     const btn = document.getElementById('playback-btn-toggle-play');
 
     if (isRewinding) {
+      // Clicking play while rewinding resumes forward playback at current speed!
       stopPlaybackRewind(true);
-      setPlaybackSpeed(1);
       if (btn) btn.textContent = '⏸';
       triggerHaptic(6);
       return;
@@ -2642,8 +2645,8 @@
 
     if (v.paused) {
       v.play().catch(() => {});
-      if (currentPlaybackSpeed !== 1) {
-        v.playbackRate = currentPlaybackSpeed;
+      if (playbackSpeed !== 1) {
+        v.playbackRate = playbackSpeed;
       }
       if (btn) btn.textContent = '⏸';
     } else {
@@ -2653,35 +2656,29 @@
     triggerHaptic(6);
   }
 
-  function cyclePlaybackRewind() {
-    const speeds = [1, 2, 4, 8, 16];
+  function togglePlaybackRewind() {
     if (!isRewinding) {
-      startPlaybackRewind(1);
+      startPlaybackRewind(playbackSpeed);
     } else {
-      const idx = speeds.indexOf(currentRewindSpeed);
-      const nextSpeed = speeds[(idx + 1) % speeds.length];
-      startPlaybackRewind(nextSpeed);
+      // If already rewinding, clicking rewind button accelerates speed!
+      cyclePlaybackSpeed();
     }
+  }
+
+  function cyclePlaybackRewind() {
+    togglePlaybackRewind();
   }
 
   function startPlaybackRewind(speed) {
     isRewinding = true;
-    currentRewindSpeed = Number(speed) || 1;
-    currentPlaybackSpeed = 1;
+    playbackSpeed = Number(speed) || 1;
+    currentRewindSpeed = playbackSpeed;
+    currentPlaybackSpeed = playbackSpeed;
 
-    // Update Play/Pause button UI to show Play so clicking play returns to forward
     const playBtn = document.getElementById('playback-btn-toggle-play');
     if (playBtn) playBtn.textContent = '▶';
 
-    // Update ambient corner indicator
-    const indicator = document.getElementById('playback-ff-indicator');
-    if (indicator) {
-      indicator.textContent = `⏪ ${currentRewindSpeed}x`;
-      indicator.className = 'playback-ff-indicator rewind';
-      indicator.style.display = 'block';
-    }
-
-    syncSpeedSelectUI();
+    updateSpeedButtonUI();
 
     // Determine current playhead position
     if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
@@ -2707,7 +2704,7 @@
   function onRewindTick(tickMs) {
     if (!isRewinding) return;
 
-    const deltaSec = currentRewindSpeed * (tickMs / 1000);
+    const deltaSec = playbackSpeed * (tickMs / 1000);
     currentPlayheadSec = Math.max(0, currentPlayheadSec - deltaSec);
     updatePlayheadPosition(Math.floor(currentPlayheadSec));
 
@@ -2754,71 +2751,51 @@
       rewindIntervalId = null;
     }
     isRewinding = false;
-    currentRewindSpeed = 1;
 
-    const indicator = document.getElementById('playback-ff-indicator');
-    if (indicator) {
-      if (currentPlaybackSpeed > 1) {
-        indicator.textContent = `⏩ ${currentPlaybackSpeed}x`;
-        indicator.className = 'playback-ff-indicator';
-        indicator.style.display = 'block';
-      } else {
-        indicator.style.display = 'none';
-      }
-    }
-
-    syncSpeedSelectUI();
+    updateSpeedButtonUI();
 
     if (resumeForward && dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
       const v = dialogPlaybackPlayer.video;
       const playBtn = document.getElementById('playback-btn-toggle-play');
+      if (playbackSpeed !== 1) {
+        v.playbackRate = playbackSpeed;
+      }
       v.play().catch(() => {});
       if (playBtn) playBtn.textContent = '⏸';
     }
   }
 
   function cyclePlaybackSpeed() {
-    if (isRewinding) {
-      stopPlaybackRewind(false);
-    }
     const speeds = [1, 2, 4, 8, 16];
-    const currentIdx = speeds.indexOf(currentPlaybackSpeed);
+    const currentIdx = speeds.indexOf(playbackSpeed);
     const nextSpeed = speeds[(currentIdx + 1) % speeds.length];
     setPlaybackSpeed(nextSpeed);
   }
 
   function setPlaybackSpeed(speed) {
-    if (isRewinding) {
-      stopPlaybackRewind(false);
-    }
-    currentPlaybackSpeed = Number(speed) || 1;
+    playbackSpeed = Number(speed) || 1;
+    currentPlaybackSpeed = playbackSpeed;
+    currentRewindSpeed = playbackSpeed;
 
-    const ffIndicator = document.getElementById('playback-ff-indicator');
-    if (ffIndicator) {
-      ffIndicator.textContent = `⏩ ${currentPlaybackSpeed}x`;
-      ffIndicator.className = 'playback-ff-indicator';
-      ffIndicator.style.display = currentPlaybackSpeed > 1 ? 'block' : 'none';
-    }
+    updateSpeedButtonUI();
 
-    syncSpeedSelectUI();
-
-    if (dialogPlaybackPlayer) {
+    if (!isRewinding && dialogPlaybackPlayer) {
       if (typeof dialogPlaybackPlayer.setPlaybackSpeed === 'function') {
-        dialogPlaybackPlayer.setPlaybackSpeed(currentPlaybackSpeed);
+        dialogPlaybackPlayer.setPlaybackSpeed(playbackSpeed);
       } else if (dialogPlaybackPlayer.video) {
-        dialogPlaybackPlayer.video.playbackRate = currentPlaybackSpeed;
+        dialogPlaybackPlayer.video.playbackRate = playbackSpeed;
       }
     }
 
     const slotItem = state.slots[state.selectedSlotIndex];
-    if (slotItem && slotItem.playbackStreamId) {
+    if (!isRewinding && slotItem && slotItem.playbackStreamId) {
       const slotEl = document.getElementById(`gpu-slot-${state.selectedSlotIndex}`);
       const slotPlayer = slotEl?.querySelector('video-rtc');
       if (slotPlayer) {
         if (typeof slotPlayer.setPlaybackSpeed === 'function') {
-          slotPlayer.setPlaybackSpeed(currentPlaybackSpeed);
+          slotPlayer.setPlaybackSpeed(playbackSpeed);
         } else if (slotPlayer.video) {
-          slotPlayer.video.playbackRate = currentPlaybackSpeed;
+          slotPlayer.video.playbackRate = playbackSpeed;
         }
       }
     }
@@ -4147,13 +4124,13 @@
     startNvrPlayback,
     returnToLive,
     togglePlaybackPlay,
-    onPlaybackSpeedSelect,
-    syncSpeedSelectUI,
+    togglePlaybackRewind,
     cyclePlaybackRewind,
     startPlaybackRewind,
     stopPlaybackRewind,
     cyclePlaybackSpeed,
     setPlaybackSpeed,
+    updateSpeedButtonUI,
     seekPlaybackRelative,
     togglePlaybackAudio,
     fullscreenPlayback,

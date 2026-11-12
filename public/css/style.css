@@ -3518,63 +3518,39 @@ video::-webkit-media-controls-fullscreen-button {
   background: #0369a1;
 }
 
-.playback-speed-select-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.playback-speed-select {
-  height: 32px;
-  padding: 0 22px 0 8px;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
-  color: #f1f5f9;
+.playback-transport-btn.rewind-btn {
+  min-width: 36px;
   font-family: monospace, ui-monospace, sans-serif;
-  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2394a3b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 7px center;
-  background-size: 8px 5px;
-  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
-.playback-speed-select:hover {
-  background-color: #334155;
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.playback-speed-select:focus-visible {
-  outline: 2px solid #38bdf8;
-  outline-offset: 1px;
-}
-
-.playback-speed-select.active-forward {
-  background-color: #0284c7;
-  border-color: #38bdf8;
-  color: #ffffff;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
-}
-
-.playback-speed-select.active-rewind {
-  background-color: #d97706;
+.playback-transport-btn.rewind-btn.active-rewind {
+  background: #d97706;
   border-color: #f59e0b;
   color: #ffffff;
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
 }
 
-.playback-speed-select option {
-  background: #0f172a;
-  color: #f1f5f9;
-  font-weight: 600;
+.playback-transport-btn.speed-btn {
+  min-width: 36px;
+  font-family: monospace, ui-monospace, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.playback-transport-btn.speed-btn.active-speed {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+}
+
+.playback-transport-btn.speed-btn.active-rewind {
+  background: #d97706;
+  border-color: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
 }
 
 .playback-ff-indicator {
@@ -3836,34 +3812,22 @@ video::-webkit-media-controls-fullscreen-button {
   background: #e2e8f0;
 }
 
-[data-theme="light"] .playback-speed-select {
-  background-color: #ffffff;
-  border-color: #cbd5e1;
-  color: #0f172a;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2364748b' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
-}
-
-[data-theme="light"] .playback-speed-select:hover {
-  background-color: #e2e8f0;
-}
-
-[data-theme="light"] .playback-speed-select.active-forward {
-  background-color: #0284c7;
-  border-color: #0369a1;
-  color: #ffffff;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
-}
-
-[data-theme="light"] .playback-speed-select.active-rewind {
-  background-color: #d97706;
+[data-theme="light"] .playback-transport-btn.rewind-btn.active-rewind {
+  background: #d97706;
   border-color: #b45309;
   color: #ffffff;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
 }
 
-[data-theme="light"] .playback-speed-select option {
-  background: #ffffff;
-  color: #0f172a;
+[data-theme="light"] .playback-transport-btn.speed-btn.active-speed {
+  background: #0284c7;
+  border-color: #0369a1;
+  color: #ffffff;
+}
+
+[data-theme="light"] .playback-transport-btn.speed-btn.active-rewind {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
 }
 
 [data-theme="light"] .playback-video-placeholder {
