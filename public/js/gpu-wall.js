@@ -2697,18 +2697,20 @@
     const btn = document.getElementById('playback-btn-toggle-play');
 
     if (isRewinding) {
-      // Clicking play while rewinding resumes forward playback at current speed!
-      stopPlaybackRewind(true);
+      // Clicking play while rewinding resumes forward playback and resets speed to 1x
+      stopPlaybackRewind(false);
+      setPlaybackSpeed(1);
+      v.play().catch(() => {});
       if (btn) btn.textContent = '⏸';
       triggerHaptic(6);
       return;
     }
 
+    // Always reset playback speed to 1x when toggling play or pause
+    setPlaybackSpeed(1);
+
     if (v.paused) {
       v.play().catch(() => {});
-      if (playbackSpeed !== 1) {
-        v.playbackRate = playbackSpeed;
-      }
       if (btn) btn.textContent = '⏸';
     } else {
       v.pause();
@@ -2771,6 +2773,7 @@
 
     if (currentPlayheadSec <= 0) {
       stopPlaybackRewind(false);
+      setPlaybackSpeed(1);
       return;
     }
 
