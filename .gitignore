@@ -1,7 +1,9 @@
 node_modules/
 .env
 *.log
+*.zip
 .DS_Store
+dist/
 cctv server issues.md
 camera_names.json
 go2rtc.yaml

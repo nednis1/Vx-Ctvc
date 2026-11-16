@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "bundle": "node scripts/build-bundle.js",
+    "bundle:linux": "node scripts/build-bundle.js --platform linux"
   },
   "engines": {
     "node": ">=18"
