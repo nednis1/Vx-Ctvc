@@ -34,7 +34,7 @@
    */
   function triggerHaptic(duration = 10) {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-      try { navigator.vibrate(duration); } catch (e) {}
+      try { navigator.vibrate(duration); } catch (e) { }
     }
   }
 
@@ -101,7 +101,7 @@
         slots: serializableSlots
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function normalizeColumnMode(mode) {
@@ -152,7 +152,7 @@
           });
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // -------------------------------------------------------------
@@ -466,7 +466,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ streamId: item.playbackStreamId })
-      }).catch(() => {});
+      }).catch(() => { });
     }
     if (slotIndex === state.selectedSlotIndex && dialogPlaybackStreamId) {
       closePlaybackDialog();
@@ -480,7 +480,7 @@
           if (typeof player.ondisconnect === 'function') player.ondisconnect();
           player.src = '';
           player.remove();
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -704,7 +704,7 @@
     setTimeout(() => {
       toast.classList.remove('show');
       setTimeout(() => {
-        try { toast.remove(); } catch (e) {}
+        try { toast.remove(); } catch (e) { }
       }, 250);
     }, duration);
   }
@@ -849,7 +849,7 @@
       e.preventDefault();
       try {
         wrapper.setPointerCapture(e.pointerId);
-      } catch (err) {}
+      } catch (err) { }
       item.digitalZoom.isDragging = true;
       item.digitalZoom.startX = e.clientX - item.digitalZoom.x;
       item.digitalZoom.startY = e.clientY - item.digitalZoom.y;
@@ -874,7 +874,7 @@
           if (wrapper.hasPointerCapture(e.pointerId)) {
             wrapper.releasePointerCapture(e.pointerId);
           }
-        } catch (err) {}
+        } catch (err) { }
       }
     };
 
@@ -1680,7 +1680,7 @@
     }
     try {
       localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(state.viewPresets));
-    } catch (e) {}
+    } catch (e) { }
     updatePresetDropdown();
     renderPresetList();
     showToast('Preset deleted');
@@ -1720,7 +1720,7 @@
     state.currentPresetId = id;
     try {
       localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(state.viewPresets));
-    } catch (e) {}
+    } catch (e) { }
 
     updatePresetDropdown();
     closePresetDialog();
@@ -1807,7 +1807,7 @@
           } else if (dialogId === 'gpu-grid-sheet') {
             closeGridSheet();
           } else if (typeof dialog.close === 'function') {
-            try { dialog.close(); } catch (err) {}
+            try { dialog.close(); } catch (err) { }
           }
           content.style.transform = '';
           content.style.transition = '';
@@ -2151,6 +2151,10 @@
   let rewindIntervalId = null;
   let currentPlayheadSec = 0; // Floating or integer seconds representing active playhead
   let lastRewindNetworkSyncTs = 0; // Throttling network requests during rewind
+  let timelineZoomHours = 24; // 24 (full day), 4 (4h window), 1 (1h precision window)
+  let timelineViewStartSec = 0;
+  let lastLoadedRecordings = [];
+  let seekFlashTimer = null;
 
   const popoutUrlParams = (typeof window !== 'undefined' && window.location && window.location.search)
     ? new URLSearchParams(window.location.search)
@@ -2198,15 +2202,15 @@
         const blob = new Blob([JSON.stringify({ streamId })], { type: 'application/json' });
         if (navigator.sendBeacon('/api/playback/stop-stream', blob)) return;
       }
-    } catch (e) {}
+    } catch (e) { }
     try {
       fetch('/api/playback/stop-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ streamId }),
         keepalive: true
-      }).catch(() => {});
-    } catch (e) {}
+      }).catch(() => { });
+    } catch (e) { }
   }
 
   function secToHms(sec) {
@@ -2226,11 +2230,124 @@
     return h * 3600 + m * 60 + s;
   }
 
+  function getTimelineViewBounds() {
+    const spanSec = timelineZoomHours * 3600;
+    const maxStart = Math.max(0, 86400 - spanSec);
+    const startSec = Math.max(0, Math.min(maxStart, timelineViewStartSec));
+    return { startSec, spanSec, endSec: startSec + spanSec };
+  }
+
+  function updateTimelineRangeLabel() {
+    const totalEl = document.getElementById('playback-clock-total');
+    if (!totalEl) return;
+    if (timelineZoomHours >= 24) {
+      totalEl.textContent = '/ 24:00';
+      return;
+    }
+    const { startSec, endSec } = getTimelineViewBounds();
+    const startHm = secToHms(startSec).slice(0, 5);
+    const endHm = endSec >= 86400 ? '24:00' : secToHms(endSec).slice(0, 5);
+    totalEl.textContent = `(${startHm}-${endHm})`;
+  }
+
+  function renderTimelineRuler() {
+    const rulerEl = document.getElementById('playback-24h-ruler');
+    if (!rulerEl) return;
+
+    const { startSec, spanSec, endSec } = getTimelineViewBounds();
+    let tickStep = 3600;
+    let labelStep = 7200;
+    if (timelineZoomHours === 4) {
+      tickStep = 1800;
+      labelStep = 3600;
+    } else if (timelineZoomHours === 1) {
+      tickStep = 300;
+      labelStep = 900;
+    }
+
+    let html = '';
+    const firstTick = Math.ceil(startSec / tickStep) * tickStep;
+    for (let sec = firstTick; sec <= endSec; sec += tickStep) {
+      const pct = ((sec - startSec) / spanSec) * 100;
+      const isMajor = (sec % labelStep) === 0;
+      html += `<div class="playback-ruler-tick ${isMajor ? 'major' : ''}" style="left: ${pct.toFixed(3)}%;"></div>`;
+      if (isMajor) {
+        const hhmm = sec >= 86400 ? '24:00' : secToHms(sec).slice(0, 5);
+        const edgeClass = pct <= 2 ? 'mark-start' : (pct >= 98 ? 'mark-end' : '');
+        const denseClass = timelineZoomHours === 24 && ((sec / 3600) % 4 !== 0) ? 'mark-dense' : '';
+        html += `<span class="playback-ruler-mark ${edgeClass} ${denseClass}" style="left: ${pct.toFixed(3)}%;">${hhmm}</span>`;
+      }
+    }
+    rulerEl.innerHTML = html;
+    rulerEl.dataset.initialized = 'true';
+    updateTimelineRangeLabel();
+  }
+
+  function renderTimelineBlocks() {
+    const blocksContainer = document.getElementById('playback-24h-blocks-container');
+    if (!blocksContainer) return;
+
+    if (!lastLoadedRecordings || lastLoadedRecordings.length === 0) {
+      blocksContainer.innerHTML = '';
+      return;
+    }
+
+    const { startSec, spanSec, endSec } = getTimelineViewBounds();
+    let blocksHtml = '';
+    lastLoadedRecordings.forEach((rec) => {
+      const timePart = rec.startTime.split(' ')[1] || '00:00:00';
+      const recStartSec = hmsToSec(timePart);
+      const recEndSec = recStartSec + Math.max(1, rec.durationSec || 1);
+      if (recEndSec <= startSec || recStartSec >= endSec) return;
+
+      const clampedStart = Math.max(startSec, recStartSec);
+      const clampedEnd = Math.min(endSec, recEndSec);
+      const leftPct = ((clampedStart - startSec) / spanSec) * 100;
+      const widthPct = Math.max(0.25, ((clampedEnd - clampedStart) / spanSec) * 100);
+      const isMotion = rec.flags && rec.flags.includes('Motion');
+      blocksHtml += `<div class="playback-24h-block ${isMotion ? 'motion' : 'timing'}" style="left: ${leftPct.toFixed(3)}%; width: ${widthPct.toFixed(3)}%;" title="${rec.startTime} - ${rec.endTime} (${rec.sizeMb} MB)"></div>`;
+    });
+    blocksContainer.innerHTML = blocksHtml;
+  }
+
+  function setTimelineZoom(hours, silent = false) {
+    const allowed = [24, 4, 1];
+    const nextHours = allowed.includes(Number(hours)) ? Number(hours) : 24;
+    timelineZoomHours = nextHours;
+
+    const spanSec = nextHours * 3600;
+    timelineViewStartSec = nextHours >= 24
+      ? 0
+      : Math.max(0, Math.min(86400 - spanSec, Math.round((currentPlayheadSec || 0) - spanSec / 2)));
+
+    document.querySelectorAll('.playback-zoom-btn').forEach((btn) => {
+      const isActive = parseInt(btn.dataset.zoomHours, 10) === nextHours;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+
+    renderTimelineRuler();
+    renderTimelineBlocks();
+    updatePlayheadPosition(currentPlayheadSec || 0);
+    if (!silent) triggerHaptic(6);
+  }
+
   function updatePlayheadPosition(sec) {
     const playheadEl = document.getElementById('playback-24h-playhead');
     const clockEl = document.getElementById('playback-clock-readout');
     const clampedSec = Math.max(0, Math.min(86399, sec));
-    const fraction = clampedSec / 86400;
+
+    if (!is24hDragging && timelineZoomHours < 24) {
+      const { startSec, spanSec, endSec } = getTimelineViewBounds();
+      if (clampedSec < startSec || clampedSec > endSec) {
+        timelineViewStartSec = Math.max(0, Math.min(86400 - spanSec, Math.round(clampedSec - spanSec / 2)));
+        renderTimelineRuler();
+        renderTimelineBlocks();
+      }
+    }
+
+    const { startSec, spanSec } = getTimelineViewBounds();
+    const fraction = Math.max(0, Math.min(1, (clampedSec - startSec) / spanSec));
 
     if (playheadEl) {
       playheadEl.style.left = `${(fraction * 100).toFixed(3)}%`;
@@ -2241,22 +2358,7 @@
   }
 
   function init24hRuler() {
-    const rulerEl = document.getElementById('playback-24h-ruler');
-    if (!rulerEl || rulerEl.dataset.initialized) return;
-
-    let html = '';
-    // 25 ticks: 0h, 1h, 2h ... 24h
-    for (let i = 0; i <= 24; i++) {
-      const pct = (i / 24) * 100;
-      const isMajor = (i % 2 === 0);
-      html += `<div class="playback-ruler-tick ${isMajor ? 'major' : ''}" style="left: ${pct.toFixed(3)}%;"></div>`;
-      if (isMajor) {
-        const timeLabel = `${String(i).padStart(2, '0')}:00`;
-        html += `<span class="playback-ruler-mark" style="left: ${pct.toFixed(3)}%;">${timeLabel}</span>`;
-      }
-    }
-    rulerEl.innerHTML = html;
-    rulerEl.dataset.initialized = 'true';
+    renderTimelineRuler();
   }
 
   function mountDialogPlaybackPlayer(streamId) {
@@ -2278,7 +2380,7 @@
         if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
         dialogPlaybackPlayer.src = '';
         dialogPlaybackPlayer.remove();
-      } catch (e) {}
+      } catch (e) { }
       dialogPlaybackPlayer = null;
     }
 
@@ -2404,7 +2506,7 @@
       return;
     }
 
-    init24hRuler();
+    setTimelineZoom(24, true);
 
     // Ensure playback speed and rewind states are cleanly initialized to 1x at start
     setPlaybackSpeed(1);
@@ -2477,7 +2579,7 @@
     document.documentElement.classList.add('playback-popout-mode');
     dialog.setAttribute('closedby', 'none');
 
-    init24hRuler();
+    setTimelineZoom(24, true);
 
     const nvrId = params.get('nvrId') === 'nvr2' ? 'nvr2' : 'nvr1';
     const channel = parseInt(params.get('channel'), 10) || 1;
@@ -2568,7 +2670,7 @@
       return;
     }
 
-    try { popWin.focus(); } catch (e) {}
+    try { popWin.focus(); } catch (e) { }
 
     // Close in-page playback modal so main window returns immediately to its uninterrupted Live Wall
     closePlaybackDialog();
@@ -2586,7 +2688,7 @@
         if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
         dialogPlaybackPlayer.src = '';
         dialogPlaybackPlayer.remove();
-      } catch (e) {}
+      } catch (e) { }
       dialogPlaybackPlayer = null;
     }
 
@@ -2608,7 +2710,7 @@
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl && (fsEl === dialog || dialog.contains(fsEl))) {
       if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+        document.exitFullscreen().catch(() => { });
       } else if (document.webkitExitFullscreen) {
         document.webkitExitFullscreen();
       }
@@ -2680,6 +2782,7 @@
     const pDesc = document.getElementById('playback-placeholder-desc');
 
     if (blocksContainer) blocksContainer.innerHTML = '';
+    lastLoadedRecordings = [];
 
     try {
       const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(target.nvrId)}&channel=${target.channel}&date=${encodeURIComponent(dateVal)}&startTime=00:00:00&endTime=23:59:59`);
@@ -2695,19 +2798,9 @@
         return;
       }
 
-      // 1. Render green/amber recording blocks across the 24-hour track
-      if (blocksContainer) {
-        let blocksHtml = '';
-        recordings.forEach(rec => {
-          const timePart = rec.startTime.split(' ')[1] || '00:00:00';
-          const startSec = hmsToSec(timePart);
-          const leftPct = (startSec / 86400) * 100;
-          const widthPct = Math.max(0.18, (rec.durationSec / 86400) * 100);
-          const isMotion = rec.flags && rec.flags.includes('Motion');
-          blocksHtml += `<div class="playback-24h-block ${isMotion ? 'motion' : 'timing'}" style="left: ${leftPct.toFixed(3)}%; width: ${widthPct.toFixed(3)}%;" title="${rec.startTime} - ${rec.endTime} (${rec.sizeMb} MB)"></div>`;
-        });
-        blocksContainer.innerHTML = blocksHtml;
-      }
+      // 1. Render green/amber recording blocks across the active timeline window
+      lastLoadedRecordings = recordings;
+      renderTimelineBlocks();
 
       // 2. Automatically start playing footage (resuming at handed-off timestamp when popped out)
       const isAlreadyPlayingThisDate = dialogPlaybackStreamId && dialogPlaybackRange && dialogPlaybackRange.start.startsWith(dateVal);
@@ -2739,7 +2832,7 @@
         if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
         dialogPlaybackPlayer.src = '';
         dialogPlaybackPlayer.remove();
-      } catch (e) {}
+      } catch (e) { }
       dialogPlaybackPlayer = null;
     }
 
@@ -2772,7 +2865,7 @@
         try {
           const errBody = await res.json();
           if (errBody.error) errDetail = errBody.error;
-        } catch (e) {}
+        } catch (e) { }
         throw new Error(errDetail);
       }
       const data = await res.json();
@@ -2833,7 +2926,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ streamId: oldId })
-      }).catch(() => {});
+      }).catch(() => { });
       reconnectSlot(state.selectedSlotIndex);
     }
 
@@ -2885,7 +2978,7 @@
       // Clicking play while rewinding resumes forward playback and resets speed to 1x
       stopPlaybackRewind(false);
       setPlaybackSpeed(1);
-      v.play().catch(() => {});
+      v.play().catch(() => { });
       if (btn) btn.textContent = '⏸';
       triggerHaptic(6);
       return;
@@ -2895,7 +2988,7 @@
     setPlaybackSpeed(1);
 
     if (v.paused) {
-      v.play().catch(() => {});
+      v.play().catch(() => { });
       if (btn) btn.textContent = '⏸';
     } else {
       v.pause();
@@ -3009,7 +3102,7 @@
       if (playbackSpeed !== 1) {
         v.playbackRate = playbackSpeed;
       }
-      v.play().catch(() => {});
+      v.play().catch(() => { });
       if (playBtn) playBtn.textContent = '⏸';
     }
   }
@@ -3085,13 +3178,13 @@
     const activeFs = document.fullscreenElement || document.webkitFullscreenElement;
     if (activeFs) {
       if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+        document.exitFullscreen().catch(() => { });
       } else if (document.webkitExitFullscreen) {
         document.webkitExitFullscreen();
       }
     } else if (fsTarget) {
       if (fsTarget.requestFullscreen) {
-        fsTarget.requestFullscreen().catch(() => {});
+        fsTarget.requestFullscreen().catch(() => { });
       } else if (fsTarget.webkitRequestFullscreen) {
         fsTarget.webkitRequestFullscreen();
       } else if (dialogPlaybackPlayer && dialogPlaybackPlayer.video && dialogPlaybackPlayer.video.webkitEnterFullscreen) {
@@ -3107,28 +3200,68 @@
     triggerHaptic(6);
   }
 
-  function handle24hTrackScrub(e) {
+  function clientXToTimelineSec(clientX) {
     const track = document.getElementById('playback-24h-track');
-    if (!track) return;
+    if (!track) return { fraction: 0, sec: 0 };
     const rect = track.getBoundingClientRect();
-    const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const targetSec = Math.floor(fraction * 86400);
+    const fraction = rect.width > 0 ? Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) : 0;
+    const { startSec, spanSec } = getTimelineViewBounds();
+    const sec = Math.max(0, Math.min(86399, Math.floor(startSec + fraction * spanSec)));
+    return { fraction, sec };
+  }
 
+  function showTimelineHoverAtClientX(clientX) {
+    const hoverIndicator = document.getElementById('playback-24h-hover-indicator');
+    const hoverTooltip = document.getElementById('playback-24h-hover-tooltip');
+    const { fraction, sec } = clientXToTimelineSec(clientX);
+    if (hoverIndicator && hoverTooltip) {
+      hoverIndicator.style.display = 'block';
+      hoverIndicator.style.left = `${(fraction * 100).toFixed(3)}%`;
+      const shift = fraction < 0.12 ? '-12%' : (fraction > 0.88 ? '-88%' : '-50%');
+      hoverTooltip.style.setProperty('--tooltip-shift', shift);
+      hoverTooltip.textContent = secToHms(sec);
+    }
+    return sec;
+  }
+
+  function commitTimelineSeekSec(targetSec) {
     const target = getPlaybackTarget();
     if (!target) return;
 
     if (isRewinding) {
       stopPlaybackRewind(false);
     }
-    currentPlayheadSec = targetSec;
+    const clampedSec = Math.max(0, Math.min(86399, Math.floor(targetSec || 0)));
+    currentPlayheadSec = clampedSec;
 
     const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
-    const timeStr = secToHms(targetSec);
+    const timeStr = secToHms(clampedSec);
 
-    updatePlayheadPosition(targetSec);
+    updatePlayheadPosition(clampedSec);
     startNvrPlayback(target.nvrId, target.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
-    triggerHaptic(6);
+    triggerHaptic(8);
+  }
+
+  function showVideoSeekFlash(deltaSec) {
+    const flashEl = document.getElementById('playback-seek-flash');
+    if (!flashEl) return;
+    if (seekFlashTimer) {
+      clearTimeout(seekFlashTimer);
+      seekFlashTimer = null;
+    }
+    const isBack = deltaSec < 0;
+    flashEl.textContent = isBack ? `${deltaSec}s` : `+${deltaSec}s`;
+    flashEl.className = `playback-seek-flash ${isBack ? 'left' : 'right'}`;
+    seekFlashTimer = setTimeout(() => {
+      flashEl.classList.add('hidden');
+      seekFlashTimer = null;
+    }, 550);
+  }
+
+  function handle24hTrackScrub(e) {
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+    const { sec } = clientXToTimelineSec(clientX);
+    commitTimelineSeekSec(sec);
   }
 
   let playbackDialogBound = false;
@@ -3178,50 +3311,96 @@
     window.addEventListener('pagehide', cleanupOnUnload);
     window.addEventListener('beforeunload', cleanupOnUnload);
 
-    // Attach 24-hour track mouse & touch listeners
+    // Double-tap left/right thirds of video canvas on touch devices for +/-10s skip
+    const videoWrapper = document.getElementById('playback-video-wrapper');
+    if (videoWrapper) {
+      let lastTouchTap = null;
+      videoWrapper.addEventListener('pointerup', (e) => {
+        if (e.pointerType !== 'touch') return;
+        if (e.target && e.target.closest && e.target.closest('#playback-screen-spinner.stream-stalled')) return;
+        const now = Date.now();
+        if (
+          lastTouchTap &&
+          now - lastTouchTap.ts < 300 &&
+          Math.hypot(e.clientX - lastTouchTap.x, e.clientY - lastTouchTap.y) < 40
+        ) {
+          const rect = videoWrapper.getBoundingClientRect();
+          const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5;
+          if (relX < 0.38) {
+            seekPlaybackRelative(-10);
+            showVideoSeekFlash(-10);
+          } else if (relX > 0.62) {
+            seekPlaybackRelative(10);
+            showVideoSeekFlash(10);
+          }
+          lastTouchTap = null;
+        } else {
+          lastTouchTap = { ts: now, x: e.clientX, y: e.clientY };
+        }
+      });
+    }
+
+    // Unified Pointer Events scrubber for silky mobile thumb drag + desktop scrubbing
     const track = document.getElementById('playback-24h-track');
     const hoverIndicator = document.getElementById('playback-24h-hover-indicator');
-    const hoverTooltip = document.getElementById('playback-24h-hover-tooltip');
 
     if (track) {
-      track.addEventListener('click', (e) => {
-        handle24hTrackScrub(e);
-      });
+      let dragTargetSec = 0;
+      let lastHapticBucket = -1;
+      let activePointerId = null;
 
-      track.addEventListener('mousemove', (e) => {
-        if (!hoverIndicator || !hoverTooltip) return;
-        const rect = track.getBoundingClientRect();
-        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        const targetSec = Math.floor(fraction * 86400);
-        hoverIndicator.style.display = 'block';
-        hoverIndicator.style.left = `${(fraction * 100).toFixed(3)}%`;
-        hoverTooltip.textContent = secToHms(targetSec);
-      });
-
-      track.addEventListener('mouseleave', () => {
-        if (hoverIndicator) hoverIndicator.style.display = 'none';
-      });
-
-      track.addEventListener('touchstart', (e) => {
+      track.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         is24hDragging = true;
-        handle24hTrackScrub(e);
-      }, { passive: true });
+        activePointerId = e.pointerId;
+        if (typeof track.setPointerCapture === 'function') {
+          try { track.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+        const sec = showTimelineHoverAtClientX(e.clientX);
+        dragTargetSec = sec;
+        const step = timelineZoomHours === 1 ? 60 : (timelineZoomHours === 4 ? 300 : 900);
+        lastHapticBucket = Math.floor(sec / step);
+        updatePlayheadPosition(sec);
+      });
 
-      track.addEventListener('touchmove', (e) => {
-        if (!is24hDragging) return;
-        if (!hoverIndicator || !hoverTooltip) return;
-        const rect = track.getBoundingClientRect();
-        const clientX = e.touches[0].clientX;
-        const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        const targetSec = Math.floor(fraction * 86400);
-        hoverIndicator.style.display = 'block';
-        hoverIndicator.style.left = `${(fraction * 100).toFixed(3)}%`;
-        hoverTooltip.textContent = secToHms(targetSec);
-      }, { passive: true });
+      track.addEventListener('pointermove', (e) => {
+        if (is24hDragging && activePointerId === e.pointerId) {
+          const sec = showTimelineHoverAtClientX(e.clientX);
+          dragTargetSec = sec;
+          updatePlayheadPosition(sec);
+          const step = timelineZoomHours === 1 ? 60 : (timelineZoomHours === 4 ? 300 : 900);
+          const bucket = Math.floor(sec / step);
+          if (bucket !== lastHapticBucket) {
+            lastHapticBucket = bucket;
+            triggerHaptic(4);
+          }
+        } else if (e.pointerType === 'mouse' && !is24hDragging) {
+          showTimelineHoverAtClientX(e.clientX);
+        }
+      });
 
-      track.addEventListener('touchend', () => {
+      const endScrub = (e, shouldCommit) => {
+        if (!is24hDragging || (activePointerId !== null && e.pointerId !== activePointerId)) return;
+        const finalSec = shouldCommit ? showTimelineHoverAtClientX(e.clientX) : dragTargetSec;
         is24hDragging = false;
+        activePointerId = null;
+        if (typeof track.releasePointerCapture === 'function') {
+          try { track.releasePointerCapture(e.pointerId); } catch (err) {}
+        }
         if (hoverIndicator) hoverIndicator.style.display = 'none';
+        if (shouldCommit) {
+          commitTimelineSeekSec(finalSec);
+        } else {
+          updatePlayheadPosition(currentPlayheadSec || 0);
+        }
+      };
+
+      track.addEventListener('pointerup', (e) => endScrub(e, true));
+      track.addEventListener('pointercancel', (e) => endScrub(e, false));
+      track.addEventListener('pointerleave', (e) => {
+        if (!is24hDragging && e.pointerType === 'mouse' && hoverIndicator) {
+          hoverIndicator.style.display = 'none';
+        }
       });
     }
 
@@ -3718,7 +3897,7 @@
         if (typeof oldPlayer.ondisconnect === 'function') oldPlayer.ondisconnect();
         oldPlayer.src = '';
         oldPlayer.remove();
-      } catch (e) {}
+      } catch (e) { }
     }
 
     mountPlayer(slotIndex, slotEl, item, wrapper);
@@ -3742,7 +3921,7 @@
         if (typeof el.ondisconnect === 'function') el.ondisconnect();
         el.src = '';
         el.remove();
-      } catch (e) {}
+      } catch (e) { }
     });
 
     gridContainer.innerHTML = '';
@@ -3800,7 +3979,7 @@
           if (data && data.nvrId && data.channel) {
             assignCameraToSlot(slotIndex, data.nvrId, data.channel);
           }
-        } catch (err) {}
+        } catch (err) { }
       });
 
       gridContainer.appendChild(slotEl);
@@ -4359,7 +4538,7 @@
         if (typeof el.ondisconnect === 'function') el.ondisconnect();
         el.src = '';
         el.remove();
-      } catch (e) {}
+      } catch (e) { }
     });
   }
 
@@ -4471,6 +4650,7 @@
     seekPlaybackRelative,
     togglePlaybackAudio,
     fullscreenPlayback,
+    setTimelineZoom,
     onPlaybackDateChange,
     setSplitFromSheet,
     setColumnModeFromSheet,

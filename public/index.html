@@ -21,7 +21,7 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="/css/style.css?v=vosctv20">
+  <link rel="stylesheet" href="/css/style.css?v=vosctv21">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -517,6 +517,8 @@
           </div>
           <!-- Fast Forward Ambient Speed Badge -->
           <div class="playback-ff-indicator" id="playback-ff-indicator" style="display: none;">⏩ 2x</div>
+          <!-- Double-tap Mobile Seek Visual Confirmation -->
+          <div class="playback-seek-flash hidden" id="playback-seek-flash" aria-hidden="true"></div>
           <!-- Video element mounted here dynamically by JS -->
           <div class="playback-video-mount" id="playback-video-mount"></div>
         </div>
@@ -557,8 +559,15 @@
           </div>
 
           <div class="playback-transport-center">
-            <span class="playback-clock-readout" id="playback-clock-readout">00:00:00</span>
-            <span class="playback-clock-total">/ 24:00</span>
+            <div class="playback-clock-group">
+              <span class="playback-clock-readout" id="playback-clock-readout">00:00:00</span>
+              <span class="playback-clock-total" id="playback-clock-total">/ 24:00</span>
+            </div>
+            <div class="playback-timeline-zoom" role="group" aria-label="Timeline zoom scale">
+              <button type="button" class="playback-zoom-btn active" data-zoom-hours="24" onclick="window.VOSCCTV_GPU_WALL.setTimelineZoom(24)" title="Full 24-hour view" aria-pressed="true">24h</button>
+              <button type="button" class="playback-zoom-btn" data-zoom-hours="4" onclick="window.VOSCCTV_GPU_WALL.setTimelineZoom(4)" title="4-hour zoom window" aria-pressed="false">4h</button>
+              <button type="button" class="playback-zoom-btn" data-zoom-hours="1" onclick="window.VOSCCTV_GPU_WALL.setTimelineZoom(1)" title="1-hour precision scrub window" aria-pressed="false">1h</button>
+            </div>
           </div>
 
           <div class="playback-transport-right">
@@ -600,7 +609,7 @@
   </dialog>
 
   <script src="/js/video-rtc.js?v=vosctv1"></script>
-  <script src="/js/gpu-wall.js?v=vosctv21"></script>
+  <script src="/js/gpu-wall.js?v=vosctv22"></script>
   <script src="/js/app.js?v=vosctv14"></script>
 </body>
 </html>
