@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "hash-password": "node scripts/hash-password.js",
     "bundle": "node scripts/build-bundle.js",
     "bundle:linux": "node scripts/build-bundle.js --platform linux"
   },

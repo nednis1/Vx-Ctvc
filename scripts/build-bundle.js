@@ -15,6 +15,7 @@ const DIST_DIR = path.join(ROOT_DIR, 'dist');
 
 const RUNTIME_FILES = [
   'server.js',
+  'auth-crypto.js',
   'go2rtc-manager.js',
   'directus-client.js',
   'package.json',
@@ -247,3 +248,4 @@ function main() {
 }
 
 main();
+

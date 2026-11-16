@@ -8,6 +8,7 @@ const path = require('path');
 const zlib = require('zlib');
 const go2rtcManager = require('./go2rtc-manager');
 const directusClient = require('./directus-client');
+const { hashPasswordSync, isPasswordHashed, verifyPassword } = require('./auth-crypto');
 
 // Load environment variables from .env if present
 function loadEnv() {
@@ -48,12 +49,21 @@ function saveCustomNames(data) {
   } catch (e) {}
 }
 
+function resolveDashboardPasswordHash() {
+  const configuredHash = (process.env.DASHBOARD_PASSWORD_HASH || '').trim();
+  if (configuredHash) {
+    return isPasswordHashed(configuredHash) ? configuredHash : hashPasswordSync(configuredHash);
+  }
+  const rawDash = process.env.DASHBOARD_PASSWORD || 'iot12345';
+  return isPasswordHashed(rawDash) ? rawDash.trim() : hashPasswordSync(rawDash);
+}
+
 // Configuration
 const CONFIG = {
   dashboardPort: parseInt(process.env.PORT, 10) || 8090,
   authEnabled: process.env.AUTH_ENABLED !== 'false',
   dashboardUser: process.env.DASHBOARD_USER || 'iot',
-  dashboardPassword: process.env.DASHBOARD_PASSWORD || 'iot12345',
+  dashboardPasswordHash: resolveDashboardPasswordHash(),
   nvrUser: process.env.NVR_USER || 'iot',
   nvrPassword: process.env.NVR_PASSWORD || 'iot12345',
   nvrs: [
@@ -268,18 +278,18 @@ app.post('/api/login', async (req, res) => {
     console.warn('[Auth] Directus authentication attempt error:', err.message);
   }
 
-  // 2. Fallback: Match against configured NVR credentials (.env)
+  // 2. Fallback: Match against configured dashboard/NVR credentials (.env / hashed config)
   if (!matchedUser) {
     if (
-      cleanUser.toLowerCase() === (CONFIG.nvrUser || '').toLowerCase() &&
-      password === CONFIG.nvrPassword
-    ) {
-      matchedUser = { user: cleanUser, role: 'admin', source: 'env_nvr' };
-    } else if (
       cleanUser.toLowerCase() === (CONFIG.dashboardUser || '').toLowerCase() &&
-      password === CONFIG.dashboardPassword
+      await verifyPassword(password, CONFIG.dashboardPasswordHash)
     ) {
       matchedUser = { user: cleanUser, role: 'admin', source: 'env_dashboard' };
+    } else if (
+      cleanUser.toLowerCase() === (CONFIG.nvrUser || '').toLowerCase() &&
+      await verifyPassword(password, CONFIG.nvrPassword)
+    ) {
+      matchedUser = { user: cleanUser, role: 'admin', source: 'env_nvr' };
     }
   }
 

@@ -7,6 +7,7 @@
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { verifyPassword } = require('./auth-crypto');
 
 class DirectusCctvClient {
   constructor() {
@@ -112,6 +113,20 @@ class DirectusCctvClient {
   }
 
   /**
+   * Find first matching credential using constant-time scrypt/digest password verification
+   */
+  async _findMatchingCredential(cleanUser, password) {
+    for (const c of this.cachedCredentials) {
+      if ((c.username || '').trim().toLowerCase() !== cleanUser) continue;
+      const stored = c.password_hash || c.password || '';
+      if (stored && await verifyPassword(password, stored)) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Authenticate a user against Directus credentials
    */
   async authenticate(username, password) {
@@ -119,9 +134,7 @@ class DirectusCctvClient {
     const cleanUser = username.trim().toLowerCase();
 
     // 1. Check in-memory cached credentials
-    let match = this.cachedCredentials.find(
-      c => (c.username || '').trim().toLowerCase() === cleanUser && c.password === password
-    );
+    let match = await this._findMatchingCredential(cleanUser, password);
 
     if (match) {
       return {
@@ -136,9 +149,7 @@ class DirectusCctvClient {
     // 2. If not found in cache, perform fresh live query against Directus
     try {
       await this.syncCredentials();
-      match = this.cachedCredentials.find(
-        c => (c.username || '').trim().toLowerCase() === cleanUser && c.password === password
-      );
+      match = await this._findMatchingCredential(cleanUser, password);
       if (match) {
         return {
           authenticated: true,
