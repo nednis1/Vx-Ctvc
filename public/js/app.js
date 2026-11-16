@@ -182,8 +182,11 @@ function bootApp() {
     window.VOSCCTV_GPU_WALL.init();
   }
 
-  pollHealth();
-  setInterval(pollHealth, STATUS_POLL_MS);
+  const isPlaybackPopout = document.documentElement.classList.contains('playback-popout-mode');
+  if (!isPlaybackPopout) {
+    pollHealth();
+    setInterval(pollHealth, STATUS_POLL_MS);
+  }
 
   window.addEventListener('keydown', (e) => {
     if (e.altKey && e.key.toLowerCase() === 't') toggleTheme();

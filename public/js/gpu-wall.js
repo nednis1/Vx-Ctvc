@@ -2135,12 +2135,13 @@
   }
 
   // -------------------------------------------------------------
-  // Dahua NVR 24-Hour Playback Modal & Stream Controls
+  // Dahua NVR 24-Hour Playback Modal & Popout Workspace Controls
   // -------------------------------------------------------------
   let currentPlaybackSubtype = 0; // 0 = Main HD (recorded on NVR hard drives), 1 = Sub stream
   let dialogPlaybackPlayer = null;
   let dialogPlaybackStreamId = null; // Dedicated stream ID for current playback dialog session
   let dialogPlaybackRange = null;    // { start, end, startTs, endTs, durationSec }
+  let dialogPlaybackTarget = null;   // { nvrId, channel, slotIndex, title }
   let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
   let is24hDragging = false;
   let playbackSpeed = 1; // Unified multiplier: 1, 2, 4, 8, 16
@@ -2150,6 +2151,63 @@
   let rewindIntervalId = null;
   let currentPlayheadSec = 0; // Floating or integer seconds representing active playhead
   let lastRewindNetworkSyncTs = 0; // Throttling network requests during rewind
+
+  const popoutUrlParams = (typeof window !== 'undefined' && window.location && window.location.search)
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const isPlaybackPopoutMode = Boolean(
+    popoutUrlParams &&
+    popoutUrlParams.get('playback') === '1' &&
+    popoutUrlParams.get('nvrId') &&
+    popoutUrlParams.get('channel')
+  );
+
+  function getPlaybackTarget() {
+    if (dialogPlaybackTarget) return dialogPlaybackTarget;
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) return null;
+    return {
+      nvrId: item.nvrId,
+      channel: item.channel,
+      slotIndex: state.selectedSlotIndex,
+      title: getCameraTitle(item.nvrId, item.channel)
+    };
+  }
+
+  function updatePlaybackTargetTitleUI() {
+    if (!dialogPlaybackTarget) return;
+    const camTitle = getCameraTitle(dialogPlaybackTarget.nvrId, dialogPlaybackTarget.channel);
+    dialogPlaybackTarget.title = camTitle;
+    const nvrLabel = dialogPlaybackTarget.nvrId === 'nvr1' ? 'NVR 1' : 'NVR 2';
+    const subtitleEl = document.getElementById('gpu-playback-subtitle');
+    if (subtitleEl) {
+      const slotPrefix = dialogPlaybackTarget.slotIndex !== null && dialogPlaybackTarget.slotIndex !== undefined
+        ? `Slot ${dialogPlaybackTarget.slotIndex + 1} • `
+        : '';
+      subtitleEl.textContent = `${slotPrefix}${camTitle} (${nvrLabel} Ch ${dialogPlaybackTarget.channel})`;
+    }
+    if (isPlaybackPopoutMode) {
+      document.title = `Playback • ${camTitle} (${nvrLabel} Ch ${dialogPlaybackTarget.channel}) — VOSCCTV`;
+    }
+  }
+
+  function sendStopPlaybackStreamBeacon(streamId) {
+    if (!streamId) return;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([JSON.stringify({ streamId })], { type: 'application/json' });
+        if (navigator.sendBeacon('/api/playback/stop-stream', blob)) return;
+      }
+    } catch (e) {}
+    try {
+      fetch('/api/playback/stop-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId }),
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {}
+  }
 
   function secToHms(sec) {
     const s = Math.max(0, Math.floor(sec || 0));
@@ -2316,9 +2374,9 @@
       if (spinnerEl) {
         spinnerEl.onclick = () => {
           if (spinnerEl.classList.contains('stream-stalled')) {
-            const item = state.slots[state.selectedSlotIndex];
-            if (item && item.playbackRange) {
-              startNvrPlayback(item.nvrId, item.channel, item.playbackRange.start, item.playbackRange.end, currentPlaybackSubtype);
+            const target = getPlaybackTarget();
+            if (target && dialogPlaybackRange) {
+              startNvrPlayback(target.nvrId, target.channel, dialogPlaybackRange.start, dialogPlaybackRange.end, currentPlaybackSubtype);
             }
           }
         };
@@ -2342,14 +2400,17 @@
     setPlaybackSpeed(1);
     stopPlaybackRewind(false);
 
-    const subtitleEl = document.getElementById('gpu-playback-subtitle');
+    const camTitle = getCameraTitle(item.nvrId, item.channel);
+    dialogPlaybackTarget = {
+      nvrId: item.nvrId,
+      channel: item.channel,
+      slotIndex: state.selectedSlotIndex,
+      title: camTitle
+    };
+    updatePlaybackTargetTitleUI();
+
     const headerStatus = document.getElementById('playback-header-status');
     const liveBtn = document.getElementById('playback-header-btn-live');
-    const camTitle = getCameraTitle(item.nvrId, item.channel);
-
-    if (subtitleEl) {
-      subtitleEl.textContent = `Slot ${state.selectedSlotIndex + 1} • ${camTitle} (${item.nvrId === 'nvr1' ? 'NVR 1' : 'NVR 2'} Ch ${item.channel})`;
-    }
 
     // Set default date to today if empty
     const dateInput = document.getElementById('playback-date');
@@ -2383,7 +2444,7 @@
       updatePlayheadPosition(0);
     }
 
-    // Automatically load recordings for selected date across 00:00 to 24:00 and auto-play in popup
+    // Automatically load recordings for selected date across 00:00 to 24:00 and auto-play in full-viewport dialog
     loadDateRecordings(dateInput?.value || new Date().toISOString().split('T')[0]);
 
     triggerHaptic(10);
@@ -2399,9 +2460,116 @@
     dialog.focus();
   }
 
+  function openPlaybackPopoutSession(params) {
+    const dialog = document.getElementById('gpu-playback-dialog');
+    if (!dialog || !params) return;
+
+    document.documentElement.classList.add('playback-popout-mode');
+    dialog.setAttribute('closedby', 'none');
+
+    init24hRuler();
+
+    const nvrId = params.get('nvrId') === 'nvr2' ? 'nvr2' : 'nvr1';
+    const channel = parseInt(params.get('channel'), 10) || 1;
+    const rawSlot = params.get('slot');
+    const slotIndex = rawSlot !== null && rawSlot !== '' && !Number.isNaN(Number(rawSlot))
+      ? parseInt(rawSlot, 10)
+      : null;
+    const dateVal = params.get('date') || new Date().toISOString().split('T')[0];
+    const startParam = params.get('start') || '';
+    const subtypeVal = parseInt(params.get('subtype'), 10) === 1 ? 1 : 0;
+    const rawSpeed = parseInt(params.get('speed'), 10);
+    const speedVal = [1, 2, 4, 8, 16].includes(rawSpeed) ? rawSpeed : 1;
+
+    dialogPlaybackTarget = {
+      nvrId,
+      channel,
+      slotIndex,
+      title: getCameraTitle(nvrId, channel)
+    };
+    updatePlaybackTargetTitleUI();
+
+    stopPlaybackRewind(false);
+    setPlaybackSpeed(speedVal);
+    setPlaybackSubtype(subtypeVal);
+
+    const dateInput = document.getElementById('playback-date');
+    if (dateInput) dateInput.value = dateVal;
+
+    const resumeStart = startParam ? `${dateVal} ${startParam}` : null;
+    updatePlayheadPosition(startParam ? hmsToSec(startParam) : 0);
+
+    if (typeof dialog.showModal === 'function') {
+      try {
+        if (!dialog.open) dialog.showModal();
+      } catch (e) {
+        dialog.setAttribute('open', '');
+      }
+    } else {
+      dialog.setAttribute('open', '');
+    }
+    dialog.focus();
+
+    loadDateRecordings(dateVal, resumeStart);
+  }
+
+  function popoutPlayback() {
+    const target = getPlaybackTarget();
+    if (!target) {
+      showToast('Select an active camera first');
+      return;
+    }
+
+    const dateInput = document.getElementById('playback-date');
+    const dateVal = (dateInput && dateInput.value) || new Date().toISOString().split('T')[0];
+
+    const params = new URLSearchParams({
+      playback: '1',
+      nvrId: target.nvrId,
+      channel: String(target.channel),
+      date: dateVal,
+      subtype: String(currentPlaybackSubtype),
+      speed: String(isRewinding ? 1 : playbackSpeed)
+    });
+
+    if (dialogPlaybackStreamId) {
+      let activeSec = Math.floor(currentPlayheadSec || playbackStreamStartSec || 0);
+      if (!isRewinding && dialogPlaybackPlayer && dialogPlaybackPlayer.video && dialogPlaybackPlayer.video.currentTime > 0) {
+        activeSec = Math.max(0, Math.min(86399, Math.floor(playbackStreamStartSec + dialogPlaybackPlayer.video.currentTime)));
+      }
+      params.set('start', secToHms(activeSec));
+    }
+
+    if (target.slotIndex !== null && target.slotIndex !== undefined) {
+      params.set('slot', String(target.slotIndex));
+    }
+
+    const popUrl = `${window.location.origin}/?${params.toString()}`;
+    const w = Math.min(1280, Math.max(840, Math.round(window.screen.availWidth * 0.78)));
+    const h = Math.min(840, Math.max(580, Math.round(window.screen.availHeight * 0.82)));
+    const left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+    const top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+    const features = `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`;
+    const windowName = `voscctv_playback_${target.nvrId}_ch${target.channel}`;
+
+    const popWin = window.open(popUrl, windowName, features);
+    if (!popWin) {
+      showToast('Pop-up blocked — allow pop-ups in browser settings to open a separate playback window');
+      return;
+    }
+
+    try { popWin.focus(); } catch (e) {}
+
+    // Close in-page playback modal so main window returns immediately to its uninterrupted Live Wall
+    closePlaybackDialog();
+    triggerHaptic(8);
+  }
+
   function closePlaybackDialog() {
     const dialog = document.getElementById('gpu-playback-dialog');
     if (!dialog) return;
+
+    stopPlaybackRewind(false);
 
     if (dialogPlaybackPlayer) {
       try {
@@ -2417,11 +2585,23 @@
       const oldId = dialogPlaybackStreamId;
       dialogPlaybackStreamId = null;
       dialogPlaybackRange = null;
-      fetch('/api/playback/stop-stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ streamId: oldId })
-      }).catch(() => {});
+      sendStopPlaybackStreamBeacon(oldId);
+    }
+
+    if (isPlaybackPopoutMode) {
+      window.close();
+      return;
+    }
+
+    dialogPlaybackTarget = null;
+
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl && (fsEl === dialog || dialog.contains(fsEl))) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
     }
 
     if (typeof dialog.close === 'function') {
@@ -2434,8 +2614,7 @@
       dialog.removeAttribute('open');
     }
 
-    // Reset speed & rewind to normal on dialog close
-    stopPlaybackRewind(false);
+    // Reset speed to normal on dialog close
     setPlaybackSpeed(1);
 
     // Wall slot remains on its live stream uninterrupted!
@@ -2481,9 +2660,9 @@
     }
   }
 
-  async function loadDateRecordings(dateVal) {
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) return;
+  async function loadDateRecordings(dateVal, resumeStartDateTime = null) {
+    const target = getPlaybackTarget();
+    if (!target) return;
 
     const blocksContainer = document.getElementById('playback-24h-blocks-container');
     const placeholderEl = document.getElementById('playback-video-placeholder');
@@ -2493,7 +2672,7 @@
     if (blocksContainer) blocksContainer.innerHTML = '';
 
     try {
-      const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(item.nvrId)}&channel=${item.channel}&date=${encodeURIComponent(dateVal)}&startTime=00:00:00&endTime=23:59:59`);
+      const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(target.nvrId)}&channel=${target.channel}&date=${encodeURIComponent(dateVal)}&startTime=00:00:00&endTime=23:59:59`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const recordings = data.recordings || [];
@@ -2520,12 +2699,15 @@
         blocksContainer.innerHTML = blocksHtml;
       }
 
-      // 2. Automatically play the footage immediately in popup!
-      // If not already playing a stream on this camera for this date, start playing from the first recorded moment
+      // 2. Automatically start playing footage (resuming at handed-off timestamp when popped out)
       const isAlreadyPlayingThisDate = dialogPlaybackStreamId && dialogPlaybackRange && dialogPlaybackRange.start.startsWith(dateVal);
       if (!isAlreadyPlayingThisDate) {
         const firstRec = recordings[0];
-        startNvrPlayback(item.nvrId, item.channel, firstRec.startTime, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+        const initialStart = resumeStartDateTime || firstRec.startTime;
+        const startTimePart = initialStart.split(' ')[1] || '00:00:00';
+        currentPlayheadSec = hmsToSec(startTimePart);
+        updatePlayheadPosition(currentPlayheadSec);
+        startNvrPlayback(target.nvrId, target.channel, initialStart, `${dateVal} 23:59:59`, currentPlaybackSubtype);
       }
     } catch (err) {
       console.warn('[VOSCTV] Load 24h recordings error:', err.message);
@@ -2536,12 +2718,7 @@
   }
 
   async function startNvrPlayback(nvrId, channel, startTime, endTime, subtype = 0) {
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) return;
-
-    if (item.recording && item.recording.active) {
-      stopRecording(state.selectedSlotIndex);
-    }
+    if (!nvrId || !channel) return;
 
     // Immediately clean up previous dialog player so its teardown events don't trigger offline errors on spinner
     if (dialogPlaybackPlayer) {
@@ -2786,12 +2963,12 @@
         const now = Date.now();
         if (now - lastRewindNetworkSyncTs > 2000) {
           lastRewindNetworkSyncTs = now;
-          const item = state.slots[state.selectedSlotIndex];
-          if (item) {
+          const target = getPlaybackTarget();
+          if (target) {
             const fetchStartSec = Math.max(0, Math.floor(currentPlayheadSec) - 90);
             const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
             const timeStr = secToHms(fetchStartSec);
-            startNvrPlayback(item.nvrId, item.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+            startNvrPlayback(target.nvrId, target.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
           }
         }
       }
@@ -2844,8 +3021,8 @@
   }
 
   function seekPlaybackRelative(secDelta) {
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) return;
+    const target = getPlaybackTarget();
+    if (!target) return;
 
     let currentSec = playbackStreamStartSec;
     if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
@@ -2861,7 +3038,7 @@
     const timeStr = secToHms(targetSec);
 
     updatePlayheadPosition(targetSec);
-    startNvrPlayback(item.nvrId, item.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+    startNvrPlayback(target.nvrId, target.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
     triggerHaptic(6);
   }
 
@@ -2874,12 +3051,33 @@
     triggerHaptic(6);
   }
 
+  function updatePlaybackFullscreenUI() {
+    const fsBtn = document.getElementById('playback-btn-fullscreen');
+    if (!fsBtn) return;
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const dialog = document.getElementById('gpu-playback-dialog');
+    const isActive = Boolean(fsEl && dialog && (fsEl === dialog || dialog.contains(fsEl)));
+    fsBtn.classList.toggle('active-fs', isActive);
+    fsBtn.setAttribute('aria-pressed', String(isActive));
+  }
+
   function fullscreenPlayback() {
-    const wrapper = document.getElementById('playback-video-wrapper');
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else if (wrapper && wrapper.requestFullscreen) {
-      wrapper.requestFullscreen().catch(() => {});
+    const fsTarget = document.getElementById('gpu-playback-dialog') || document.querySelector('.playback-dialog-content');
+    const activeFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (activeFs) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    } else if (fsTarget) {
+      if (fsTarget.requestFullscreen) {
+        fsTarget.requestFullscreen().catch(() => {});
+      } else if (fsTarget.webkitRequestFullscreen) {
+        fsTarget.webkitRequestFullscreen();
+      } else if (dialogPlaybackPlayer && dialogPlaybackPlayer.video && dialogPlaybackPlayer.video.webkitEnterFullscreen) {
+        dialogPlaybackPlayer.video.webkitEnterFullscreen();
+      }
     }
     triggerHaptic(8);
   }
@@ -2898,8 +3096,8 @@
     const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const targetSec = Math.floor(fraction * 86400);
 
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) return;
+    const target = getPlaybackTarget();
+    if (!target) return;
 
     if (isRewinding) {
       stopPlaybackRewind(false);
@@ -2910,15 +3108,19 @@
     const timeStr = secToHms(targetSec);
 
     updatePlayheadPosition(targetSec);
-    startNvrPlayback(item.nvrId, item.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+    startNvrPlayback(target.nvrId, target.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
     triggerHaptic(6);
   }
 
+  let playbackDialogBound = false;
+
   function setupPlaybackDialog() {
     const dialog = document.getElementById('gpu-playback-dialog');
-    if (!dialog) return;
+    if (!dialog || playbackDialogBound) return;
+    playbackDialogBound = true;
 
     dialog.addEventListener('click', (e) => {
+      if (isPlaybackPopoutMode) return;
       const rect = dialog.getBoundingClientRect();
       const inDialog = (
         rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
@@ -2929,11 +3131,33 @@
       }
     });
 
-    dialog.addEventListener('cancel', () => {
+    dialog.addEventListener('cancel', (e) => {
+      if (isPlaybackPopoutMode) {
+        e.preventDefault();
+        return;
+      }
       closePlaybackDialog();
     });
 
-    setupSheetSwipeDismiss('gpu-playback-dialog');
+    dialog.addEventListener('close', () => {
+      dialog.returnValue = '';
+      if (!isPlaybackPopoutMode && (dialogPlaybackStreamId || dialogPlaybackPlayer || isRewinding)) {
+        closePlaybackDialog();
+      }
+    });
+
+    document.addEventListener('fullscreenchange', updatePlaybackFullscreenUI);
+    document.addEventListener('webkitfullscreenchange', updatePlaybackFullscreenUI);
+
+    const cleanupOnUnload = () => {
+      if (dialogPlaybackStreamId) {
+        const oldId = dialogPlaybackStreamId;
+        dialogPlaybackStreamId = null;
+        sendStopPlaybackStreamBeacon(oldId);
+      }
+    };
+    window.addEventListener('pagehide', cleanupOnUnload);
+    window.addEventListener('beforeunload', cleanupOnUnload);
 
     // Attach 24-hour track mouse & touch listeners
     const track = document.getElementById('playback-24h-track');
@@ -4110,6 +4334,15 @@
    */
   window.VOSCCTV_GPU_WALL = {
     init: async function () {
+      if (isPlaybackPopoutMode) {
+        setupPlaybackDialog();
+        openPlaybackPopoutSession(popoutUrlParams);
+        loadCameraNames().then(() => {
+          updatePlaybackTargetTitleUI();
+        });
+        return;
+      }
+
       // 1. Immediate synchronous UI & grid render (0ms zero-latency stream start)
       restoreSavedLayout();
       updateColumnModeUI();
@@ -4141,6 +4374,7 @@
         }
         Object.keys(state.slots).forEach((idx) => updateSlotBadges(parseInt(idx, 10)));
         updateBottomDock();
+        updatePlaybackTargetTitleUI();
       });
 
       loadCameraCapabilities().then(() => {
@@ -4184,6 +4418,7 @@
     updateCameraOptionsSheet,
     reconnectSelectedSlot,
     openPlaybackDialog,
+    popoutPlayback,
     closePlaybackDialog,
     setPlaybackSubtype,
     shiftPlaybackDate,
