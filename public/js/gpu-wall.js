@@ -2577,7 +2577,14 @@
         })
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let errDetail = `HTTP ${res.status}`;
+        try {
+          const errBody = await res.json();
+          if (errBody.error) errDetail = errBody.error;
+        } catch (e) {}
+        throw new Error(errDetail);
+      }
       const data = await res.json();
       if (!data.streamId) throw new Error(data.error || 'No stream ID returned');
 
@@ -2611,8 +2618,9 @@
       console.error('[VOSCTV] Start NVR playback error:', err);
       if (spinnerEl) {
         spinnerEl.style.display = 'flex';
+        spinnerEl.classList.add('stream-stalled');
         const spinnerText = document.getElementById('playback-spinner-text');
-        if (spinnerText) spinnerText.textContent = `Playback Failed: ${err.message}`;
+        if (spinnerText) spinnerText.textContent = `Playback Failed: ${err.message} • Tap to Retry`;
       }
       showToast(`Failed to start NVR playback: ${err.message}`);
     }

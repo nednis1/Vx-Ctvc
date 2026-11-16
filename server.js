@@ -1113,6 +1113,11 @@ app.post('/api/playback/start-stream', async (req, res) => {
   const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
   if (!nvr) return res.status(404).json({ error: 'NVR not found' });
 
+  // Self-healing: ensure go2rtc gateway is active and ready on port 1984
+  try {
+    await go2rtcManager.ensureGo2rtcRunning(CONFIG.nvrs);
+  } catch (e) {}
+
   // Format start & end times into Dahua RTSP format: YYYY_MM_DD_HH_MM_SS
   let startFormatted = String(startTime || '');
   let endFormatted = String(endTime || '');

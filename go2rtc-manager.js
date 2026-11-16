@@ -9,6 +9,9 @@ const httpProxy = require('http-proxy');
 const path = require('path');
 
 let go2rtcProcess = null;
+let isShuttingDown = false;
+let restartTimer = null;
+let lastNvrsConfig = null;
 const GO2RTC_PORT = 1984;
 const GO2RTC_WEBRTC_PORT = 8555;
 const CONFIG_PATH = path.join(__dirname, 'go2rtc.yaml');
@@ -23,9 +26,13 @@ const go2rtcProxy = httpProxy.createProxyServer({
 go2rtcProxy.on('error', (err, req, res) => {
   if (err.code === 'ECONNRESET' || err.code === 'EPIPE') return;
   console.warn('[go2rtc:proxy] Gateway error:', err.message);
+  if (err.code === 'ECONNREFUSED') {
+    // Automatically trigger watchdog recovery if port refused
+    ensureGo2rtcRunning(lastNvrsConfig).catch(() => {});
+  }
   if (res && res.writeHead && !res.headersSent) {
     res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'go2rtc gateway unavailable', details: err.message }));
+    res.end(JSON.stringify({ error: 'go2rtc gateway unavailable, recovering...', details: err.message }));
   }
 });
 
@@ -90,12 +97,82 @@ ${streamsYaml}
 }
 
 /**
+ * Terminate any orphaned zombie go2rtc processes (e.g. from previous unclean shutdowns on Windows)
+ */
+function killZombieGo2rtc() {
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process');
+      execSync('taskkill /F /IM go2rtc.exe 2>nul', { stdio: 'ignore' });
+    } catch (e) {}
+  }
+}
+
+/**
+ * Check if go2rtc API is healthy and answering on port 1984
+ */
+function checkGo2rtcHealthy() {
+  return new Promise((resolve) => {
+    const http = require('http');
+    const req = http.get(`http://127.0.0.1:${GO2RTC_PORT}/api/streams`, { timeout: 800 }, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Ensure go2rtc is actively running and accepting connections on port 1984
+ */
+async function ensureGo2rtcRunning(nvrs) {
+  if (nvrs && Array.isArray(nvrs) && nvrs.length > 0) {
+    lastNvrsConfig = nvrs;
+  }
+
+  // 1. If already healthy and responding, return immediately
+  const isHealthy = await checkGo2rtcHealthy();
+  if (isHealthy) return true;
+
+  console.log(`[go2rtc] Gateway not responding on port ${GO2RTC_PORT}. Ensuring process is running...`);
+  startGo2rtc(lastNvrsConfig);
+
+  // 2. Poll until gateway is ready (up to 3 seconds)
+  const maxAttempts = 15;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 200));
+    const healthyNow = await checkGo2rtcHealthy();
+    if (healthyNow) {
+      console.log(`[go2rtc] Gateway is now healthy and accepting connections on port ${GO2RTC_PORT}.`);
+      return true;
+    }
+  }
+
+  console.warn(`[go2rtc] Gateway failed to respond within 3000ms on port ${GO2RTC_PORT}.`);
+  return false;
+}
+
+/**
  * Start go2rtc background process
  */
 function startGo2rtc(nvrs) {
+  if (nvrs && Array.isArray(nvrs) && nvrs.length > 0) {
+    lastNvrsConfig = nvrs;
+  }
+
   if (go2rtcProcess) {
-    console.log('[go2rtc] Process is already running (PID: ' + go2rtcProcess.pid + ')');
-    return;
+    try {
+      // Check if process is still alive
+      if (process.kill(go2rtcProcess.pid, 0)) {
+        return;
+      }
+    } catch (e) {
+      go2rtcProcess = null;
+    }
   }
 
   const binPath = getBinaryPath();
@@ -111,8 +188,14 @@ function startGo2rtc(nvrs) {
     } catch (e) {}
   }
 
-  generateGo2rtcConfig(nvrs);
+  // Free ports 1984 & 8555 by killing any orphaned zombie go2rtc processes
+  killZombieGo2rtc();
 
+  if (lastNvrsConfig) {
+    generateGo2rtcConfig(lastNvrsConfig);
+  }
+
+  isShuttingDown = false;
   console.log(`[go2rtc] Spawning ${binPath} with config ${CONFIG_PATH}...`);
   go2rtcProcess = spawn(binPath, ['-config', CONFIG_PATH], {
     cwd: __dirname,
@@ -130,8 +213,17 @@ function startGo2rtc(nvrs) {
   });
 
   go2rtcProcess.on('exit', (code, signal) => {
-    console.log(`[go2rtc] Process exited (code: ${code}, signal: ${signal})`);
+    console.warn(`[go2rtc] Process exited (code: ${code}, signal: ${signal})`);
     go2rtcProcess = null;
+    if (!isShuttingDown) {
+      console.log('[go2rtc] Unexpected exit detected. Watchdog auto-restarting in 1s...');
+      if (restartTimer) clearTimeout(restartTimer);
+      restartTimer = setTimeout(() => {
+        if (!isShuttingDown && !go2rtcProcess) {
+          startGo2rtc(lastNvrsConfig);
+        }
+      }, 1000);
+    }
   });
 
   go2rtcProcess.on('error', (err) => {
@@ -144,11 +236,19 @@ function startGo2rtc(nvrs) {
  * Stop go2rtc process
  */
 function stopGo2rtc() {
+  isShuttingDown = true;
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
   if (go2rtcProcess) {
     console.log('[go2rtc] Stopping background process...');
-    go2rtcProcess.kill('SIGTERM');
+    try {
+      go2rtcProcess.kill('SIGTERM');
+    } catch (e) {}
     go2rtcProcess = null;
   }
+  killZombieGo2rtc();
 }
 
 /**
@@ -188,6 +288,8 @@ module.exports = {
   GO2RTC_WEBRTC_PORT,
   startGo2rtc,
   stopGo2rtc,
+  ensureGo2rtcRunning,
+  checkGo2rtcHealthy,
   setupGo2rtcProxy,
   getBinaryPath
 };
