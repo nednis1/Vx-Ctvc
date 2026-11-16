@@ -468,6 +468,9 @@
         body: JSON.stringify({ streamId: item.playbackStreamId })
       }).catch(() => {});
     }
+    if (slotIndex === state.selectedSlotIndex && dialogPlaybackStreamId) {
+      closePlaybackDialog();
+    }
 
     const slotEl = document.getElementById(`gpu-slot-${slotIndex}`);
     if (slotEl) {
@@ -1163,13 +1166,12 @@
     if (playbackBtn) {
       playbackBtn.disabled = !item;
       playbackBtn.classList.toggle('disabled', !item);
-      const isPlayback = item && Boolean(item.playbackStreamId);
-      playbackBtn.classList.toggle('active', Boolean(isPlayback));
-      playbackBtn.setAttribute('aria-pressed', String(Boolean(isPlayback)));
+      playbackBtn.classList.remove('active');
+      playbackBtn.setAttribute('aria-pressed', 'false');
       if (playbackLabel) {
-        playbackLabel.textContent = isPlayback ? 'Live Feed' : 'Playback';
+        playbackLabel.textContent = 'Playback';
       }
-      playbackBtn.title = isPlayback ? "Click to return to Live Camera Feed" : "Open Dahua NVR Hard-Drive Playback";
+      playbackBtn.title = 'Open Dahua NVR Playback';
     }
 
     updateCameraOptionsSheet();
@@ -2054,15 +2056,13 @@
     const btnLive = document.getElementById('sheet-btn-live');
     if (btnPlayback) {
       btnPlayback.disabled = !item;
-      const isPlayback = item && Boolean(item.playbackStreamId);
-      btnPlayback.classList.toggle('active', Boolean(isPlayback));
+      btnPlayback.classList.remove('active');
       if (playbackLabel) {
-        playbackLabel.textContent = isPlayback ? 'Playback Active' : 'NVR Playback';
+        playbackLabel.textContent = 'NVR Playback';
       }
     }
     if (btnLive) {
-      const isPlayback = item && Boolean(item.playbackStreamId);
-      btnLive.classList.toggle('hidden', !isPlayback);
+      btnLive.classList.add('hidden');
     }
 
     // Reconnect chip
@@ -2139,6 +2139,8 @@
   // -------------------------------------------------------------
   let currentPlaybackSubtype = 0; // 0 = Main HD (recorded on NVR hard drives), 1 = Sub stream
   let dialogPlaybackPlayer = null;
+  let dialogPlaybackStreamId = null; // Dedicated stream ID for current playback dialog session
+  let dialogPlaybackRange = null;    // { start, end, startTs, endTs, durationSec }
   let playbackStreamStartSec = 0; // Second offset from midnight for current playback session
   let is24hDragging = false;
   let playbackSpeed = 1; // Unified multiplier: 1, 2, 4, 8, 16
@@ -2343,7 +2345,6 @@
     const subtitleEl = document.getElementById('gpu-playback-subtitle');
     const headerStatus = document.getElementById('playback-header-status');
     const liveBtn = document.getElementById('playback-header-btn-live');
-    const isPlayback = Boolean(item.playbackStreamId);
     const camTitle = getCameraTitle(item.nvrId, item.channel);
 
     if (subtitleEl) {
@@ -2359,20 +2360,20 @@
     // Default quality to Main Stream 0
     setPlaybackSubtype(0);
 
-    if (isPlayback) {
+    if (dialogPlaybackStreamId) {
       if (headerStatus) {
-        const startStr = item.playbackRange?.start?.split(' ')[1] || '';
-        const endStr = item.playbackRange?.end?.split(' ')[1] || '';
+        const startStr = dialogPlaybackRange?.start?.split(' ')[1] || '';
+        const endStr = dialogPlaybackRange?.end?.split(' ')[1] || '';
         headerStatus.textContent = startStr ? `⏪ ${startStr} - ${endStr}` : '⏪ PLAYING';
         headerStatus.classList.remove('hidden');
       }
       if (liveBtn) liveBtn.classList.remove('hidden');
-      const startParts = (item.playbackRange?.start || '').split(' ')[1];
+      const startParts = (dialogPlaybackRange?.start || '').split(' ')[1];
       if (startParts) playbackStreamStartSec = hmsToSec(startParts);
-      mountDialogPlaybackPlayer(item.playbackStreamId);
+      mountDialogPlaybackPlayer(dialogPlaybackStreamId);
     } else {
       if (headerStatus) headerStatus.classList.add('hidden');
-      if (liveBtn) liveBtn.classList.add('hidden');
+      if (liveBtn) liveBtn.classList.remove('hidden');
       const placeholderEl = document.getElementById('playback-video-placeholder');
       if (placeholderEl) placeholderEl.style.display = 'flex';
       const mountEl = document.getElementById('playback-video-mount');
@@ -2382,7 +2383,7 @@
       updatePlayheadPosition(0);
     }
 
-    // Automatically load recordings for selected date across 00:00 to 24:00 and auto-play
+    // Automatically load recordings for selected date across 00:00 to 24:00 and auto-play in popup
     loadDateRecordings(dateInput?.value || new Date().toISOString().split('T')[0]);
 
     triggerHaptic(10);
@@ -2395,6 +2396,7 @@
     } else {
       dialog.setAttribute('open', '');
     }
+    dialog.focus();
   }
 
   function closePlaybackDialog() {
@@ -2408,6 +2410,18 @@
         dialogPlaybackPlayer.remove();
       } catch (e) {}
       dialogPlaybackPlayer = null;
+    }
+
+    // Stop and unregister dynamic go2rtc RTSP playback stream on NVR
+    if (dialogPlaybackStreamId) {
+      const oldId = dialogPlaybackStreamId;
+      dialogPlaybackStreamId = null;
+      dialogPlaybackRange = null;
+      fetch('/api/playback/stop-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId: oldId })
+      }).catch(() => {});
     }
 
     if (typeof dialog.close === 'function') {
@@ -2424,8 +2438,7 @@
     stopPlaybackRewind(false);
     setPlaybackSpeed(1);
 
-    // Sync wall slot player and badges
-    reconnectSlot(state.selectedSlotIndex);
+    // Wall slot remains on its live stream uninterrupted!
     updateBottomDock();
     updateCameraOptionsSheet();
   }
@@ -2507,9 +2520,9 @@
         blocksContainer.innerHTML = blocksHtml;
       }
 
-      // 2. Automatically play the footage immediately!
+      // 2. Automatically play the footage immediately in popup!
       // If not already playing a stream on this camera for this date, start playing from the first recorded moment
-      const isAlreadyPlayingThisDate = item.playbackStreamId && item.playbackRange && item.playbackRange.start.startsWith(dateVal);
+      const isAlreadyPlayingThisDate = dialogPlaybackStreamId && dialogPlaybackRange && dialogPlaybackRange.start.startsWith(dateVal);
       if (!isAlreadyPlayingThisDate) {
         const firstRec = recordings[0];
         startNvrPlayback(item.nvrId, item.channel, firstRec.startTime, `${dateVal} 23:59:59`, currentPlaybackSubtype);
@@ -2548,7 +2561,7 @@
       if (spinnerText) spinnerText.textContent = 'Requesting Dahua NVR Playback...';
     }
 
-    const oldStreamId = item.playbackStreamId || null;
+    const oldStreamId = dialogPlaybackStreamId || null;
 
     try {
       const res = await fetch('/api/playback/start-stream', {
@@ -2575,15 +2588,12 @@
       const timePart = startTime.split(' ')[1] || '00:00:00';
       playbackStreamStartSec = hmsToSec(timePart);
 
-      item.playbackStreamId = data.streamId;
-      item.playbackRange = { start: startTime, end: endTime, startTs, endTs, durationSec };
-      item.videoPlaying = false;
+      // Dedicated dialog playback session (wall slot stays live!)
+      dialogPlaybackStreamId = data.streamId;
+      dialogPlaybackRange = { start: startTime, end: endTime, startTs, endTs, durationSec };
 
-      // Mount into dialog player
+      // Mount into dialog player ONLY
       mountDialogPlaybackPlayer(data.streamId);
-
-      // Reconnect background slot so it is also synced
-      reconnectSlot(state.selectedSlotIndex);
 
       // Update dialog header indicators
       const headerStatus = document.getElementById('playback-header-status');
@@ -2597,9 +2607,6 @@
       if (liveBtn) liveBtn.classList.remove('hidden');
 
       updatePlayheadPosition(playbackStreamStartSec);
-
-      updateBottomDock();
-      updateCameraOptionsSheet();
     } catch (err) {
       console.error('[VOSCTV] Start NVR playback error:', err);
       if (spinnerEl) {
@@ -2613,9 +2620,7 @@
 
   async function returnToLive() {
     const item = state.slots[state.selectedSlotIndex];
-    if (!item) return;
-
-    if (item.playbackStreamId) {
+    if (item && item.playbackStreamId) {
       const oldId = item.playbackStreamId;
       delete item.playbackStreamId;
       delete item.playbackRange;
@@ -2625,34 +2630,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ streamId: oldId })
       }).catch(() => {});
+      reconnectSlot(state.selectedSlotIndex);
     }
 
-    if (dialogPlaybackPlayer) {
-      try {
-        if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
-        dialogPlaybackPlayer.src = '';
-        dialogPlaybackPlayer.remove();
-      } catch (e) {}
-      dialogPlaybackPlayer = null;
-    }
-
-    const placeholderEl = document.getElementById('playback-video-placeholder');
-    if (placeholderEl) placeholderEl.style.display = 'flex';
-    const mountEl = document.getElementById('playback-video-mount');
-    if (mountEl) mountEl.innerHTML = '';
-    const spinnerEl = document.getElementById('playback-screen-spinner');
-    if (spinnerEl) spinnerEl.style.display = 'none';
-    const headerStatus = document.getElementById('playback-header-status');
-    if (headerStatus) headerStatus.classList.add('hidden');
-    const liveBtn = document.getElementById('playback-header-btn-live');
-    if (liveBtn) liveBtn.classList.add('hidden');
-    updatePlayheadPosition(0);
-    stopPlaybackRewind(false);
-    setPlaybackSpeed(1);
-
-    reconnectSlot(state.selectedSlotIndex);
-    updateBottomDock();
-    updateCameraOptionsSheet();
+    closePlaybackDialog();
   }
 
   function updateSpeedButtonUI() {
@@ -2848,19 +2829,6 @@
         dialogPlaybackPlayer.setPlaybackSpeed(playbackSpeed);
       } else if (dialogPlaybackPlayer.video) {
         dialogPlaybackPlayer.video.playbackRate = playbackSpeed;
-      }
-    }
-
-    const slotItem = state.slots[state.selectedSlotIndex];
-    if (!isRewinding && slotItem && slotItem.playbackStreamId) {
-      const slotEl = document.getElementById(`gpu-slot-${state.selectedSlotIndex}`);
-      const slotPlayer = slotEl?.querySelector('video-rtc');
-      if (slotPlayer) {
-        if (typeof slotPlayer.setPlaybackSpeed === 'function') {
-          slotPlayer.setPlaybackSpeed(playbackSpeed);
-        } else if (slotPlayer.video) {
-          slotPlayer.video.playbackRate = playbackSpeed;
-        }
       }
     }
 
