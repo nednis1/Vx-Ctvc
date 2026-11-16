@@ -1008,7 +1008,10 @@ app.get('/api/playback/recordings', async (req, res) => {
   if (!nvr) return res.status(404).json({ error: 'NVR not found' });
 
   const chNum = parseInt(channel, 10) || 1;
-  const queryDate = date || new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const localToday = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  const queryDate = date || localToday;
   const queryStart = startTime ? `${queryDate} ${startTime}` : `${queryDate} 00:00:00`;
   const queryEnd = endTime ? `${queryDate} ${endTime}` : `${queryDate} 23:59:59`;
 

@@ -514,7 +514,9 @@ class VideoRTC extends HTMLElement {
                     const start0 = sb.buffered.start(0);
                     if (start > start0) {
                         sb.remove(start0, start);
-                        ms.setLiveSeekableRange(start, end);
+                        if (typeof ms.setLiveSeekableRange === 'function' && ms.readyState === 'open') {
+                            try { ms.setLiveSeekableRange(start, end); } catch (e) {}
+                        }
                     }
                     if (!this.isPlayback && this.video.currentTime < start) {
                         this.video.currentTime = start;
@@ -531,12 +533,23 @@ class VideoRTC extends HTMLElement {
                 }
             });
 
-            const buf = new Uint8Array(2 * 1024 * 1024);
+            let buf = new Uint8Array(2 * 1024 * 1024);
             let bufLen = 0;
 
             this.ondata = data => {
                 if (sb.updating || bufLen > 0) {
                     const b = new Uint8Array(data);
+                    if (bufLen + b.byteLength > buf.byteLength) {
+                        // Grow staging buffer on keyframe bursts (e.g. 4x-16x HD playback), capped at 16MB
+                        const needed = bufLen + b.byteLength;
+                        if (needed <= 16 * 1024 * 1024) {
+                            const nextBuf = new Uint8Array(Math.max(buf.byteLength * 2, needed));
+                            nextBuf.set(buf.subarray(0, bufLen), 0);
+                            buf = nextBuf;
+                        } else {
+                            return;
+                        }
+                    }
                     buf.set(b, bufLen);
                     bufLen += b.byteLength;
                     // console.debug('VideoRTC.buffer', b.byteLength, bufLen);

@@ -1478,7 +1478,7 @@
         const a = document.createElement('a');
         a.href = url;
         const title = getCameraTitle(item.nvrId, item.channel);
-        const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const dateStr = getLocalDateTimestampStr();
         const filename = `${title.replace(/\s+/g, '_')}_${dateStr}.${ext}`;
         a.download = filename;
         document.body.appendChild(a);
@@ -2155,6 +2155,8 @@
   let timelineViewStartSec = 0;
   let lastLoadedRecordings = [];
   let seekFlashTimer = null;
+  let playbackMuted = true;
+  let playbackRequestSeq = 0;
 
   const popoutUrlParams = (typeof window !== 'undefined' && window.location && window.location.search)
     ? new URLSearchParams(window.location.search)
@@ -2211,6 +2213,70 @@
         keepalive: true
       }).catch(() => { });
     } catch (e) { }
+  }
+
+  function getLocalDateYmd(dateObj = new Date()) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+  }
+
+  function getLocalDateTimestampStr(dateObj = new Date()) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${getLocalDateYmd(dateObj)}T${pad(dateObj.getHours())}-${pad(dateObj.getMinutes())}-${pad(dateObj.getSeconds())}`;
+  }
+
+  function shiftLocalDateYmd(ymdStr, deltaDays) {
+    const parts = String(ymdStr || '').split('-').map(n => parseInt(n, 10));
+    if (parts.length === 3 && !parts.some(Number.isNaN)) {
+      const d = new Date(parts[0], parts[1] - 1, parts[2] + deltaDays);
+      return getLocalDateYmd(d);
+    }
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + deltaDays);
+    return getLocalDateYmd(fallback);
+  }
+
+  function syncPlaybackAudioUI() {
+    const btn = document.getElementById('playback-btn-mute');
+    if (!btn) return;
+    const isMuted = dialogPlaybackPlayer && dialogPlaybackPlayer.video
+      ? Boolean(dialogPlaybackPlayer.video.muted)
+      : playbackMuted;
+    playbackMuted = isMuted;
+    btn.textContent = isMuted ? '🔇' : '🔊';
+    btn.setAttribute('aria-pressed', String(!isMuted));
+    btn.title = isMuted ? 'Unmute playback audio' : 'Mute playback audio';
+  }
+
+  function resetActivePlaybackStream() {
+    playbackRequestSeq++;
+    if (dialogPlaybackPlayer) {
+      try {
+        if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
+        dialogPlaybackPlayer.src = '';
+        dialogPlaybackPlayer.remove();
+      } catch (e) { }
+      dialogPlaybackPlayer = null;
+    }
+    if (dialogPlaybackStreamId) {
+      const oldId = dialogPlaybackStreamId;
+      dialogPlaybackStreamId = null;
+      dialogPlaybackRange = null;
+      sendStopPlaybackStreamBeacon(oldId);
+    } else {
+      dialogPlaybackRange = null;
+    }
+    const mountEl = document.getElementById('playback-video-mount');
+    if (mountEl) mountEl.innerHTML = '';
+    const spinnerEl = document.getElementById('playback-screen-spinner');
+    if (spinnerEl) {
+      spinnerEl.style.display = 'none';
+      spinnerEl.classList.remove('stream-stalled');
+      const spinnerText = document.getElementById('playback-spinner-text');
+      if (spinnerText) spinnerText.textContent = '';
+    }
+    const headerStatus = document.getElementById('playback-header-status');
+    if (headerStatus) headerStatus.classList.add('hidden');
   }
 
   function secToHms(sec) {
@@ -2404,12 +2470,13 @@
 
     if (player.video) {
       player.video.controls = false;
-      player.video.muted = true;
-      player.video.autoplay = true;
+      player.video.muted = playbackMuted;
+      player.video.autoplay = !isRewinding;
       player.video.playsInline = true;
       if (playbackSpeed !== 1) {
         player.video.playbackRate = playbackSpeed;
       }
+      syncPlaybackAudioUI();
 
       const playBtn = document.getElementById('playback-btn-toggle-play');
       let streamReady = false;
@@ -2427,11 +2494,23 @@
           spinnerEl.classList.remove('stream-stalled');
           if (spinnerText) spinnerText.textContent = '';
         }
-        if (playBtn) playBtn.textContent = '⏸';
-        if (playbackSpeed !== 1) {
-          player.video.playbackRate = playbackSpeed;
+        if (isRewinding) {
+          if (!player.video.paused) player.video.pause();
+          if (playBtn) playBtn.textContent = '▶';
+        } else {
+          if (playBtn) playBtn.textContent = player.video.paused ? '▶' : '⏸';
+          if (playbackSpeed !== 1) {
+            player.video.playbackRate = playbackSpeed;
+          }
         }
       };
+
+      player.video.addEventListener('play', () => {
+        if (isRewinding && !player.video.paused) {
+          player.video.pause();
+        }
+      });
+      player.video.addEventListener('volumechange', syncPlaybackAudioUI);
 
       // Set timeout fallback: only declare offline if Dahua NVR doesn't stream within 10 seconds
       offlineTimeoutId = setTimeout(() => {
@@ -2508,9 +2587,12 @@
 
     setTimelineZoom(24, true);
 
-    // Ensure playback speed and rewind states are cleanly initialized to 1x at start
+    // Ensure playback speed, rewind, and mute states are cleanly initialized at start
     setPlaybackSpeed(1);
     stopPlaybackRewind(false);
+    playbackMuted = true;
+    syncPlaybackAudioUI();
+    resetActivePlaybackStream();
 
     const camTitle = getCameraTitle(item.nvrId, item.channel);
     dialogPlaybackTarget = {
@@ -2524,40 +2606,23 @@
     const headerStatus = document.getElementById('playback-header-status');
     const liveBtn = document.getElementById('playback-header-btn-live');
 
-    // Set default date to today if empty
+    // Set default date to local today if empty
     const dateInput = document.getElementById('playback-date');
     if (dateInput && !dateInput.value) {
-      dateInput.value = new Date().toISOString().split('T')[0];
+      dateInput.value = getLocalDateYmd();
     }
 
-    // Default quality to Main Stream 0
-    setPlaybackSubtype(0);
+    // Default quality to Main Stream 0 without premature fetch
+    setPlaybackSubtype(0, false);
 
-    if (dialogPlaybackStreamId) {
-      if (headerStatus) {
-        const startStr = dialogPlaybackRange?.start?.split(' ')[1] || '';
-        const endStr = dialogPlaybackRange?.end?.split(' ')[1] || '';
-        headerStatus.textContent = startStr ? `⏪ ${startStr} - ${endStr}` : '⏪ PLAYING';
-        headerStatus.classList.remove('hidden');
-      }
-      if (liveBtn) liveBtn.classList.remove('hidden');
-      const startParts = (dialogPlaybackRange?.start || '').split(' ')[1];
-      if (startParts) playbackStreamStartSec = hmsToSec(startParts);
-      mountDialogPlaybackPlayer(dialogPlaybackStreamId);
-    } else {
-      if (headerStatus) headerStatus.classList.add('hidden');
-      if (liveBtn) liveBtn.classList.remove('hidden');
-      const placeholderEl = document.getElementById('playback-video-placeholder');
-      if (placeholderEl) placeholderEl.style.display = 'flex';
-      const mountEl = document.getElementById('playback-video-mount');
-      if (mountEl) mountEl.innerHTML = '';
-      const spinnerEl = document.getElementById('playback-screen-spinner');
-      if (spinnerEl) spinnerEl.style.display = 'none';
-      updatePlayheadPosition(0);
-    }
+    if (headerStatus) headerStatus.classList.add('hidden');
+    if (liveBtn) liveBtn.classList.remove('hidden');
+    const placeholderEl = document.getElementById('playback-video-placeholder');
+    if (placeholderEl) placeholderEl.style.display = 'flex';
+    updatePlayheadPosition(0);
 
     // Automatically load recordings for selected date across 00:00 to 24:00 and auto-play in full-viewport dialog
-    loadDateRecordings(dateInput?.value || new Date().toISOString().split('T')[0]);
+    loadDateRecordings(dateInput?.value || getLocalDateYmd());
 
     triggerHaptic(10);
     if (typeof dialog.showModal === 'function') {
@@ -2587,7 +2652,7 @@
     const slotIndex = rawSlot !== null && rawSlot !== '' && !Number.isNaN(Number(rawSlot))
       ? parseInt(rawSlot, 10)
       : null;
-    const dateVal = params.get('date') || new Date().toISOString().split('T')[0];
+    const dateVal = params.get('date') || getLocalDateYmd();
     const startParam = params.get('start') || '';
     const subtypeVal = parseInt(params.get('subtype'), 10) === 1 ? 1 : 0;
     const rawSpeed = parseInt(params.get('speed'), 10);
@@ -2603,7 +2668,9 @@
 
     stopPlaybackRewind(false);
     setPlaybackSpeed(speedVal);
-    setPlaybackSubtype(subtypeVal);
+    setPlaybackSubtype(subtypeVal, false);
+    playbackMuted = true;
+    syncPlaybackAudioUI();
 
     const dateInput = document.getElementById('playback-date');
     if (dateInput) dateInput.value = dateVal;
@@ -2633,7 +2700,7 @@
     }
 
     const dateInput = document.getElementById('playback-date');
-    const dateVal = (dateInput && dateInput.value) || new Date().toISOString().split('T')[0];
+    const dateVal = (dateInput && dateInput.value) || getLocalDateYmd();
 
     const params = new URLSearchParams({
       playback: '1',
@@ -2734,40 +2801,58 @@
     updateCameraOptionsSheet();
   }
 
-  function setPlaybackSubtype(sub) {
+  function setPlaybackSubtype(sub, applyImmediately = true) {
     currentPlaybackSubtype = parseInt(sub, 10) === 1 ? 1 : 0;
     const chips = document.querySelectorAll('#playback-quality-chips .sheet-chip');
     chips.forEach(c => {
       c.classList.toggle('active', parseInt(c.dataset.quality, 10) === currentPlaybackSubtype);
     });
     triggerHaptic(6);
+
+    if (applyImmediately && dialogPlaybackStreamId) {
+      const target = getPlaybackTarget();
+      if (target) {
+        let activeSec = Math.floor(currentPlayheadSec || playbackStreamStartSec || 0);
+        if (!isRewinding && dialogPlaybackPlayer && dialogPlaybackPlayer.video && dialogPlaybackPlayer.video.currentTime > 0) {
+          activeSec = Math.max(0, Math.min(86399, Math.floor(playbackStreamStartSec + dialogPlaybackPlayer.video.currentTime)));
+        }
+        const dateVal = document.getElementById('playback-date')?.value || getLocalDateYmd();
+        startNvrPlayback(target.nvrId, target.channel, `${dateVal} ${secToHms(activeSec)}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
+      }
+    }
   }
 
   function shiftPlaybackDate(deltaDays) {
     const dateInput = document.getElementById('playback-date');
     if (!dateInput) return;
-    const curVal = dateInput.value || new Date().toISOString().split('T')[0];
-    const d = new Date(curVal);
-    d.setDate(d.getDate() + deltaDays);
-    const pad = n => String(n).padStart(2, '0');
-    const newDateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const curVal = dateInput.value || getLocalDateYmd();
+    const newDateStr = shiftLocalDateYmd(curVal, deltaDays);
     dateInput.value = newDateStr;
     triggerHaptic(8);
+    stopPlaybackRewind(false);
+    setPlaybackSpeed(1);
+    resetActivePlaybackStream();
     loadDateRecordings(newDateStr);
   }
 
   function setPlaybackDateToday() {
     const dateInput = document.getElementById('playback-date');
     if (!dateInput) return;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateYmd();
     dateInput.value = todayStr;
     triggerHaptic(8);
+    stopPlaybackRewind(false);
+    setPlaybackSpeed(1);
+    resetActivePlaybackStream();
     loadDateRecordings(todayStr);
   }
 
   function onPlaybackDateChange() {
     const dateInput = document.getElementById('playback-date');
-    if (dateInput) {
+    if (dateInput && dateInput.value) {
+      stopPlaybackRewind(false);
+      setPlaybackSpeed(1);
+      resetActivePlaybackStream();
       loadDateRecordings(dateInput.value);
     }
   }
@@ -2775,6 +2860,10 @@
   async function loadDateRecordings(dateVal, resumeStartDateTime = null) {
     const target = getPlaybackTarget();
     if (!target) return;
+
+    if (dialogPlaybackRange && !dialogPlaybackRange.start.startsWith(dateVal)) {
+      resetActivePlaybackStream();
+    }
 
     const blocksContainer = document.getElementById('playback-24h-blocks-container');
     const placeholderEl = document.getElementById('playback-video-placeholder');
@@ -2791,6 +2880,7 @@
       const recordings = data.recordings || [];
 
       if (recordings.length === 0) {
+        resetActivePlaybackStream();
         if (placeholderEl) placeholderEl.style.display = 'flex';
         if (pTitle) pTitle.textContent = 'No Footage Found';
         if (pDesc) pDesc.textContent = `No recorded video stored on NVR hard drive for ${dateVal}`;
@@ -2814,13 +2904,12 @@
       }
     } catch (err) {
       console.warn('[VOSCTV] Load 24h recordings error:', err.message);
+      resetActivePlaybackStream();
       if (placeholderEl) placeholderEl.style.display = 'flex';
       if (pTitle) pTitle.textContent = 'Playback Query Error';
       if (pDesc) pDesc.textContent = err.message;
     }
   }
-
-  let playbackRequestSeq = 0;
 
   async function startNvrPlayback(nvrId, channel, startTime, endTime, subtype = 0) {
     if (!nvrId || !channel) return;
@@ -3078,7 +3167,7 @@
           const target = getPlaybackTarget();
           if (target) {
             const fetchStartSec = Math.max(0, Math.floor(currentPlayheadSec) - 90);
-            const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+            const dateVal = document.getElementById('playback-date')?.value || getLocalDateYmd();
             const timeStr = secToHms(fetchStartSec);
             startNvrPlayback(target.nvrId, target.channel, `${dateVal} ${timeStr}`, `${dateVal} 23:59:59`, currentPlaybackSubtype);
           }
@@ -3146,7 +3235,7 @@
 
     const targetSec = Math.max(0, Math.min(86399, currentSec + secDelta));
     currentPlayheadSec = targetSec;
-    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+    const dateVal = document.getElementById('playback-date')?.value || getLocalDateYmd();
     const timeStr = secToHms(targetSec);
 
     updatePlayheadPosition(targetSec);
@@ -3157,9 +3246,9 @@
   function togglePlaybackAudio() {
     if (!dialogPlaybackPlayer || !dialogPlaybackPlayer.video) return;
     const v = dialogPlaybackPlayer.video;
-    v.muted = !v.muted;
-    const btn = document.getElementById('playback-btn-mute');
-    if (btn) btn.textContent = v.muted ? '🔇' : '🔊';
+    playbackMuted = !v.muted;
+    v.muted = playbackMuted;
+    syncPlaybackAudioUI();
     triggerHaptic(6);
   }
 
@@ -3234,7 +3323,7 @@
     const clampedSec = Math.max(0, Math.min(86399, Math.floor(targetSec || 0)));
     currentPlayheadSec = clampedSec;
 
-    const dateVal = document.getElementById('playback-date')?.value || new Date().toISOString().split('T')[0];
+    const dateVal = document.getElementById('playback-date')?.value || getLocalDateYmd();
     const timeStr = secToHms(clampedSec);
 
     updatePlayheadPosition(clampedSec);
@@ -3815,7 +3904,7 @@
       };
 
       const onStreamFailed = () => {
-        if (!wrapper.contains(player)) return;
+        if (!wrapper.contains(player) || !player.isConnected) return;
         // If it's a playback stream that hasn't finished connecting, give Dahua NVR disk seek grace period
         if (item.playbackStreamId && !slotReady) {
           if (!slotOfflineTimer) {
@@ -4480,7 +4569,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const dateStr = getLocalDateTimestampStr();
       const zoomSuffix = isZoomed ? `_zoom${Math.round(item.digitalZoom.scale * 10) / 10}x` : '';
       const filename = `${title.replace(/\s+/g, '_')}${zoomSuffix}_${dateStr}.jpg`;
       a.download = filename;

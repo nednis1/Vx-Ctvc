@@ -11,6 +11,7 @@ const path = require('path');
 let go2rtcProcess = null;
 let isShuttingDown = false;
 let restartTimer = null;
+let ensureInFlight = null;
 let lastNvrsConfig = null;
 const GO2RTC_PORT = 1984;
 const GO2RTC_WEBRTC_PORT = 8555;
@@ -138,22 +139,30 @@ async function ensureGo2rtcRunning(nvrs) {
   const isHealthy = await checkGo2rtcHealthy();
   if (isHealthy) return true;
 
-  console.log(`[go2rtc] Gateway not responding on port ${GO2RTC_PORT}. Ensuring process is running...`);
-  startGo2rtc(lastNvrsConfig);
+  if (ensureInFlight) return ensureInFlight;
 
-  // 2. Poll until gateway is ready (up to 3 seconds)
-  const maxAttempts = 15;
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 200));
-    const healthyNow = await checkGo2rtcHealthy();
-    if (healthyNow) {
-      console.log(`[go2rtc] Gateway is now healthy and accepting connections on port ${GO2RTC_PORT}.`);
-      return true;
+  ensureInFlight = (async () => {
+    console.log(`[go2rtc] Gateway not responding on port ${GO2RTC_PORT}. Ensuring process is running...`);
+    startGo2rtc(lastNvrsConfig);
+
+    // 2. Poll until gateway is ready (up to 3 seconds)
+    const maxAttempts = 15;
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      const healthyNow = await checkGo2rtcHealthy();
+      if (healthyNow) {
+        console.log(`[go2rtc] Gateway is now healthy and accepting connections on port ${GO2RTC_PORT}.`);
+        return true;
+      }
     }
-  }
 
-  console.warn(`[go2rtc] Gateway failed to respond within 3000ms on port ${GO2RTC_PORT}.`);
-  return false;
+    console.warn(`[go2rtc] Gateway failed to respond within 3000ms on port ${GO2RTC_PORT}.`);
+    return false;
+  })().finally(() => {
+    ensureInFlight = null;
+  });
+
+  return ensureInFlight;
 }
 
 /**
