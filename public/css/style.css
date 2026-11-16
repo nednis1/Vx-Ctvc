@@ -1728,57 +1728,183 @@ video::-webkit-media-controls-fullscreen-button {
   display: inline-block;
 }
 
-/* Spinner */
-.gpu-slot-spinner {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: #020617;
-  color: #64748b;
-  font-size: 11px;
-  z-index: 2;
+/* Spinner (Unobtrusive Non-Blocking Loading Circle + Compact Stalled Retry Pill) */
+@property --arc-start {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
-.spinner-ring {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #38bdf8;
+@property --arc-end {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --progress-dash-animation {
+  syntax: "*";
+  inherits: false;
+  initial-value: , progress-dash 3s ease-in-out infinite;
+}
+
+@keyframes progress-spin {
+  to {
+    rotate: 1turn;
+  }
+}
+
+@keyframes progress-dash {
+  from {
+    --arc-start: 0deg;
+    --arc-end: 3deg;
+  }
+  50% {
+    --arc-start: 100deg;
+    --arc-end: 358deg;
+  }
+  to {
+    --arc-start: 360deg;
+    --arc-end: 363deg;
+  }
+}
+
+progress.loading-spinner:indeterminate::-webkit-progress-bar {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate::-webkit-progress-value {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate::-moz-progress-bar {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate::slider-fill {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate {
+  --_from: calc(90deg + var(--arc-start, 0deg));
+  --_to: calc(90deg + var(--arc-end, 158deg));
+  --size: 28px;
+  --thickness: 3px;
+  --spinner-color: #38bdf8;
+  --track-color: rgba(255, 255, 255, 0.16);
+  --spinner-duration: 1.4s;
+  --_used-spinner-duration: var(--spinner-duration);
+
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: var(--size);
+  height: var(--size);
+  margin: 0;
   border-radius: 50%;
-  animation: spinSimple 0.8s linear infinite;
+  -webkit-appearance: none;
+  appearance: none;
+  background: conic-gradient(
+      from var(--_from),
+      var(--spinner-color) calc(var(--_to) - var(--_from)),
+      transparent 0
+    )
+    var(--track-color);
+  animation:
+    progress-spin var(--_used-spinner-duration) linear infinite
+    var(--progress-dash-animation, );
+}
+
+@supports (background-clip: border-area) {
+  progress.loading-spinner:indeterminate {
+    background-clip: border-area;
+    border: var(--thickness) solid transparent;
+    background-origin: border-box;
+  }
+}
+
+@supports not (background-clip: border-area) {
+  progress.loading-spinner:indeterminate {
+    --clip-boundary: calc(100% - var(--thickness));
+    mask-image: radial-gradient(
+      farthest-side,
+      transparent var(--clip-boundary),
+      black var(--clip-boundary)
+    );
+    border: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  progress.loading-spinner:indeterminate {
+    forced-color-adjust: none;
+    --spinner-color: CanvasText;
+    --track-color: Canvas;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  progress.loading-spinner:indeterminate {
+    --_used-spinner-duration: 6s;
+    --progress-dash-animation: ;
+    --arc-end: 158deg;
+  }
+}
+
+.gpu-slot-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  inset: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.45);
+  color: #e2e8f0;
+  font-size: 11px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.gpu-slot-spinner .spinner-status-text:empty,
+.gpu-slot-spinner:not(.stream-stalled) .spinner-status-text {
+  display: none;
 }
 
 .gpu-slot-spinner.stream-stalled {
-  background: rgba(2, 6, 23, 0.88);
+  background: rgba(15, 23, 42, 0.88);
   cursor: pointer;
-  border: 1px dashed rgba(239, 68, 68, 0.45);
-  border-radius: 6px;
-  margin: 6px;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  border-radius: 999px;
+  padding: 6px 12px;
+  max-width: calc(100% - 16px);
   transition: background 0.15s, border-color 0.15s;
   pointer-events: auto;
 }
 
 .gpu-slot-spinner.stream-stalled:hover,
 .gpu-slot-spinner.stream-stalled:active {
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.96);
   border-color: #38bdf8;
 }
 
 .gpu-slot-spinner.stream-stalled .spinner-ring {
-  border-top-color: #f59e0b;
-  animation: none;
+  display: none;
 }
 
 .gpu-slot-spinner.stream-stalled span {
   color: #f8fafc;
   font-weight: 500;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* -------------------------------------------------------------
@@ -2540,20 +2666,8 @@ video::-webkit-media-controls-fullscreen-button {
     box-shadow: 0 0 10px rgba(2, 132, 199, 0.25) !important;
   }
   .gpu-slot.playing {
-    background: #f8fafc;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-  }
-  .gpu-slot-spinner {
-    background: #f8fafc !important;
-    color: #475569 !important;
-  }
-  .gpu-slot-spinner span {
-    color: #475569 !important;
-    font-weight: 500;
-  }
-  .spinner-ring {
-    border: 2px solid rgba(0, 0, 0, 0.12) !important;
-    border-top-color: #0284c7 !important;
+    background: #000000;
+    border: 1px solid rgba(0, 0, 0, 0.16);
   }
   /* Note: .gpu-video-wrapper maintains #000000 so active video streams render cleanly without glare */
   .gpu-video-wrapper {
@@ -3137,11 +3251,13 @@ video::-webkit-media-controls-fullscreen-button {
 [data-theme="light"] .gpu-search-clear:hover {
   color: #0f172a;
 }
-[data-theme="light"] .gpu-slot-spinner.stream-stalled {
-  background: rgba(248, 250, 252, 0.94);
-  border-color: rgba(239, 68, 68, 0.45);
+[data-theme="light"] .gpu-slot-spinner.stream-stalled,
+[data-theme="light"] .playback-screen-spinner.stream-stalled {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(217, 119, 6, 0.55);
 }
-[data-theme="light"] .gpu-slot-spinner.stream-stalled span {
+[data-theme="light"] .gpu-slot-spinner.stream-stalled span,
+[data-theme="light"] .playback-screen-spinner.stream-stalled span {
   color: #0f172a;
 }
 
@@ -3519,34 +3635,60 @@ html[data-theme="light"].playback-popout-mode .gpu-playback-dialog::backdrop {
 
 .playback-screen-spinner {
   position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(4px);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  inset: auto;
+  background: rgba(2, 6, 23, 0.45);
+  backdrop-filter: none;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
   z-index: 5;
-  color: #38bdf8;
-  font-size: 12.5px;
+  color: #e2e8f0;
+  font-size: 12px;
   font-weight: 500;
+  pointer-events: none;
+}
+
+.playback-screen-spinner progress.loading-spinner:indeterminate {
+  --size: 34px;
+  --thickness: 3px;
+}
+
+.playback-screen-spinner .spinner-status-text:empty,
+.playback-screen-spinner:not(.stream-stalled) .spinner-status-text {
+  display: none;
 }
 
 .playback-screen-spinner.stream-stalled {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  border-radius: 999px;
+  padding: 7px 14px;
   cursor: pointer;
   color: #f8fafc;
+  pointer-events: auto;
+  max-width: calc(100% - 24px);
+}
+
+.playback-screen-spinner.stream-stalled:hover,
+.playback-screen-spinner.stream-stalled:active {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: #38bdf8;
 }
 
 .playback-screen-spinner.stream-stalled .spinner-ring {
-  border-top-color: #f59e0b;
-  animation: none;
+  display: none;
 }
 
 .playback-screen-spinner.stream-stalled span {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 24-Hour Surveillance Timeline Cockpit */

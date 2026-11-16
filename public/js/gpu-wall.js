@@ -2263,14 +2263,14 @@
     const mountEl = document.getElementById('playback-video-mount');
     const placeholderEl = document.getElementById('playback-video-placeholder');
     const spinnerEl = document.getElementById('playback-screen-spinner');
+    const spinnerText = document.getElementById('playback-spinner-text');
     if (!mountEl) return;
 
     if (placeholderEl) placeholderEl.style.display = 'none';
     if (spinnerEl) {
       spinnerEl.style.display = 'flex';
       spinnerEl.classList.remove('stream-stalled');
-      const spinnerText = document.getElementById('playback-spinner-text');
-      if (spinnerText) spinnerText.textContent = 'Connecting NVR Playback...';
+      if (spinnerText) spinnerText.textContent = '';
     }
 
     if (dialogPlaybackPlayer) {
@@ -2314,6 +2314,7 @@
       let offlineTimeoutId = null;
 
       const onStreamReady = () => {
+        if (dialogPlaybackPlayer !== player) return;
         streamReady = true;
         if (offlineTimeoutId) {
           clearTimeout(offlineTimeoutId);
@@ -2322,6 +2323,7 @@
         if (spinnerEl) {
           spinnerEl.style.display = 'none';
           spinnerEl.classList.remove('stream-stalled');
+          if (spinnerText) spinnerText.textContent = '';
         }
         if (playBtn) playBtn.textContent = '⏸';
         if (playbackSpeed !== 1) {
@@ -2331,18 +2333,30 @@
 
       // Set timeout fallback: only declare offline if Dahua NVR doesn't stream within 10 seconds
       offlineTimeoutId = setTimeout(() => {
+        if (dialogPlaybackPlayer !== player || !player.isConnected) return;
         if (!streamReady && spinnerEl) {
           spinnerEl.style.display = 'flex';
           spinnerEl.classList.add('stream-stalled');
-          const spinnerText = document.getElementById('playback-spinner-text');
-          if (spinnerText) spinnerText.textContent = 'Playback Stream Offline • Tap to Retry';
+          if (spinnerText) spinnerText.textContent = 'Playback Offline • Tap to Retry';
         }
       }, 10000);
 
-      player.video.addEventListener('playing', onStreamReady, { once: true });
-      player.video.addEventListener('loadeddata', onStreamReady, { once: true });
+      player.video.addEventListener('playing', onStreamReady);
+      player.video.addEventListener('canplay', onStreamReady);
+      player.video.addEventListener('loadeddata', onStreamReady);
+      player.video.addEventListener('loadedmetadata', onStreamReady);
+      player.video.addEventListener('resize', () => {
+        if (player.video.videoWidth > 0) onStreamReady();
+      });
+      player.video.addEventListener('waiting', () => {
+        if (dialogPlaybackPlayer !== player || isRewinding || player.video.paused) return;
+        if (spinnerEl && !spinnerEl.classList.contains('stream-stalled')) {
+          spinnerEl.style.display = 'flex';
+          if (spinnerText) spinnerText.textContent = '';
+        }
+      });
       player.video.addEventListener('timeupdate', () => {
-        if (player.video.currentTime > 0) onStreamReady();
+        if (player.video.currentTime > 0 || player.video.readyState >= 2) onStreamReady();
         if (!is24hDragging && !isRewinding) {
           const elapsedSec = Math.floor(player.video.currentTime);
           const currentTotalSec = playbackStreamStartSec + elapsedSec;
@@ -2352,23 +2366,19 @@
       });
 
       player.video.addEventListener('error', (e) => {
+        if (dialogPlaybackPlayer !== player) return;
         console.warn('[VOSCTV] Playback video event warning:', e);
-        // Do not immediately flash "Stream Offline" while still negotiating initial stream or auto-retrying
-        if (!streamReady) {
-          const spinnerText = document.getElementById('playback-spinner-text');
-          if (spinnerText && (!spinnerText.textContent || spinnerText.textContent.includes('Connecting'))) {
-            spinnerText.textContent = 'Buffering Footage...';
-          }
-        } else {
-          // Stream was playing and lost connection
-          if (spinnerEl) {
-            spinnerEl.style.display = 'flex';
-            spinnerEl.classList.add('stream-stalled');
-            const spinnerText = document.getElementById('playback-spinner-text');
-            if (spinnerText) spinnerText.textContent = 'Playback Stalled • Tap to Retry';
-          }
+        // Do not cover video with text while still negotiating initial stream or auto-retrying
+        if (streamReady && spinnerEl) {
+          spinnerEl.style.display = 'flex';
+          spinnerEl.classList.add('stream-stalled');
+          if (spinnerText) spinnerText.textContent = 'Playback Stalled • Tap to Retry';
         }
       });
+
+      if (player.video.readyState >= 2 || player.video.videoWidth > 0 || player.video.currentTime > 0) {
+        onStreamReady();
+      }
 
       // Quick tap-to-retry on spinner if stalled
       if (spinnerEl) {
@@ -2717,8 +2727,11 @@
     }
   }
 
+  let playbackRequestSeq = 0;
+
   async function startNvrPlayback(nvrId, channel, startTime, endTime, subtype = 0) {
     if (!nvrId || !channel) return;
+    const reqSeq = ++playbackRequestSeq;
 
     // Immediately clean up previous dialog player so its teardown events don't trigger offline errors on spinner
     if (dialogPlaybackPlayer) {
@@ -2735,7 +2748,7 @@
       spinnerEl.style.display = 'flex';
       spinnerEl.classList.remove('stream-stalled');
       const spinnerText = document.getElementById('playback-spinner-text');
-      if (spinnerText) spinnerText.textContent = 'Requesting Dahua NVR Playback...';
+      if (spinnerText) spinnerText.textContent = '';
     }
 
     const oldStreamId = dialogPlaybackStreamId || null;
@@ -2764,6 +2777,12 @@
       }
       const data = await res.json();
       if (!data.streamId) throw new Error(data.error || 'No stream ID returned');
+
+      // Discard stale responses if user scrubbed/re-requested while fetch was in flight
+      if (reqSeq !== playbackRequestSeq) {
+        sendStopPlaybackStreamBeacon(data.streamId);
+        return;
+      }
 
       const startTs = new Date(startTime.replace(/-/g, '/')).getTime();
       const endTs = new Date(endTime.replace(/-/g, '/')).getTime();
@@ -3472,9 +3491,9 @@
     slotEl.innerHTML = `
       <!-- 100% Full-Bleed Video Wrapper (Zero obstruction!) -->
       <div class="gpu-video-wrapper aspect-${effectiveAspect}" id="video-wrap-${slotIndex}">
-        <div class="gpu-slot-spinner" id="spinner-slot-${slotIndex}">
-          <div class="spinner-ring"></div>
-          <span>Connecting GPU Stream...</span>
+        <div class="gpu-slot-spinner" id="spinner-slot-${slotIndex}" role="status" aria-live="polite">
+          <progress class="spinner-ring loading-spinner" aria-label="Loading camera stream"></progress>
+          <span class="spinner-status-text"></span>
         </div>
       </div>
       <div class="gpu-slot-badges" id="slot-badges-${slotIndex}"></div>
@@ -3590,10 +3609,12 @@
       }
 
       const spinnerEl = slotEl.querySelector(`#spinner-slot-${slotIndex}`);
+      const spinnerLabel = spinnerEl ? spinnerEl.querySelector('span') : null;
       let slotReady = false;
       let slotOfflineTimer = null;
 
       const onStreamReady = () => {
+        if (!wrapper.contains(player)) return;
         slotReady = true;
         if (slotOfflineTimer) {
           clearTimeout(slotOfflineTimer);
@@ -3602,6 +3623,7 @@
         if (spinnerEl) {
           spinnerEl.style.display = 'none';
           spinnerEl.classList.remove('stream-stalled');
+          if (spinnerLabel) spinnerLabel.textContent = '';
         }
         item.videoPlaying = true;
         if (item.playbackStreamId && playbackSpeed !== 1) {
@@ -3614,17 +3636,18 @@
       };
 
       const onStreamFailed = () => {
+        if (!wrapper.contains(player)) return;
         // If it's a playback stream that hasn't finished connecting, give Dahua NVR disk seek grace period
         if (item.playbackStreamId && !slotReady) {
           if (!slotOfflineTimer) {
             slotOfflineTimer = setTimeout(() => {
+              if (!wrapper.contains(player) || !player.isConnected) return;
               if (!slotReady) {
                 item.videoPlaying = false;
                 if (spinnerEl) {
                   spinnerEl.style.display = 'flex';
                   spinnerEl.classList.add('stream-stalled');
-                  const label = spinnerEl.querySelector('span');
-                  if (label) label.textContent = 'Stream Offline • Tap to Reconnect';
+                  if (spinnerLabel) spinnerLabel.textContent = 'Stream Offline • Tap to Reconnect';
                 }
                 updateSlotBadges(slotIndex);
               }
@@ -3637,8 +3660,7 @@
         if (spinnerEl) {
           spinnerEl.style.display = 'flex';
           spinnerEl.classList.add('stream-stalled');
-          const label = spinnerEl.querySelector('span');
-          if (label) label.textContent = 'Stream Offline • Tap to Reconnect';
+          if (spinnerLabel) spinnerLabel.textContent = 'Stream Offline • Tap to Reconnect';
         }
         updateSlotBadges(slotIndex);
         if (slotIndex === state.selectedSlotIndex) {
@@ -3646,15 +3668,27 @@
         }
       };
 
-      player.video.addEventListener('playing', onStreamReady, { once: true });
-      player.video.addEventListener('loadeddata', onStreamReady, { once: true });
+      player.video.addEventListener('playing', onStreamReady);
+      player.video.addEventListener('canplay', onStreamReady);
+      player.video.addEventListener('loadeddata', onStreamReady);
+      player.video.addEventListener('loadedmetadata', onStreamReady);
+      player.video.addEventListener('resize', () => {
+        if (player.video.videoWidth > 0) onStreamReady();
+      });
+      player.video.addEventListener('waiting', () => {
+        if (!wrapper.contains(player) || player.video.paused) return;
+        if (slotReady && spinnerEl && !spinnerEl.classList.contains('stream-stalled')) {
+          spinnerEl.style.display = 'flex';
+          if (spinnerLabel) spinnerLabel.textContent = '';
+        }
+      });
       player.video.addEventListener('timeupdate', () => {
-        if (player.video.currentTime > 0) onStreamReady();
-      }, { once: true });
+        if (player.video.currentTime > 0 || player.video.readyState >= 2) onStreamReady();
+      });
       player.video.addEventListener('error', onStreamFailed);
       player.video.addEventListener('ended', onStreamFailed);
 
-      if (player.video.readyState >= 2 || player.video.currentTime > 0) {
+      if (player.video.readyState >= 2 || player.video.videoWidth > 0 || player.video.currentTime > 0) {
         onStreamReady();
       }
     }
@@ -3675,7 +3709,7 @@
       spinnerEl.style.display = 'flex';
       spinnerEl.classList.remove('stream-stalled');
       const label = spinnerEl.querySelector('span');
-      if (label) label.textContent = 'Reconnecting GPU Stream...';
+      if (label) label.textContent = '';
     }
 
     const oldPlayer = slotEl.querySelector('video-rtc');
