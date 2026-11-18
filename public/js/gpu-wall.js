@@ -2903,16 +2903,19 @@
     });
   }
 
-  async function lockPlayback() {
-    stopPlaybackRewind(false);
-    resetActivePlaybackStream();
+  function sendLockPlaybackBeacon() {
     try {
-      await fetch('/api/playback/lock', { method: 'POST' });
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
+        if (navigator.sendBeacon('/api/playback/lock', blob)) return;
+      }
     } catch (e) { }
-    closePlaybackDialog();
-    if (isPlaybackPopoutMode && !window.closed) {
-      window.location.replace('/');
-    }
+    try {
+      fetch('/api/playback/lock', {
+        method: 'POST',
+        keepalive: true
+      }).catch(() => { });
+    } catch (e) { }
   }
 
   function launchPlaybackDialogSession(targetItem) {
@@ -3119,14 +3122,18 @@
 
     try { popWin.focus(); } catch (e) { }
 
-    // Close in-page playback modal so main window returns immediately to its uninterrupted Live Wall
-    closePlaybackDialog();
+    // Close in-page playback modal without auto-locking so popout window keeps the unlock grant
+    closePlaybackDialog(true);
     triggerHaptic(8);
   }
 
-  function closePlaybackDialog() {
+  function closePlaybackDialog(skipAutoLock = false) {
     const dialog = document.getElementById('gpu-playback-dialog');
     if (!dialog) return;
+
+    const wasInPlayback = Boolean(
+      dialogPlaybackTarget || dialogPlaybackStreamId || dialog.open || isPlaybackPopoutMode
+    );
 
     stopPlaybackRewind(false);
 
@@ -3147,12 +3154,16 @@
       sendStopPlaybackStreamBeacon(oldId);
     }
 
+    dialogPlaybackTarget = null;
+
+    if (!skipAutoLock && wasInPlayback) {
+      sendLockPlaybackBeacon();
+    }
+
     if (isPlaybackPopoutMode) {
       window.close();
       return;
     }
-
-    dialogPlaybackTarget = null;
 
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl && (fsEl === dialog || dialog.contains(fsEl))) {
@@ -3798,6 +3809,10 @@
         const oldId = dialogPlaybackStreamId;
         dialogPlaybackStreamId = null;
         sendStopPlaybackStreamBeacon(oldId);
+      }
+      if (dialogPlaybackTarget || dialog.open || isPlaybackPopoutMode) {
+        dialogPlaybackTarget = null;
+        sendLockPlaybackBeacon();
       }
     };
     window.addEventListener('pagehide', cleanupOnUnload);
@@ -5126,7 +5141,6 @@
     openPlaybackDialog,
     popoutPlayback,
     closePlaybackDialog,
-    lockPlayback,
     setPlaybackSubtype,
     shiftPlaybackDate,
     setPlaybackDateToday,
