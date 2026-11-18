@@ -261,13 +261,38 @@ function stopGo2rtc() {
 }
 
 /**
+ * Inspect whether a go2rtc proxy request targets a playback stream or protected stream admin endpoint.
+ */
+function parseGo2rtcProxyRequest(req) {
+  try {
+    const parsed = new URL(req.url || '/', 'http://127.0.0.1');
+    const pathname = (parsed.pathname || '').toLowerCase();
+    const srcs = parsed.searchParams.getAll('src').concat(parsed.searchParams.getAll('name'));
+    const targetsPlayback = srcs.some(s => String(s || '').trim().toLowerCase().startsWith('playback_')) ||
+      /playback_/i.test(req.url || '');
+    const isStreamsEndpoint = pathname === '/api/go2rtc/streams' || pathname === '/api/streams' || pathname.startsWith('/api/go2rtc/streams/') || pathname.startsWith('/api/streams/');
+    return { pathname, targetsPlayback, isStreamsEndpoint, method: (req.method || 'GET').toUpperCase() };
+  } catch (e) {
+    return { pathname: '', targetsPlayback: true, isStreamsEndpoint: false, method: 'GET' };
+  }
+}
+
+/**
  * Setup HTTP & WebSocket proxy routes inside Express and Dashboard HTTP Server
  */
-function setupGo2rtcProxy(app, server, authCheckFn) {
+function setupGo2rtcProxy(app, server, authCheckFn, playbackCheckFn) {
   // 1. Relay HTTP endpoints (/api/go2rtc/* -> http://127.0.0.1:1984/api/*)
   app.all('/api/go2rtc*', (req, res) => {
     if (typeof authCheckFn === 'function' && !authCheckFn(req)) {
       return res.status(401).json({ error: 'Unauthorized: Authentication required' });
+    }
+    const info = parseGo2rtcProxyRequest(req);
+    // Block stream registration/deletion directly via public proxy; server.js manages dynamic playback streams internally
+    if (info.isStreamsEndpoint && info.method !== 'GET') {
+      return res.status(403).json({ error: 'Forbidden: Stream management is server-only' });
+    }
+    if ((info.targetsPlayback || info.isStreamsEndpoint) && typeof playbackCheckFn === 'function' && !playbackCheckFn(req)) {
+      return res.status(403).json({ error: 'Playback locked. PIN required.', playbackLocked: true });
     }
     req.url = req.url.replace(/^\/api\/go2rtc/, '/api');
     go2rtcProxy.web(req, res);
@@ -278,6 +303,12 @@ function setupGo2rtcProxy(app, server, authCheckFn) {
     if (req.url && (req.url.startsWith('/api/go2rtc') || req.url.startsWith('/api/ws'))) {
       if (typeof authCheckFn === 'function' && !authCheckFn(req)) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      const info = parseGo2rtcProxyRequest(req);
+      if (info.targetsPlayback && typeof playbackCheckFn === 'function' && !playbackCheckFn(req)) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
         return;
       }

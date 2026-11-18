@@ -3420,6 +3420,7 @@ html[data-theme="light"].playback-popout-mode .gpu-playback-dialog::backdrop {
   flex-shrink: 0;
 }
 
+.playback-header-btn-lock,
 .playback-header-btn-popout {
   height: 32px;
   min-width: 32px;
@@ -3444,13 +3445,21 @@ html[data-theme="light"].playback-popout-mode .gpu-playback-dialog::backdrop {
   color: #ffffff;
 }
 
+.playback-header-btn-lock:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
 @media (max-width: 640px) {
   .gpu-playback-dialog .playback-dialog-content {
     padding: max(8px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
   }
+  .playback-header-btn-lock .lock-btn-label,
   .playback-header-btn-popout .popout-btn-label {
     display: none;
   }
+  .playback-header-btn-lock,
   .playback-header-btn-popout {
     padding: 0;
     min-width: 38px;
@@ -4494,4 +4503,224 @@ html[data-theme="light"].playback-popout-mode .gpu-playback-dialog::backdrop {
   background: rgba(2, 132, 199, 0.15);
   color: #0284c7;
   border-color: rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .playback-header-btn-lock {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .playback-header-btn-lock:hover {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.4);
+  color: #dc2626;
+}
+
+/* =============================================================
+ * Playback PIN Security Dialog
+ * ============================================================= */
+.gpu-playback-pin-dialog {
+  max-width: 380px;
+  width: calc(100% - 32px);
+}
+
+.playback-pin-dialog-content {
+  padding: 18px;
+  gap: 14px;
+}
+
+.playback-pin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.playback-pin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.playback-pin-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.playback-pin-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 10px 48px 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #020617;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: max(1rem, 1em);
+  letter-spacing: 0.14em;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.playback-pin-input:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-color: #38bdf8;
+}
+
+.playback-pin-input[aria-invalid="true"] {
+  border-color: #f87171;
+}
+
+.playback-pin-input[aria-invalid="true"]:focus-visible {
+  outline-color: #f87171;
+}
+
+.playback-pin-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.15s, background 0.15s;
+}
+
+.playback-pin-toggle:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.playback-pin-toggle:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+}
+
+.playback-pin-toggle .hidden {
+  display: none;
+}
+
+.playback-pin-error {
+  margin: 0;
+  min-height: 20px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: #f87171;
+}
+
+.playback-pin-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.playback-pin-btn {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.playback-pin-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.playback-pin-btn.secondary {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+}
+
+.playback-pin-btn.secondary:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.playback-pin-btn.primary {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+  min-width: 112px;
+}
+
+.playback-pin-btn.primary:hover:not([disabled]) {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.playback-pin-btn[disabled] {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (pointer: coarse) {
+  .playback-pin-input,
+  .playback-pin-btn {
+    min-height: 52px;
+  }
+}
+
+[data-theme="light"] .playback-pin-input {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .playback-pin-input:focus-visible {
+  outline-color: #0284c7;
+  border-color: #0284c7;
+}
+
+[data-theme="light"] .playback-pin-input[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+[data-theme="light"] .playback-pin-input[aria-invalid="true"]:focus-visible {
+  outline-color: #dc2626;
+}
+
+[data-theme="light"] .playback-pin-toggle {
+  color: #64748b;
+}
+
+[data-theme="light"] .playback-pin-toggle:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .playback-pin-error {
+  color: #dc2626;
+}
+
+[data-theme="light"] .playback-pin-btn.secondary {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+[data-theme="light"] .playback-pin-btn.secondary:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }

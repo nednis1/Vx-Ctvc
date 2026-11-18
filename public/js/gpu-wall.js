@@ -2157,6 +2157,10 @@
   let seekFlashTimer = null;
   let playbackMuted = true;
   let playbackRequestSeq = 0;
+  let playbackPinDialogBound = false;
+  let pendingPlaybackUnlockCallback = null;
+  let playbackPinRetryTimer = null;
+  let playbackPinSubmitting = false;
 
   const popoutUrlParams = (typeof window !== 'undefined' && window.location && window.location.search)
     ? new URLSearchParams(window.location.search)
@@ -2575,15 +2579,345 @@
     }
   }
 
-  function openPlaybackDialog() {
-    const dialog = document.getElementById('gpu-playback-dialog');
+  function formatPlaybackRetryWait(seconds) {
+    const s = Math.max(1, Math.ceil(Number(seconds) || 0));
+    if (s >= 60) {
+      const m = Math.floor(s / 60);
+      const rem = s % 60;
+      return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+    }
+    return `${s}s`;
+  }
+
+  function clearPlaybackPinRetryTimer() {
+    if (playbackPinRetryTimer) {
+      clearInterval(playbackPinRetryTimer);
+      playbackPinRetryTimer = null;
+    }
+  }
+
+  function setPlaybackPinError(msg, markInvalid = true) {
+    const errEl = document.getElementById('playback-pin-error');
+    const pinInput = document.getElementById('playback-pin-input');
+    if (errEl) errEl.textContent = msg || '';
+    if (pinInput) {
+      if (msg && markInvalid) {
+        pinInput.setAttribute('aria-invalid', 'true');
+      } else {
+        pinInput.setAttribute('aria-invalid', 'false');
+      }
+    }
+  }
+
+  function setPlaybackPinVisibility(show) {
+    const pinInput = document.getElementById('playback-pin-input');
+    const toggleBtn = document.getElementById('playback-pin-toggle');
+    const visible = Boolean(show);
+    if (pinInput) {
+      pinInput.type = visible ? 'text' : 'password';
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+      toggleBtn.setAttribute('aria-label', visible ? 'Hide PIN' : 'Show PIN');
+      const eyeOpen = toggleBtn.querySelector('.pin-eye-open');
+      const eyeClosed = toggleBtn.querySelector('.pin-eye-closed');
+      if (eyeOpen) eyeOpen.classList.toggle('hidden', visible);
+      if (eyeClosed) eyeClosed.classList.toggle('hidden', !visible);
+    }
+  }
+
+  function startPlaybackPinLockoutCountdown(retryAfterSec) {
+    clearPlaybackPinRetryTimer();
+    const submitBtn = document.getElementById('playback-pin-submit');
+    let remaining = Math.max(1, Math.ceil(Number(retryAfterSec) || 1));
+
+    const update = () => {
+      if (remaining <= 0) {
+        clearPlaybackPinRetryTimer();
+        setPlaybackPinError('', false);
+        if (submitBtn && !playbackPinSubmitting) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Unlock';
+        }
+        return;
+      }
+      setPlaybackPinError(`Too many failed attempts. Try again in ${formatPlaybackRetryWait(remaining)}.`, true);
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Locked';
+      }
+    };
+
+    update();
+    playbackPinRetryTimer = setInterval(() => {
+      remaining -= 1;
+      update();
+    }, 1000);
+  }
+
+  function closePlaybackPinDialog(cancelled = false) {
+    clearPlaybackPinRetryTimer();
+    playbackPinSubmitting = false;
+
+    const dialog = document.getElementById('gpu-playback-pin-dialog');
+    const pinInput = document.getElementById('playback-pin-input');
+    const submitBtn = document.getElementById('playback-pin-submit');
+
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.setAttribute('aria-invalid', 'false');
+    }
+    setPlaybackPinVisibility(false);
+    setPlaybackPinError('', false);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Unlock';
+    }
+
+    pendingPlaybackUnlockCallback = null;
+
+    if (dialog) {
+      if (typeof dialog.close === 'function') {
+        try {
+          if (dialog.open) dialog.close();
+        } catch (e) {
+          dialog.removeAttribute('open');
+        }
+      } else {
+        dialog.removeAttribute('open');
+      }
+    }
+
+    if (cancelled && isPlaybackPopoutMode && !dialogPlaybackStreamId && lastLoadedRecordings.length === 0) {
+      try { window.close(); } catch (e) { }
+      setTimeout(() => {
+        if (!window.closed) {
+          window.location.replace('/');
+        }
+      }, 150);
+    }
+  }
+
+  function setupPlaybackPinDialog() {
+    const dialog = document.getElementById('gpu-playback-pin-dialog');
+    if (!dialog || playbackPinDialogBound) return;
+    playbackPinDialogBound = true;
+
+    const form = document.getElementById('playback-pin-form');
+    const pinInput = document.getElementById('playback-pin-input');
+    const toggleBtn = document.getElementById('playback-pin-toggle');
+    const cancelBtn = document.getElementById('playback-pin-cancel');
+    const closeBtn = document.getElementById('playback-pin-close-btn');
+    const submitBtn = document.getElementById('playback-pin-submit');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const isShown = toggleBtn.getAttribute('aria-pressed') === 'true';
+        setPlaybackPinVisibility(!isShown);
+      });
+    }
+
+    if (pinInput) {
+      pinInput.addEventListener('input', () => {
+        if (pinInput.getAttribute('aria-invalid') === 'true' && !playbackPinRetryTimer) {
+          setPlaybackPinError('', false);
+        }
+      });
+      pinInput.addEventListener('keydown', (e) => {
+        if (e.isComposing && e.key === 'Enter') {
+          e.preventDefault();
+        }
+      });
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => closePlaybackPinDialog(true));
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => closePlaybackPinDialog(true));
+    }
+
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      closePlaybackPinDialog(true);
+    });
+
+    dialog.addEventListener('click', (e) => {
+      if (e.target !== dialog || e.detail === 0) return;
+      const rect = dialog.getBoundingClientRect();
+      const inDialog = (
+        rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+      );
+      if (!inDialog) {
+        closePlaybackPinDialog(true);
+      }
+    });
+
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (playbackPinSubmitting || playbackPinRetryTimer) return;
+
+        const rawPin = pinInput ? pinInput.value.trim() : '';
+        if (!rawPin) {
+          setPlaybackPinError('Enter playback PIN.', true);
+          if (pinInput) pinInput.focus();
+          return;
+        }
+
+        playbackPinSubmitting = true;
+        setPlaybackPinError('', false);
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Unlocking...';
+        }
+
+        try {
+          const res = await fetch('/api/playback/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: rawPin })
+          });
+
+          if (res.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+
+          let body = {};
+          try { body = await res.json(); } catch (err) { }
+
+          if (res.status === 429) {
+            const waitSec = Number(body.retryAfterSec) || 300;
+            startPlaybackPinLockoutCountdown(waitSec);
+            if (pinInput) {
+              pinInput.value = '';
+              pinInput.focus();
+            }
+            return;
+          }
+
+          if (!res.ok) {
+            const errMsg = body.error || 'Incorrect playback PIN.';
+            setPlaybackPinError(errMsg, true);
+            if (pinInput) {
+              pinInput.value = '';
+              pinInput.focus();
+            }
+            return;
+          }
+
+          const cb = pendingPlaybackUnlockCallback;
+          closePlaybackPinDialog(false);
+          if (typeof cb === 'function') {
+            cb();
+          }
+        } catch (err) {
+          setPlaybackPinError('Network error verifying PIN. Try again.', true);
+        } finally {
+          playbackPinSubmitting = false;
+          if (submitBtn && !playbackPinRetryTimer) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Unlock';
+          }
+        }
+      });
+    }
+  }
+
+  function openPlaybackPinDialog(options = {}) {
+    const dialog = document.getElementById('gpu-playback-pin-dialog');
     if (!dialog) return;
 
-    const item = state.slots[state.selectedSlotIndex];
-    if (!item) {
-      showToast('Select an active camera slot first');
-      return;
+    setupPlaybackPinDialog();
+    clearPlaybackPinRetryTimer();
+    playbackPinSubmitting = false;
+    pendingPlaybackUnlockCallback = typeof options.onUnlocked === 'function' ? options.onUnlocked : null;
+
+    const pinInput = document.getElementById('playback-pin-input');
+    const submitBtn = document.getElementById('playback-pin-submit');
+
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.setAttribute('aria-invalid', 'false');
     }
+    setPlaybackPinVisibility(false);
+    setPlaybackPinError('', false);
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Unlock';
+    }
+
+    if (options.lockedOut && options.retryAfterSec > 0) {
+      startPlaybackPinLockoutCountdown(options.retryAfterSec);
+    } else if (options.initialError) {
+      setPlaybackPinError(options.initialError, false);
+    }
+
+    if (typeof dialog.showModal === 'function') {
+      try {
+        if (!dialog.open) dialog.showModal();
+      } catch (e) {
+        dialog.setAttribute('open', '');
+      }
+    } else {
+      dialog.setAttribute('open', '');
+    }
+
+    if (pinInput) {
+      requestAnimationFrame(() => {
+        try { pinInput.focus(); } catch (e) { }
+      });
+    }
+  }
+
+  async function checkPlaybackAccessStatus() {
+    try {
+      const res = await fetch('/api/playback/status', { cache: 'no-store' });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return { unlocked: false, authRedirect: true };
+      }
+      if (!res.ok) return { unlocked: false };
+      return await res.json();
+    } catch (e) {
+      return { unlocked: false };
+    }
+  }
+
+  function handlePlaybackSessionLocked(resumeFn) {
+    stopPlaybackRewind(false);
+    resetActivePlaybackStream();
+    const placeholderEl = document.getElementById('playback-video-placeholder');
+    const pTitle = document.getElementById('playback-placeholder-title');
+    const pDesc = document.getElementById('playback-placeholder-desc');
+    if (placeholderEl) placeholderEl.style.display = 'flex';
+    if (pTitle) pTitle.textContent = 'Playback Locked';
+    if (pDesc) pDesc.textContent = 'Enter playback PIN to resume NVR footage.';
+    openPlaybackPinDialog({
+      onUnlocked: () => {
+        if (typeof resumeFn === 'function') resumeFn();
+      }
+    });
+  }
+
+  async function lockPlayback() {
+    stopPlaybackRewind(false);
+    resetActivePlaybackStream();
+    try {
+      await fetch('/api/playback/lock', { method: 'POST' });
+    } catch (e) { }
+    closePlaybackDialog();
+    if (isPlaybackPopoutMode && !window.closed) {
+      window.location.replace('/');
+    }
+  }
+
+  function launchPlaybackDialogSession(targetItem) {
+    const dialog = document.getElementById('gpu-playback-dialog');
+    if (!dialog || !targetItem) return;
 
     setTimelineZoom(24, true);
 
@@ -2594,12 +2928,11 @@
     syncPlaybackAudioUI();
     resetActivePlaybackStream();
 
-    const camTitle = getCameraTitle(item.nvrId, item.channel);
     dialogPlaybackTarget = {
-      nvrId: item.nvrId,
-      channel: item.channel,
-      slotIndex: state.selectedSlotIndex,
-      title: camTitle
+      nvrId: targetItem.nvrId,
+      channel: targetItem.channel,
+      slotIndex: targetItem.slotIndex,
+      title: getCameraTitle(targetItem.nvrId, targetItem.channel)
     };
     updatePlaybackTargetTitleUI();
 
@@ -2637,7 +2970,37 @@
     dialog.focus();
   }
 
-  function openPlaybackPopoutSession(params) {
+  async function openPlaybackDialog() {
+    const dialog = document.getElementById('gpu-playback-dialog');
+    if (!dialog) return;
+
+    const item = state.slots[state.selectedSlotIndex];
+    if (!item) {
+      showToast('Select an active camera slot first');
+      return;
+    }
+
+    const targetSnapshot = {
+      nvrId: item.nvrId,
+      channel: item.channel,
+      slotIndex: state.selectedSlotIndex
+    };
+
+    const status = await checkPlaybackAccessStatus();
+    if (status.authRedirect) return;
+    if (!status.unlocked) {
+      openPlaybackPinDialog({
+        lockedOut: Boolean(status.lockedOut),
+        retryAfterSec: Number(status.retryAfterSec) || 0,
+        onUnlocked: () => launchPlaybackDialogSession(targetSnapshot)
+      });
+      return;
+    }
+
+    launchPlaybackDialogSession(targetSnapshot);
+  }
+
+  async function openPlaybackPopoutSession(params) {
     const dialog = document.getElementById('gpu-playback-dialog');
     if (!dialog || !params) return;
 
@@ -2688,6 +3051,23 @@
       dialog.setAttribute('open', '');
     }
     dialog.focus();
+
+    const status = await checkPlaybackAccessStatus();
+    if (status.authRedirect) return;
+    if (!status.unlocked) {
+      const placeholderEl = document.getElementById('playback-video-placeholder');
+      const pTitle = document.getElementById('playback-placeholder-title');
+      const pDesc = document.getElementById('playback-placeholder-desc');
+      if (placeholderEl) placeholderEl.style.display = 'flex';
+      if (pTitle) pTitle.textContent = 'Playback Locked';
+      if (pDesc) pDesc.textContent = 'Enter playback PIN to load NVR footage.';
+      openPlaybackPinDialog({
+        lockedOut: Boolean(status.lockedOut),
+        retryAfterSec: Number(status.retryAfterSec) || 0,
+        onUnlocked: () => loadDateRecordings(dateVal, resumeStart)
+      });
+      return;
+    }
 
     loadDateRecordings(dateVal, resumeStart);
   }
@@ -2875,6 +3255,19 @@
 
     try {
       const res = await fetch(`/api/playback/recordings?nvrId=${encodeURIComponent(target.nvrId)}&channel=${target.channel}&date=${encodeURIComponent(dateVal)}&startTime=00:00:00&endTime=23:59:59`);
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (res.status === 403) {
+        let errBody = {};
+        try { errBody = await res.json(); } catch (e) { }
+        if (errBody.playbackLocked) {
+          handlePlaybackSessionLocked(() => loadDateRecordings(dateVal, resumeStartDateTime));
+          return;
+        }
+        throw new Error(errBody.error || 'Access denied');
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const recordings = data.recordings || [];
@@ -2949,12 +3342,22 @@
         })
       });
 
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
       if (!res.ok) {
         let errDetail = `HTTP ${res.status}`;
+        let errBody = {};
         try {
-          const errBody = await res.json();
+          errBody = await res.json();
           if (errBody.error) errDetail = errBody.error;
         } catch (e) { }
+        if (res.status === 403 && errBody.playbackLocked) {
+          handlePlaybackSessionLocked(() => startNvrPlayback(nvrId, channel, startTime, endTime, subtype));
+          return;
+        }
         throw new Error(errDetail);
       }
       const data = await res.json();
@@ -4660,6 +5063,7 @@
       setupGridSheetDialog();
       setupCameraOptionsDialog();
       setupPlaybackDialog();
+      setupPlaybackPinDialog();
       setupScrollAffordance(document.querySelector('.gpu-dock-center'));
       setupScrollAffordance(document.querySelector('.gpu-toolbar'));
       toggleDrawer(typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
@@ -4722,6 +5126,7 @@
     openPlaybackDialog,
     popoutPlayback,
     closePlaybackDialog,
+    lockPlayback,
     setPlaybackSubtype,
     shiftPlaybackDate,
     setPlaybackDateToday,

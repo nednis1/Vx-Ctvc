@@ -58,12 +58,30 @@ function resolveDashboardPasswordHash() {
   return isPasswordHashed(rawDash) ? rawDash.trim() : hashPasswordSync(rawDash);
 }
 
+// Salted scrypt hash fallback for playback PIN (never store raw PIN in source)
+const DEFAULT_PLAYBACK_PIN_HASH =
+  'scrypt$e7b0251156b9e6b062894a7c54bbea4c$164dfd96d9b6a5299ee4a6f470c7895762f02b234e029b58c4b4d2aca9af41e36005222faa58f4c9dc0ba3f095206e1d6c2a23a5195df5456b122f1bdce5879f';
+
+function resolvePlaybackPinHash() {
+  const configuredHash = (process.env.PLAYBACK_PIN_HASH || '').trim();
+  if (configuredHash) {
+    return isPasswordHashed(configuredHash) ? configuredHash : hashPasswordSync(configuredHash);
+  }
+  const rawPin = (process.env.PLAYBACK_PIN || '').trim();
+  if (rawPin) {
+    return isPasswordHashed(rawPin) ? rawPin : hashPasswordSync(rawPin);
+  }
+  return DEFAULT_PLAYBACK_PIN_HASH;
+}
+
 // Configuration
 const CONFIG = {
   dashboardPort: parseInt(process.env.PORT, 10) || 8090,
   authEnabled: process.env.AUTH_ENABLED !== 'false',
   dashboardUser: process.env.DASHBOARD_USER || 'iot',
   dashboardPasswordHash: resolveDashboardPasswordHash(),
+  playbackPinHash: resolvePlaybackPinHash(),
+  playbackLockTtlMs: Math.max(1, parseInt(process.env.PLAYBACK_LOCK_TTL_MINUTES, 10) || 15) * 60 * 1000,
   nvrUser: process.env.NVR_USER || 'iot',
   nvrPassword: process.env.NVR_PASSWORD || 'iot12345',
   nvrs: [
@@ -150,6 +168,183 @@ function getSessionFromRequest(req) {
 function isValidSession(req) {
   if (!CONFIG.authEnabled) return true;
   return Boolean(getSessionFromRequest(req));
+}
+
+// -------------------------------------------------------------
+// Playback PIN Lock, Brute-Force Protection, Grants & Stream Purge
+// -------------------------------------------------------------
+const PLAYBACK_COOKIE = 'voscctv_playback';
+const PLAYBACK_MAX_FAILURES = 5;
+const PLAYBACK_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const PLAYBACK_LOCKOUT_MS = 5 * 60 * 1000;
+
+const playbackGrants = new Map();       // grantToken -> { token, sessionId, username, ip, unlockedAt, lastActivity, expires }
+const activePlaybackStreams = new Map(); // streamId -> { grantToken, sessionId, nvrId, channel }
+const playbackAttemptTracker = new Map(); // clientKey -> { fails, windowStart, lockedUntil }
+
+function getClientIp(req) {
+  const fwd = req && req.headers && req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.trim()) {
+    return fwd.split(',')[0].trim();
+  }
+  return (req && req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
+function getSessionKeyAndUser(req) {
+  const cookies = parseCookies(req);
+  const sessionId = cookies['voscctv_session'] || '';
+  const sess = CONFIG.authEnabled && sessionId ? getSessionFromRequest(req) : null;
+  return {
+    sessionId: CONFIG.authEnabled ? sessionId : 'kiosk',
+    username: sess ? sess.username : (CONFIG.authEnabled ? 'anonymous' : 'kiosk')
+  };
+}
+
+function auditPlaybackLog(event, req, details = '') {
+  const { username } = getSessionKeyAndUser(req);
+  const ip = getClientIp(req);
+  console.log(`[Audit:Playback] ${new Date().toISOString()} event=${event} user=${username} ip=${ip}${details ? ' ' + details : ''}`);
+}
+
+function deleteGo2rtcStream(streamId) {
+  if (!streamId) return;
+  try {
+    const go2rtcPort = go2rtcManager.GO2RTC_PORT || 1984;
+    const delUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(streamId)}`;
+    const delReq = http.request(delUrl, { method: 'DELETE', timeout: 2500 }, (delRes) => delRes.resume());
+    delReq.on('error', () => {});
+    delReq.end();
+  } catch (e) {}
+}
+
+function purgePlaybackStreamsForGrant(grantToken, sessionId = null) {
+  for (const [streamId, meta] of activePlaybackStreams.entries()) {
+    if ((grantToken && meta.grantToken === grantToken) || (sessionId && meta.sessionId === sessionId)) {
+      activePlaybackStreams.delete(streamId);
+      deleteGo2rtcStream(streamId);
+    }
+  }
+}
+
+function getPlaybackGrant(req, touch = false) {
+  const cookies = parseCookies(req);
+  const token = cookies[PLAYBACK_COOKIE];
+  if (!token) return null;
+
+  const grant = playbackGrants.get(token);
+  if (!grant) return null;
+
+  const now = Date.now();
+  if (grant.expires < now) {
+    playbackGrants.delete(token);
+    purgePlaybackStreamsForGrant(token);
+    return null;
+  }
+
+  if (CONFIG.authEnabled) {
+    const { sessionId } = getSessionKeyAndUser(req);
+    if (!sessionId || grant.sessionId !== sessionId) {
+      return null;
+    }
+  }
+
+  if (touch) {
+    grant.lastActivity = now;
+    grant.expires = now + CONFIG.playbackLockTtlMs;
+  }
+  return grant;
+}
+
+function isPlaybackUnlocked(req, touch = false) {
+  return Boolean(getPlaybackGrant(req, touch));
+}
+
+function requirePlaybackUnlocked(req, res, next) {
+  const grant = getPlaybackGrant(req, true);
+  if (!grant) {
+    return res.status(403).json({ error: 'Playback locked. PIN required.', playbackLocked: true });
+  }
+  req.playbackGrant = grant;
+  next();
+}
+
+function getPlaybackAttemptKey(req) {
+  const { sessionId } = getSessionKeyAndUser(req);
+  return `${getClientIp(req)}|${sessionId || 'anon'}`;
+}
+
+function getPlaybackRateLimitState(req) {
+  const key = getPlaybackAttemptKey(req);
+  const rec = playbackAttemptTracker.get(key);
+  const now = Date.now();
+  if (!rec) {
+    return { lockedOut: false, retryAfterSec: 0, remainingAttempts: PLAYBACK_MAX_FAILURES };
+  }
+  if (rec.lockedUntil && rec.lockedUntil > now) {
+    return {
+      lockedOut: true,
+      retryAfterSec: Math.ceil((rec.lockedUntil - now) / 1000),
+      remainingAttempts: 0
+    };
+  }
+  if (now - rec.windowStart > PLAYBACK_ATTEMPT_WINDOW_MS) {
+    playbackAttemptTracker.delete(key);
+    return { lockedOut: false, retryAfterSec: 0, remainingAttempts: PLAYBACK_MAX_FAILURES };
+  }
+  return {
+    lockedOut: false,
+    retryAfterSec: 0,
+    remainingAttempts: Math.max(0, PLAYBACK_MAX_FAILURES - rec.fails)
+  };
+}
+
+function recordPlaybackPinFailure(req) {
+  const key = getPlaybackAttemptKey(req);
+  const now = Date.now();
+  let rec = playbackAttemptTracker.get(key);
+  if (!rec || (now - rec.windowStart > PLAYBACK_ATTEMPT_WINDOW_MS)) {
+    rec = { fails: 0, windowStart: now, lockedUntil: 0 };
+  }
+  rec.fails += 1;
+  if (rec.fails >= PLAYBACK_MAX_FAILURES) {
+    rec.lockedUntil = now + PLAYBACK_LOCKOUT_MS;
+  }
+  playbackAttemptTracker.set(key, rec);
+  return getPlaybackRateLimitState(req);
+}
+
+function clearPlaybackPinFailures(req) {
+  playbackAttemptTracker.delete(getPlaybackAttemptKey(req));
+}
+
+// Periodically prune expired playback grants & stale rate-limit records
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, grant] of playbackGrants.entries()) {
+    if (grant.expires < now) {
+      playbackGrants.delete(token);
+      purgePlaybackStreamsForGrant(token);
+    }
+  }
+  for (const [key, rec] of playbackAttemptTracker.entries()) {
+    if ((!rec.lockedUntil || rec.lockedUntil < now) && (now - rec.windowStart > PLAYBACK_ATTEMPT_WINDOW_MS)) {
+      playbackAttemptTracker.delete(key);
+    }
+  }
+}, 60000).unref();
+
+function isSameHostOrigin(req) {
+  const origin = req && req.headers && req.headers.origin;
+  const hostHeader = req && req.headers && req.headers.host;
+  if (!origin || !hostHeader) return null;
+  try {
+    const parsedOrigin = new URL(origin);
+    const reqHostname = hostHeader.split(':')[0].toLowerCase();
+    if (parsedOrigin.hostname.toLowerCase() === reqHostname) {
+      return origin;
+    }
+  } catch (e) {}
+  return null;
 }
 
 // -------------------------------------------------------------
@@ -246,10 +441,15 @@ async function syncOfficialNvrNames() {
 // -------------------------------------------------------------
 const app = express();
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigin = isSameHostOrigin(req);
+  if (allowedOrigin) {
+    res.header('Access-Control-Allow-Origin', allowedOrigin);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(allowedOrigin || !req.headers.origin ? 204 : 403);
   next();
 });
 app.use(express.json());
@@ -326,15 +526,23 @@ app.post('/api/login', async (req, res) => {
   return res.json({ success: true, user: { username: matchedUser.user, role: matchedUser.role } });
 });
 
-// API: Logout & invalidate session
+// API: Logout & invalidate session + revoke playback grant
 app.post('/api/logout', (req, res) => {
   const cookies = parseCookies(req);
   const sessionId = cookies['voscctv_session'];
+  const playbackToken = cookies[PLAYBACK_COOKIE];
+  if (playbackToken && playbackGrants.has(playbackToken)) {
+    playbackGrants.delete(playbackToken);
+  }
+  purgePlaybackStreamsForGrant(playbackToken, sessionId);
   if (sessionId && activeSessions[sessionId]) {
     delete activeSessions[sessionId];
     saveSessions();
   }
-  res.setHeader('Set-Cookie', 'voscctv_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.setHeader('Set-Cookie', [
+    'voscctv_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+    `${PLAYBACK_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
+  ]);
   res.json({ success: true });
 });
 
@@ -406,11 +614,17 @@ function createNvrProxy(nvr) {
     delete proxyRes.headers['content-security-policy-report-only'];
     delete proxyRes.headers['strict-transport-security'];
 
-    // Inject CORS and embedding headers
-    proxyRes.headers['access-control-allow-origin'] = '*';
+    // Inject strict same-host CORS headers (allows port 8090 <-> 8091/8092 without wildcard *)
+    const allowedOrigin = isSameHostOrigin(proxyRes.req);
+    if (allowedOrigin) {
+      proxyRes.headers['access-control-allow-origin'] = allowedOrigin;
+      proxyRes.headers['vary'] = 'Origin';
+      proxyRes.headers['access-control-allow-credentials'] = 'true';
+    } else {
+      delete proxyRes.headers['access-control-allow-origin'];
+    }
     proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-    proxyRes.headers['access-control-allow-headers'] = '*';
-    proxyRes.headers['access-control-allow-credentials'] = 'true';
+    proxyRes.headers['access-control-allow-headers'] = 'Content-Type, Authorization';
   });
 
   proxy.on('error', (err, req, res) => {
@@ -810,13 +1024,19 @@ window.__VOSCTV_INITIAL_NAMES = ${JSON.stringify(loadCustomNames()[nvr.id] || {}
           bundleCache.set(cleanPath, zlib.gzipSync(Buffer.from(patchedJs, 'utf8')));
         }
         const gzOut = bundleCache.get(cleanPath);
-        res.writeHead(200, {
+        const headers = {
           'Content-Type': 'application/javascript; charset=utf-8',
           'Content-Encoding': 'gzip',
           'Content-Length': gzOut.length,
-          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-          'Access-Control-Allow-Origin': '*'
-        });
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        };
+        const allowedOrigin = isSameHostOrigin(req);
+        if (allowedOrigin) {
+          headers['Access-Control-Allow-Origin'] = allowedOrigin;
+          headers['Access-Control-Allow-Credentials'] = 'true';
+          headers['Vary'] = 'Origin';
+        }
+        res.writeHead(200, headers);
         res.end(gzOut);
         return;
       } catch (err) {
@@ -1008,11 +1228,108 @@ app.post('/api/camera-names', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// NVR Playback & Recording APIs (Direct Hard-Drive Storage Access)
+// Playback PIN Lock Endpoints & Protected NVR Playback APIs
 // -------------------------------------------------------------
 
+// API: Check playback PIN unlock status (does not slide TTL)
+app.get('/api/playback/status', (req, res) => {
+  const grant = getPlaybackGrant(req, false);
+  const rateState = getPlaybackRateLimitState(req);
+  const now = Date.now();
+  res.json({
+    unlocked: Boolean(grant),
+    expiresInSec: grant ? Math.max(0, Math.round((grant.expires - now) / 1000)) : 0,
+    lockTtlSec: Math.round(CONFIG.playbackLockTtlMs / 1000),
+    lockedOut: rateState.lockedOut,
+    retryAfterSec: rateState.retryAfterSec
+  });
+});
+
+// API: Verify playback PIN (salted scrypt + rate limiting) & issue HttpOnly playback grant cookie
+app.post('/api/playback/unlock', async (req, res) => {
+  const rateState = getPlaybackRateLimitState(req);
+  if (rateState.lockedOut) {
+    res.setHeader('Retry-After', String(rateState.retryAfterSec));
+    auditPlaybackLog('unlock_blocked_ratelimit', req, `retryAfterSec=${rateState.retryAfterSec}`);
+    return res.status(429).json({
+      error: `Too many incorrect PIN attempts. Try again in ${Math.ceil(rateState.retryAfterSec / 60)} min.`,
+      lockedOut: true,
+      retryAfterSec: rateState.retryAfterSec
+    });
+  }
+
+  const submittedPin = req.body && typeof req.body.pin === 'string' ? req.body.pin.trim() : '';
+  if (!submittedPin) {
+    return res.status(400).json({ error: 'Playback PIN required' });
+  }
+
+  const { sessionId, username } = getSessionKeyAndUser(req);
+  // Allow optional per-user Directus playback PIN hash override, falling back to CONFIG.playbackPinHash
+  const userPinHash = directusClient.getUserPlaybackPinHash(username);
+  const expectedHash = userPinHash || CONFIG.playbackPinHash;
+
+  const ok = await verifyPassword(submittedPin, expectedHash);
+  if (!ok) {
+    const nextRate = recordPlaybackPinFailure(req);
+    auditPlaybackLog('unlock_failed', req, `remaining=${nextRate.remainingAttempts}`);
+    if (nextRate.lockedOut) {
+      res.setHeader('Retry-After', String(nextRate.retryAfterSec));
+      return res.status(429).json({
+        error: `Too many incorrect PIN attempts. Try again in ${Math.ceil(nextRate.retryAfterSec / 60)} min.`,
+        lockedOut: true,
+        retryAfterSec: nextRate.retryAfterSec
+      });
+    }
+    return res.status(403).json({
+      error: `Incorrect PIN (${nextRate.remainingAttempts} attempt${nextRate.remainingAttempts === 1 ? '' : 's'} remaining)`,
+      remainingAttempts: nextRate.remainingAttempts
+    });
+  }
+
+  clearPlaybackPinFailures(req);
+
+  // Revoke any previous playback grant held by this cookie
+  const existingCookies = parseCookies(req);
+  if (existingCookies[PLAYBACK_COOKIE]) {
+    playbackGrants.delete(existingCookies[PLAYBACK_COOKIE]);
+    purgePlaybackStreamsForGrant(existingCookies[PLAYBACK_COOKIE]);
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  const ip = getClientIp(req);
+  playbackGrants.set(token, {
+    token,
+    sessionId,
+    username,
+    ip,
+    unlockedAt: now,
+    lastActivity: now,
+    expires: now + CONFIG.playbackLockTtlMs
+  });
+
+  const maxAgeSec = Math.floor(CONFIG.playbackLockTtlMs / 1000);
+  res.setHeader('Set-Cookie', `${PLAYBACK_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`);
+  auditPlaybackLog('unlock_success', req, `ttlSec=${maxAgeSec}`);
+  res.json({ success: true, unlocked: true, expiresInSec: maxAgeSec });
+});
+
+// API: Explicitly lock playback & purge active playback streams
+app.post('/api/playback/lock', (req, res) => {
+  const cookies = parseCookies(req);
+  const token = cookies[PLAYBACK_COOKIE];
+  const { sessionId } = getSessionKeyAndUser(req);
+  if (token) {
+    playbackGrants.delete(token);
+  }
+  purgePlaybackStreamsForGrant(token, sessionId);
+  res.setHeader('Set-Cookie', `${PLAYBACK_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  auditPlaybackLog('manual_lock', req);
+  res.json({ success: true, unlocked: false });
+});
+
 // API: Search NVR recorded video blocks via Dahua mediaFileFind.cgi
-app.get('/api/playback/recordings', async (req, res) => {
+app.get('/api/playback/recordings', requirePlaybackUnlocked, async (req, res) => {
   const { nvrId, channel = 1, date, startTime, endTime } = req.query;
   const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
   if (!nvr) return res.status(404).json({ error: 'NVR not found' });
@@ -1024,6 +1341,7 @@ app.get('/api/playback/recordings', async (req, res) => {
   const queryDate = date || localToday;
   const queryStart = startTime ? `${queryDate} ${startTime}` : `${queryDate} 00:00:00`;
   const queryEnd = endTime ? `${queryDate} ${endTime}` : `${queryDate} 23:59:59`;
+  auditPlaybackLog('query_recordings', req, `nvr=${nvrId} ch=${chNum} date=${queryDate}`);
 
   const user = nvr.username;
   const pass = nvr.password;
@@ -1121,7 +1439,7 @@ app.get('/api/playback/recordings', async (req, res) => {
 });
 
 // API: Register dynamic Dahua NVR playback RTSP stream in go2rtc
-app.post('/api/playback/start-stream', async (req, res) => {
+app.post('/api/playback/start-stream', requirePlaybackUnlocked, async (req, res) => {
   const { nvrId, channel = 1, startTime, endTime, subtype = 0, oldStreamId } = req.body;
   const nvr = CONFIG.nvrs.find(n => n.id === nvrId);
   if (!nvr) return res.status(404).json({ error: 'NVR not found' });
@@ -1160,13 +1478,17 @@ app.post('/api/playback/start-stream', async (req, res) => {
 
   // Cleanup old playback stream in go2rtc if provided to prevent orphaned RTSP sessions
   if (oldStreamId) {
-    try {
-      const delUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(oldStreamId)}`;
-      const delReq = http.request(delUrl, { method: 'DELETE', timeout: 2000 }, (delRes) => delRes.resume());
-      delReq.on('error', () => {});
-      delReq.end();
-    } catch (e) {}
+    activePlaybackStreams.delete(oldStreamId);
+    deleteGo2rtcStream(oldStreamId);
   }
+
+  activePlaybackStreams.set(streamId, {
+    grantToken: req.playbackGrant.token,
+    sessionId: req.playbackGrant.sessionId,
+    nvrId,
+    channel: ch
+  });
+  auditPlaybackLog('start_stream', req, `nvr=${nvrId} ch=${ch} sub=${sub} range=${startFormatted}..${endFormatted}`);
 
   try {
     const putUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(streamId)}&src=${encodeURIComponent(rtspUrl)}`;
@@ -1183,21 +1505,24 @@ app.post('/api/playback/start-stream', async (req, res) => {
       });
     });
     putReq.on('error', (err) => {
+      activePlaybackStreams.delete(streamId);
       console.warn('[VOSCTV] Failed to register playback stream in go2rtc:', err.message);
       res.status(502).json({ error: 'Failed to register playback stream in go2rtc', details: err.message });
     });
     putReq.end();
   } catch (err) {
+    activePlaybackStreams.delete(streamId);
     res.status(500).json({ error: 'Playback stream initialization failed', details: err.message });
   }
 });
 
 // API: Stop/Unregister dynamic playback stream
-app.post('/api/playback/stop-stream', (req, res) => {
+app.post('/api/playback/stop-stream', requirePlaybackUnlocked, (req, res) => {
   const { streamId } = req.body;
   if (!streamId) return res.status(400).json({ error: 'streamId required' });
 
   try {
+    activePlaybackStreams.delete(streamId);
     const go2rtcPort = go2rtcManager.GO2RTC_PORT || 1984;
     const deleteUrl = `http://127.0.0.1:${go2rtcPort}/api/streams?name=${encodeURIComponent(streamId)}`;
     const delReq = http.request(deleteUrl, { method: 'DELETE', timeout: 3000 }, (delRes) => {
@@ -1375,9 +1700,9 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   syncOfficialNvrNames().catch(() => {});
   probeCameraCapabilities().catch(() => {});
 
-  // Setup go2rtc WebRTC GPU Bridge
+  // Setup go2rtc WebRTC GPU Bridge (Live feeds authenticated; playback streams gated behind playback PIN)
   try {
-    go2rtcManager.setupGo2rtcProxy(app, dashboardServer, isValidSession);
+    go2rtcManager.setupGo2rtcProxy(app, dashboardServer, isValidSession, (req) => isPlaybackUnlocked(req, true));
     go2rtcManager.startGo2rtc(CONFIG.nvrs);
   } catch (err) {
     console.warn('[go2rtc] Initialization warning:', err.message);

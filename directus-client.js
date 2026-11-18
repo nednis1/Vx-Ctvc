@@ -165,6 +165,20 @@ class DirectusCctvClient {
   }
 
   /**
+   * Look up a user's optional per-account playback PIN / hash from Directus cache
+   */
+  getUserPlaybackPinHash(username) {
+    if (!username) return null;
+    const cleanUser = String(username).trim().toLowerCase();
+    const row = this.cachedCredentials.find(
+      c => (c.username || '').trim().toLowerCase() === cleanUser && c.status === 'active'
+    );
+    if (!row) return null;
+    const val = row.playback_pin_hash || row.playback_pin || '';
+    return typeof val === 'string' && val.trim() ? val.trim() : null;
+  }
+
+  /**
    * Get specific NVR credentials by nvr_id (e.g. 'nvr1', 'nvr2')
    */
   getNvrCredentials(nvrId) {
