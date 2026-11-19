@@ -520,7 +520,13 @@ async function syncOfficialNvrNames() {
 // Express Dashboard App Initialization
 // -------------------------------------------------------------
 const app = express();
+app.disable('x-powered-by');
 app.use((req, res, next) => {
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('Referrer-Policy', 'no-referrer');
+  res.header('X-Frame-Options', 'SAMEORIGIN');
+  res.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
   const allowedOrigin = isSameHostOrigin(req);
   if (allowedOrigin) {
     res.header('Access-Control-Allow-Origin', allowedOrigin);
@@ -532,7 +538,7 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(allowedOrigin || !req.headers.origin ? 204 : 403);
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 
 // -------------------------------------------------------------
 // Authentication Endpoints & Route Guards
@@ -1580,8 +1586,8 @@ app.post('/api/playback/start-stream', requirePlaybackUnlocked, async (req, res)
   const streamId = `playback_${nvrId}_ch${ch}_${Date.now()}`;
   const go2rtcPort = go2rtcManager.GO2RTC_PORT || 1984;
 
-  // Cleanup old playback stream in go2rtc if provided to prevent orphaned RTSP sessions
-  if (oldStreamId) {
+  // Cleanup old playback stream in go2rtc if provided (strictly scoped to playback_* IDs)
+  if (typeof oldStreamId === 'string' && /^playback_[a-z0-9_]+$/i.test(oldStreamId)) {
     activePlaybackStreams.delete(oldStreamId);
     deleteGo2rtcStream(oldStreamId);
   }
@@ -1622,8 +1628,10 @@ app.post('/api/playback/start-stream', requirePlaybackUnlocked, async (req, res)
 
 // API: Stop/Unregister dynamic playback stream
 app.post('/api/playback/stop-stream', requirePlaybackUnlocked, (req, res) => {
-  const { streamId } = req.body;
-  if (!streamId) return res.status(400).json({ error: 'streamId required' });
+  const { streamId } = req.body || {};
+  if (typeof streamId !== 'string' || !/^playback_[a-z0-9_]+$/i.test(streamId)) {
+    return res.status(400).json({ error: 'Valid playback streamId required' });
+  }
 
   try {
     activePlaybackStreams.delete(streamId);
