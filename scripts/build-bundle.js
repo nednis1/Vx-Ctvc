@@ -1,8 +1,13 @@
 /**
- * Cross-platform Deployment Zip Bundler for VOSCCTV
- * Produces clean, POSIX-path archives prefixed with `cctv-` inside `dist/`.
- * Excludes local secrets (.env), runtime state (camera_names.json, go2rtc.yaml, sessions.json),
- * git metadata, and existing build artifacts.
+ * Redeployment Essentials Zip Bundler for VOSCCTV
+ * Packages ONLY the gitignored local files needed when redeploying to another device
+ * after `git clone` + `npm install`:
+ *   - .env (environment config, credentials, hashed PIN/password)
+ *   - camera_names.json (custom camera display aliases, if present)
+ *   - DEPLOY.txt (quick redeployment checklist)
+ *
+ * Output is written to gitignored `dist/cctv-essentials-<date>-<sha>.zip`.
+ * Treat the resulting zip as sensitive (contains `.env`) and never commit it to Git.
  */
 
 const { execSync } = require('child_process');
@@ -13,28 +18,10 @@ const zlib = require('zlib');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 
-const RUNTIME_FILES = [
-  'server.js',
-  'auth-crypto.js',
-  'go2rtc-manager.js',
-  'directus-client.js',
-  'package.json',
-  'package-lock.json',
-  '.env.example',
-  'README.md'
+const ESSENTIAL_FILES = [
+  { name: '.env', required: true },
+  { name: 'camera_names.json', required: false }
 ];
-
-const EXCLUDED_NAMES = new Set([
-  '.env',
-  '.git',
-  '.DS_Store',
-  'camera_names.json',
-  'go2rtc.yaml',
-  'sessions.json',
-  'dist',
-  'AGENTS.md',
-  'cctv server issues.md'
-]);
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -64,16 +51,13 @@ function toDosTimeDate(mtime) {
   return { dosTime, dosDate };
 }
 
-/**
- * Encode files into a standard ZIP archive with POSIX `/` separators and Unix file modes.
- */
-function buildZipBuffer(fileEntries) {
+function buildZipBuffer(entries) {
   const localParts = [];
   const centralParts = [];
   let offset = 0;
 
-  for (const entry of fileEntries) {
-    const rawData = fs.readFileSync(entry.absPath);
+  for (const entry of entries) {
+    const rawData = entry.buffer;
     const deflated = zlib.deflateRawSync(rawData, { level: 6 });
     const useDeflate = deflated.length < rawData.length;
     const method = useDeflate ? 8 : 0;
@@ -84,7 +68,6 @@ function buildZipBuffer(fileEntries) {
     const nameBuf = Buffer.from(entry.zipPath, 'utf8');
     const utf8Flag = 0x0800;
 
-    // Local file header (30 bytes + filename)
     const localHeader = Buffer.alloc(30);
     localHeader.writeUInt32LE(0x04034b50, 0);
     localHeader.writeUInt16LE(20, 4);
@@ -100,10 +83,9 @@ function buildZipBuffer(fileEntries) {
 
     localParts.push(localHeader, nameBuf, payload);
 
-    // Central directory header (46 bytes + filename)
     const centralHeader = Buffer.alloc(46);
     centralHeader.writeUInt32LE(0x02014b50, 0);
-    centralHeader.writeUInt16LE((3 << 8) | 20, 4); // Unix creator + PKZip 2.0 extract
+    centralHeader.writeUInt16LE(0x0314, 4);
     centralHeader.writeUInt16LE(20, 6);
     centralHeader.writeUInt16LE(utf8Flag, 8);
     centralHeader.writeUInt16LE(method, 10);
@@ -117,135 +99,95 @@ function buildZipBuffer(fileEntries) {
     centralHeader.writeUInt16LE(0, 32);
     centralHeader.writeUInt16LE(0, 34);
     centralHeader.writeUInt16LE(0, 36);
-    centralHeader.writeUInt32LE((entry.unixMode << 16) >>> 0, 38);
+    centralHeader.writeUInt32LE(((entry.mode || 0o100600) & 0xffff) << 16, 38);
     centralHeader.writeUInt32LE(offset, 42);
 
     centralParts.push(centralHeader, nameBuf);
     offset += localHeader.length + nameBuf.length + payload.length;
   }
 
-  const centralDirBuf = Buffer.concat(centralParts);
+  const centralSize = centralParts.reduce((sum, b) => sum + b.length, 0);
   const eocd = Buffer.alloc(22);
   eocd.writeUInt32LE(0x06054b50, 0);
   eocd.writeUInt16LE(0, 4);
   eocd.writeUInt16LE(0, 6);
-  eocd.writeUInt16LE(fileEntries.length, 8);
-  eocd.writeUInt16LE(fileEntries.length, 10);
-  eocd.writeUInt32LE(centralDirBuf.length, 12);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralSize, 12);
   eocd.writeUInt32LE(offset, 16);
   eocd.writeUInt16LE(0, 20);
 
-  return Buffer.concat([...localParts, centralDirBuf, eocd]);
+  return Buffer.concat([...localParts, ...centralParts, eocd]);
 }
 
-function collectFilesRecursively(dirPath, relPrefix, outList, filterFn) {
-  if (!fs.existsSync(dirPath)) return;
-  const items = fs.readdirSync(dirPath).sort();
-  for (const name of items) {
-    if (EXCLUDED_NAMES.has(name) || name.endsWith('.log') || name.endsWith('.zip')) continue;
-    const full = path.join(dirPath, name);
-    const stat = fs.lstatSync(full);
-    if (stat.isSymbolicLink()) continue;
-    const rel = relPrefix ? `${relPrefix}/${name}` : name;
-    if (stat.isDirectory()) {
-      collectFilesRecursively(full, rel, outList, filterFn);
-    } else if (stat.isFile()) {
-      if (filterFn && !filterFn(rel, name)) continue;
-      const isExec = rel === 'bin/go2rtc_linux_amd64' || rel === 'bin/go2rtc' || rel.endsWith('.sh') || rel.endsWith('.exe');
-      outList.push({
-        absPath: full,
-        zipPath: rel.replace(/\\/g, '/'),
-        mtime: stat.mtime,
-        unixMode: isExec ? 0o100755 : 0o100644
-      });
-    }
-  }
-}
-
-function parseArgs(argv) {
-  const opts = { platform: 'all', includeDeps: true, out: null };
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === '--platform' && argv[i + 1]) {
-      opts.platform = argv[++i].toLowerCase();
-    } else if (arg === '--no-deps') {
-      opts.includeDeps = false;
-    } else if (arg === '--out' && argv[i + 1]) {
-      opts.out = argv[++i];
-    }
-  }
-  return opts;
-}
-
-function getShortGitSha() {
+function getGitShortSha() {
   try {
     return execSync('git rev-parse --short HEAD', { cwd: ROOT_DIR, stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString()
+      .toString('utf8')
       .trim();
   } catch (e) {
     return 'local';
   }
 }
 
-function getLocalYmd() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-}
-
 function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
-  const version = pkg.version || '1.0.0';
-  const sha = getShortGitSha();
-  const ymd = getLocalYmd();
-
-  const platformTag = opts.platform === 'linux' || opts.platform === 'win' ? `-${opts.platform}` : '';
-  const defaultFileName = `cctv-vosctv${platformTag}-v${version}-${ymd}-${sha}.zip`;
-
-  let outPath = opts.out ? path.resolve(ROOT_DIR, opts.out) : path.join(DIST_DIR, defaultFileName);
-  const outBase = path.basename(outPath);
-  if (!outBase.toLowerCase().startsWith('cctv')) {
-    outPath = path.join(path.dirname(outPath), `cctv-${outBase}`);
-  }
-
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-
   const entries = [];
+  const includedNames = [];
 
-  for (const relFile of RUNTIME_FILES) {
-    const abs = path.join(ROOT_DIR, relFile);
-    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
-      const stat = fs.statSync(abs);
-      entries.push({
-        absPath: abs,
-        zipPath: relFile,
-        mtime: stat.mtime,
-        unixMode: 0o100644
-      });
+  for (const item of ESSENTIAL_FILES) {
+    const absPath = path.join(ROOT_DIR, item.name);
+    if (!fs.existsSync(absPath)) {
+      if (item.required) {
+        console.error(`[bundle] Missing required file: ${item.name}`);
+        process.exit(1);
+      }
+      continue;
     }
-  }
-
-  collectFilesRecursively(path.join(ROOT_DIR, 'public'), 'public', entries);
-
-  collectFilesRecursively(path.join(ROOT_DIR, 'bin'), 'bin', entries, (_rel, name) => {
-    if (opts.platform === 'linux') return !name.endsWith('.exe');
-    if (opts.platform === 'win') return name.endsWith('.exe');
-    return true;
-  });
-
-  if (opts.includeDeps) {
-    collectFilesRecursively(path.join(ROOT_DIR, 'node_modules'), 'node_modules', entries, (rel) => {
-      return !rel.startsWith('node_modules/.cache');
+    const stat = fs.statSync(absPath);
+    entries.push({
+      zipPath: item.name,
+      buffer: fs.readFileSync(absPath),
+      mtime: stat.mtime,
+      mode: item.name === '.env' ? 0o100600 : 0o100644
     });
+    includedNames.push(item.name);
   }
 
-  const zipBuf = buildZipBuffer(entries);
-  fs.writeFileSync(outPath, zipBuf);
+  const deployGuide = [
+    'VOSCCTV Redeployment Essentials',
+    '===============================',
+    '',
+    '1. Clone or pull the repository on the target device:',
+    '   git clone https://github.com/nednis1/Vx-Ctvc.git && cd Vx-Ctvc',
+    '2. Install dependencies:',
+    '   npm install',
+    '3. Extract this archive into the repository root (copies .env and camera_names.json).',
+    '4. On Linux, lock .env permissions:',
+    '   chmod 600 .env',
+    '5. Start the server:',
+    '   npm start',
+    ''
+  ].join('\n');
 
-  const mb = (zipBuf.length / (1024 * 1024)).toFixed(2);
-  console.log(`[bundle] Created ${path.relative(ROOT_DIR, outPath)} (${entries.length} files, ${mb} MB)`);
+  entries.push({
+    zipPath: 'DEPLOY.txt',
+    buffer: Buffer.from(deployGuide, 'utf8'),
+    mtime: new Date(),
+    mode: 0o100644
+  });
+  includedNames.push('DEPLOY.txt');
+
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const sha = getGitShortSha();
+  const zipName = `cctv-essentials-${stamp}-${sha}.zip`;
+  const outPath = path.join(DIST_DIR, zipName);
+
+  fs.mkdirSync(DIST_DIR, { recursive: true });
+  const zipBuf = buildZipBuffer(entries);
+  fs.writeFileSync(outPath, zipBuf, { mode: 0o600 });
+
+  console.log(`[bundle] Created ${path.relative(ROOT_DIR, outPath)} (${entries.length} files: ${includedNames.join(', ')}; ${(zipBuf.length / 1024).toFixed(2)} KB)`);
 }
 
 main();
-
