@@ -1856,10 +1856,10 @@ progress.loading-spinner:indeterminate {
 
 .gpu-slot-spinner {
   position: absolute;
+  inset: auto;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  inset: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3695,10 +3695,10 @@ html[data-theme="light"].playback-popout-mode .gpu-playback-dialog::backdrop {
 
 .playback-screen-spinner {
   position: absolute;
+  inset: auto;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  inset: auto;
   background: rgba(2, 6, 23, 0.45);
   backdrop-filter: none;
   display: flex;
