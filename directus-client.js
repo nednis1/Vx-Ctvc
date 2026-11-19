@@ -13,7 +13,7 @@ class DirectusCctvClient {
   constructor() {
     const rawUrl = process.env.DIRECTUS_URL || 'http://goatedcodoer:8056';
     this.baseUrl = rawUrl.replace(/\/+$/, '');
-    this.token = (process.env.DIRECTUS_TOKEN || 'AAKv73dkIV8DfAIA5vEt3eXVdIebzmBW').trim();
+    this.token = (process.env.DIRECTUS_TOKEN || '').trim();
     this.collection = 'iot_cctv_credentials';
     this.cachedCredentials = [];
     this.lastSyncedAt = null;
@@ -190,6 +190,9 @@ class DirectusCctvClient {
    * Initialize client and start background periodic synchronization
    */
   async init() {
+    if (!this.token) {
+      console.warn('[Directus] DIRECTUS_TOKEN is not set in .env — Directus credential sync may fail if collection requires auth.');
+    }
     console.log(`[Directus] Connecting to Directus at ${this.baseUrl} (Collection: ${this.collection})`);
     await this.syncCredentials();
     if (!this.syncInterval) {

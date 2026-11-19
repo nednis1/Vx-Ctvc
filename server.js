@@ -54,8 +54,9 @@ function resolveDashboardPasswordHash() {
   if (configuredHash) {
     return isPasswordHashed(configuredHash) ? configuredHash : hashPasswordSync(configuredHash);
   }
-  const rawDash = process.env.DASHBOARD_PASSWORD || 'iot12345';
-  return isPasswordHashed(rawDash) ? rawDash.trim() : hashPasswordSync(rawDash);
+  const rawDash = (process.env.DASHBOARD_PASSWORD || '').trim();
+  if (!rawDash) return '';
+  return isPasswordHashed(rawDash) ? rawDash : hashPasswordSync(rawDash);
 }
 
 // Salted scrypt hash fallback for playback PIN (never store raw PIN in source)
@@ -77,13 +78,15 @@ function resolvePlaybackPinHash() {
 // Configuration
 const CONFIG = {
   dashboardPort: parseInt(process.env.PORT, 10) || 8090,
+  trustProxy: process.env.TRUST_PROXY === 'true',
+  cookieSecure: (process.env.COOKIE_SECURE || 'auto').trim().toLowerCase(),
   authEnabled: process.env.AUTH_ENABLED !== 'false',
   dashboardUser: process.env.DASHBOARD_USER || 'iot',
   dashboardPasswordHash: resolveDashboardPasswordHash(),
   playbackPinHash: resolvePlaybackPinHash(),
   playbackLockTtlMs: Math.max(1, parseInt(process.env.PLAYBACK_LOCK_TTL_MINUTES, 10) || 15) * 60 * 1000,
   nvrUser: process.env.NVR_USER || 'iot',
-  nvrPassword: process.env.NVR_PASSWORD || 'iot12345',
+  nvrPassword: process.env.NVR_PASSWORD || '',
   nvrs: [
     {
       id: 'nvr1',
@@ -94,7 +97,7 @@ const CONFIG = {
       privatePort: 37777,
       proxyPort: 8091,
       username: process.env.NVR_USER || 'iot',
-      password: process.env.NVR_PASSWORD || 'iot12345'
+      password: process.env.NVR_PASSWORD || ''
     },
     {
       id: 'nvr2',
@@ -105,7 +108,7 @@ const CONFIG = {
       privatePort: 37777,
       proxyPort: 8092,
       username: process.env.NVR_USER || 'iot',
-      password: process.env.NVR_PASSWORD || 'iot12345'
+      password: process.env.NVR_PASSWORD || ''
     }
   ]
 };
@@ -132,7 +135,7 @@ function saveSessions() {
     Object.keys(activeSessions).forEach(id => {
       if (activeSessions[id].expires < now) delete activeSessions[id];
     });
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(activeSessions), 'utf8');
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(activeSessions), { encoding: 'utf8', mode: 0o600 });
   } catch (e) {}
 }
 loadSessions();
@@ -182,12 +185,84 @@ const playbackGrants = new Map();       // grantToken -> { token, sessionId, use
 const activePlaybackStreams = new Map(); // streamId -> { grantToken, sessionId, nvrId, channel }
 const playbackAttemptTracker = new Map(); // clientKey -> { fails, windowStart, lockedUntil }
 
+const LOGIN_MAX_FAILURES = 5;
+const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_LOCKOUT_MS = 5 * 60 * 1000;
+const loginAttemptTracker = new Map(); // clientKey -> { fails, windowStart, lockedUntil }
+
 function getClientIp(req) {
-  const fwd = req && req.headers && req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.trim()) {
-    return fwd.split(',')[0].trim();
+  if (CONFIG.trustProxy) {
+    const fwd = req && req.headers && req.headers['x-forwarded-for'];
+    if (typeof fwd === 'string' && fwd.trim()) {
+      return fwd.split(',')[0].trim();
+    }
   }
   return (req && req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
+function shouldUseSecureCookie(req) {
+  if (CONFIG.cookieSecure === 'true') return true;
+  if (CONFIG.cookieSecure === 'false') return false;
+  if (req && req.secure) return true;
+  if (CONFIG.trustProxy && req && req.headers) {
+    const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    if (proto === 'https') return true;
+  }
+  return false;
+}
+
+function buildCookieHeader(name, value, maxAgeSec, req) {
+  const securePart = shouldUseSecureCookie(req) ? '; Secure' : '';
+  return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${securePart}`;
+}
+
+function getLoginAttemptKey(req, username) {
+  const userPart = String(username || '').trim().toLowerCase() || 'unknown';
+  return `${getClientIp(req)}|${userPart}`;
+}
+
+function getLoginRateLimitState(req, username) {
+  const key = getLoginAttemptKey(req, username);
+  const rec = loginAttemptTracker.get(key);
+  const now = Date.now();
+  if (!rec) {
+    return { lockedOut: false, retryAfterSec: 0, remainingAttempts: LOGIN_MAX_FAILURES };
+  }
+  if (rec.lockedUntil && rec.lockedUntil > now) {
+    return {
+      lockedOut: true,
+      retryAfterSec: Math.ceil((rec.lockedUntil - now) / 1000),
+      remainingAttempts: 0
+    };
+  }
+  if (now - rec.windowStart > LOGIN_ATTEMPT_WINDOW_MS) {
+    loginAttemptTracker.delete(key);
+    return { lockedOut: false, retryAfterSec: 0, remainingAttempts: LOGIN_MAX_FAILURES };
+  }
+  return {
+    lockedOut: false,
+    retryAfterSec: 0,
+    remainingAttempts: Math.max(0, LOGIN_MAX_FAILURES - rec.fails)
+  };
+}
+
+function recordLoginFailure(req, username) {
+  const key = getLoginAttemptKey(req, username);
+  const now = Date.now();
+  let rec = loginAttemptTracker.get(key);
+  if (!rec || (now - rec.windowStart > LOGIN_ATTEMPT_WINDOW_MS)) {
+    rec = { fails: 0, windowStart: now, lockedUntil: 0 };
+  }
+  rec.fails += 1;
+  if (rec.fails >= LOGIN_MAX_FAILURES) {
+    rec.lockedUntil = now + LOGIN_LOCKOUT_MS;
+  }
+  loginAttemptTracker.set(key, rec);
+  return getLoginRateLimitState(req, username);
+}
+
+function clearLoginFailures(req, username) {
+  loginAttemptTracker.delete(getLoginAttemptKey(req, username));
 }
 
 function getSessionKeyAndUser(req) {
@@ -331,6 +406,11 @@ setInterval(() => {
       playbackAttemptTracker.delete(key);
     }
   }
+  for (const [key, rec] of loginAttemptTracker.entries()) {
+    if ((!rec.lockedUntil || rec.lockedUntil < now) && (now - rec.windowStart > LOGIN_ATTEMPT_WINDOW_MS)) {
+      loginAttemptTracker.delete(key);
+    }
+  }
 }, 60000).unref();
 
 function isSameHostOrigin(req) {
@@ -466,6 +546,17 @@ app.post('/api/login', async (req, res) => {
   }
 
   const cleanUser = username.trim();
+  const loginRate = getLoginRateLimitState(req, cleanUser);
+  if (loginRate.lockedOut) {
+    res.setHeader('Retry-After', String(loginRate.retryAfterSec));
+    console.log(`[Audit:Login] ${new Date().toISOString()} event=login_blocked_ratelimit user=${cleanUser} ip=${getClientIp(req)} retryAfterSec=${loginRate.retryAfterSec}`);
+    return res.status(429).json({
+      error: `Too many failed login attempts. Try again in ${Math.ceil(loginRate.retryAfterSec / 60)} min.`,
+      lockedOut: true,
+      retryAfterSec: loginRate.retryAfterSec
+    });
+  }
+
   let matchedUser = null;
 
   // 1. Authoritative: Authenticate against Directus database (collection: iot_cctv_credentials)
@@ -508,8 +599,21 @@ app.post('/api/login', async (req, res) => {
   }
 
   if (!matchedUser) {
+    const nextRate = recordLoginFailure(req, cleanUser);
+    console.log(`[Audit:Login] ${new Date().toISOString()} event=login_failed user=${cleanUser} ip=${getClientIp(req)} remaining=${nextRate.remainingAttempts}`);
+    if (nextRate.lockedOut) {
+      res.setHeader('Retry-After', String(nextRate.retryAfterSec));
+      return res.status(429).json({
+        error: `Too many failed login attempts. Try again in ${Math.ceil(nextRate.retryAfterSec / 60)} min.`,
+        lockedOut: true,
+        retryAfterSec: nextRate.retryAfterSec
+      });
+    }
     return res.status(401).json({ error: 'Invalid username or password' });
   }
+
+  clearLoginFailures(req, cleanUser);
+  console.log(`[Audit:Login] ${new Date().toISOString()} event=login_success user=${matchedUser.user} ip=${getClientIp(req)} source=${matchedUser.source}`);
 
   const sessionId = crypto.randomBytes(32).toString('hex');
   const ttlMs = remember ? (30 * 24 * 3600 * 1000) : (24 * 3600 * 1000);
@@ -522,7 +626,7 @@ app.post('/api/login', async (req, res) => {
   saveSessions();
 
   const maxAgeSec = Math.floor(ttlMs / 1000);
-  res.setHeader('Set-Cookie', `voscctv_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`);
+  res.setHeader('Set-Cookie', buildCookieHeader('voscctv_session', sessionId, maxAgeSec, req));
   return res.json({ success: true, user: { username: matchedUser.user, role: matchedUser.role } });
 });
 
@@ -540,8 +644,8 @@ app.post('/api/logout', (req, res) => {
     saveSessions();
   }
   res.setHeader('Set-Cookie', [
-    'voscctv_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
-    `${PLAYBACK_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
+    buildCookieHeader('voscctv_session', '', 0, req),
+    buildCookieHeader(PLAYBACK_COOKIE, '', 0, req)
   ]);
   res.json({ success: true });
 });
@@ -1309,7 +1413,7 @@ app.post('/api/playback/unlock', async (req, res) => {
   });
 
   const maxAgeSec = Math.floor(CONFIG.playbackLockTtlMs / 1000);
-  res.setHeader('Set-Cookie', `${PLAYBACK_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`);
+  res.setHeader('Set-Cookie', buildCookieHeader(PLAYBACK_COOKIE, token, maxAgeSec, req));
   auditPlaybackLog('unlock_success', req, `ttlSec=${maxAgeSec}`);
   res.json({ success: true, unlocked: true, expiresInSec: maxAgeSec });
 });
@@ -1323,7 +1427,7 @@ app.post('/api/playback/lock', (req, res) => {
     playbackGrants.delete(token);
   }
   purgePlaybackStreamsForGrant(token, sessionId);
-  res.setHeader('Set-Cookie', `${PLAYBACK_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  res.setHeader('Set-Cookie', buildCookieHeader(PLAYBACK_COOKIE, '', 0, req));
   auditPlaybackLog('manual_lock', req);
   res.json({ success: true, unlocked: false });
 });
@@ -1693,6 +1797,9 @@ const dashboardServer = app.listen(CONFIG.dashboardPort, '0.0.0.0', () => {
   console.log(`- NVR 1 (${CONFIG.nvrs[0].ip}) Proxy: http://localhost:${CONFIG.nvrs[0].proxyPort}`);
   console.log(`- NVR 2 (${CONFIG.nvrs[1].ip}) Proxy: http://localhost:${CONFIG.nvrs[1].proxyPort}`);
   console.log(`- WebRTC GPU Stream Gateway: Enabled via go2rtc`);
+  if (!CONFIG.nvrPassword) {
+    console.warn('[Config] WARNING: NVR_PASSWORD is not set in .env — NVR Digest/RTSP authentication will fail until configured.');
+  }
   console.log(`====================================================`);
   // Initialize Directus connection and pull credentials
   directusClient.init().catch(e => console.warn('[Directus] Initialization warning:', e.message));

@@ -63,7 +63,7 @@ function generateGo2rtcConfig(nvrs) {
 
   for (const nvr of nvrs) {
     const user = encodeURIComponent(nvr.username || 'iot');
-    const pass = encodeURIComponent(nvr.password || 'iot12345');
+    const pass = encodeURIComponent(nvr.password || '');
     const ip = nvr.ip;
     const port = nvr.rtspPort || 554;
 
@@ -92,7 +92,7 @@ streams:
 ${streamsYaml}
 `;
 
-  fs.writeFileSync(CONFIG_PATH, yamlContent, 'utf8');
+  fs.writeFileSync(CONFIG_PATH, yamlContent, { encoding: 'utf8', mode: 0o600 });
   console.log(`[go2rtc] Generated configuration at ${CONFIG_PATH} (64 video streams registered)`);
   return CONFIG_PATH;
 }
