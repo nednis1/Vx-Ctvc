@@ -49,6 +49,19 @@ Instructions, operational constraints, and architecture guidelines for AI agents
 
 ---
 
+## 🔒 Security Standards
+
+> [!CAUTION]
+> **THIS SYSTEM MUST REMAIN SECURE AT ALL TIMES.**
+>
+> - **No Hardcoded Secrets**: Never commit plaintext passwords, PINs, API tokens (`DIRECTUS_TOKEN`), or NVR credentials (`NVR_PASSWORD`) in tracked source files or zip bundles. All secrets belong in server-local `.env` / environment variables; Git only tracks `.env.example`.
+> - **Hashed Credentials & PINs**: All dashboard account passwords and playback PINs (in `.env`, Directus `iot_cctv_credentials`, and any fallback hashes) must be stored as salted `scrypt` hashes (`auth-crypto.js`) and verified in constant time via `crypto.timingSafeEqual`.
+> - **Server-Enforced Access Control**: Never rely on frontend-only gates. Authentication (`voscctv_session`), playback PIN unlock (`voscctv_playback`, auto-locked on exit and sliding idle TTL), and `go2rtc` HTTP/WebSocket playback stream access must be enforced server-side.
+> - **Brute-Force Protection & Proxy Hygiene**: Keep rate limiting/lockout active on `/api/login` and `/api/playback/unlock`, only trust `X-Forwarded-For` when `TRUST_PROXY=true`, use same-host CORS (`isSameHostOrigin`) instead of wildcard `*`, and preserve `HttpOnly; SameSite=Lax` (plus `Secure` over HTTPS via `COOKIE_SECURE`).
+> - **Least-Privilege Runtime Files**: Write sensitive runtime files (`sessions.json`, `go2rtc.yaml`) with restricted permissions (`0o600`) and keep them gitignored and excluded from deployment zips.
+
+---
+
 ## 🏛️ System Architecture
 
 This project is a high-performance **VOSCTV / AnyDesk-style CCTV NVR Wall & Remote Console Dashboard** designed for dual Dahua NVRs:
