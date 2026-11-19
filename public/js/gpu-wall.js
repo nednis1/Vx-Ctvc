@@ -2431,6 +2431,19 @@
     renderTimelineRuler();
   }
 
+  function cleanupStalePlaybackPlayers(keepPlayer = null) {
+    const mountEl = document.getElementById('playback-video-mount');
+    if (!mountEl) return;
+    mountEl.querySelectorAll('video-rtc').forEach((el) => {
+      if (el === keepPlayer) return;
+      try {
+        if (typeof el.ondisconnect === 'function') el.ondisconnect();
+        el.src = '';
+        el.remove();
+      } catch (e) { }
+    });
+  }
+
   function mountDialogPlaybackPlayer(streamId) {
     const mountEl = document.getElementById('playback-video-mount');
     const placeholderEl = document.getElementById('playback-video-placeholder');
@@ -2445,13 +2458,11 @@
       if (spinnerText) spinnerText.textContent = '';
     }
 
-    if (dialogPlaybackPlayer) {
-      try {
-        if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
-        dialogPlaybackPlayer.src = '';
-        dialogPlaybackPlayer.remove();
-      } catch (e) { }
-      dialogPlaybackPlayer = null;
+    // Keep the most recent rendered player visible underneath while the new stream buffers
+    const previousPlayer = dialogPlaybackPlayer && dialogPlaybackPlayer.isConnected ? dialogPlaybackPlayer : null;
+    cleanupStalePlaybackPlayers(previousPlayer);
+    if (previousPlayer && previousPlayer.video) {
+      try { previousPlayer.video.pause(); } catch (e) { }
     }
 
     const host = window.location.host;
@@ -2461,6 +2472,9 @@
     const player = document.createElement('video-rtc');
     player.className = 'gpu-player-el';
     player.isPlayback = true;
+    if (previousPlayer) {
+      player.style.opacity = '0';
+    }
     if (playbackSpeed !== 1) {
       player.customPlaybackRate = playbackSpeed;
     }
@@ -2489,6 +2503,8 @@
       const onStreamReady = () => {
         if (dialogPlaybackPlayer !== player) return;
         streamReady = true;
+        player.style.opacity = '1';
+        cleanupStalePlaybackPlayers(player);
         if (offlineTimeoutId) {
           clearTimeout(offlineTimeoutId);
           offlineTimeoutId = null;
@@ -3319,14 +3335,9 @@
     if (!nvrId || !channel) return;
     const reqSeq = ++playbackRequestSeq;
 
-    // Immediately clean up previous dialog player so its teardown events don't trigger offline errors on spinner
-    if (dialogPlaybackPlayer) {
-      try {
-        if (typeof dialogPlaybackPlayer.ondisconnect === 'function') dialogPlaybackPlayer.ondisconnect();
-        dialogPlaybackPlayer.src = '';
-        dialogPlaybackPlayer.remove();
-      } catch (e) { }
-      dialogPlaybackPlayer = null;
+    // Keep previous rendered video frame visible underneath while loading the next stream
+    if (dialogPlaybackPlayer && dialogPlaybackPlayer.video) {
+      try { dialogPlaybackPlayer.video.pause(); } catch (e) { }
     }
 
     const spinnerEl = document.getElementById('playback-screen-spinner');

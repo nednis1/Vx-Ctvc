@@ -3641,7 +3641,14 @@ html[data-theme="light"].playback-popout-mode .gpu-playback-dialog::backdrop {
   z-index: 2;
 }
 
-.playback-video-mount video-rtc,
+.playback-video-mount video-rtc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .playback-video-mount video {
   width: 100%;
   height: 100%;
