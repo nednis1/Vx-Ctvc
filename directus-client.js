@@ -21,13 +21,22 @@ class DirectusCctvClient {
     this.syncIntervalMs = 60000; // Auto-sync every 60 seconds
   }
 
+  _getBaseUrl() {
+    const rawUrl = process.env.DIRECTUS_URL || this.baseUrl || 'http://goatedcodoer:8056';
+    return rawUrl.replace(/\/+$/, '');
+  }
+
+  _getToken() {
+    return (process.env.DIRECTUS_TOKEN || this.token || '').trim();
+  }
+
   /**
    * Perform raw HTTP/HTTPS request to Directus API
    */
   async _request(method, endpoint, payload = null) {
     return new Promise((resolve) => {
       try {
-        const targetUrl = new URL(endpoint, this.baseUrl);
+        const targetUrl = new URL(endpoint, this._getBaseUrl());
         const isHttps = targetUrl.protocol === 'https:';
         const client = isHttps ? https : http;
 
@@ -35,8 +44,9 @@ class DirectusCctvClient {
           'Accept': 'application/json'
         };
 
-        if (this.token) {
-          headers['Authorization'] = `Bearer ${this.token}`;
+        const token = this._getToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
 
         let dataString = null;
@@ -190,6 +200,8 @@ class DirectusCctvClient {
    * Initialize client and start background periodic synchronization
    */
   async init() {
+    this.baseUrl = this._getBaseUrl();
+    this.token = this._getToken();
     if (!this.token) {
       console.warn('[Directus] DIRECTUS_TOKEN is not set in .env — Directus credential sync may fail if collection requires auth.');
     }

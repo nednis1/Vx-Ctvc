@@ -6,11 +6,8 @@ const httpProxy = require('http-proxy');
 const net = require('net');
 const path = require('path');
 const zlib = require('zlib');
-const go2rtcManager = require('./go2rtc-manager');
-const directusClient = require('./directus-client');
-const { hashPasswordSync, isPasswordHashed, verifyPassword } = require('./auth-crypto');
 
-// Load environment variables from .env if present
+// Load environment variables from .env BEFORE requiring internal modules that read process.env
 function loadEnv() {
   const envPath = path.join(__dirname, '.env');
   if (fs.existsSync(envPath)) {
@@ -32,6 +29,10 @@ function loadEnv() {
   }
 }
 loadEnv();
+
+const go2rtcManager = require('./go2rtc-manager');
+const directusClient = require('./directus-client');
+const { hashPasswordSync, isPasswordHashed, verifyPassword } = require('./auth-crypto');
 
 // Custom Camera Names file persistence
 const CAMERA_NAMES_FILE = path.join(__dirname, 'camera_names.json');
