@@ -99,7 +99,7 @@ function buildZipBuffer(entries) {
     centralHeader.writeUInt16LE(0, 32);
     centralHeader.writeUInt16LE(0, 34);
     centralHeader.writeUInt16LE(0, 36);
-    centralHeader.writeUInt32LE(((entry.mode || 0o100600) & 0xffff) << 16, 38);
+    centralHeader.writeUInt32LE((((entry.mode || 0o100600) & 0xffff) << 16) >>> 0, 38);
     centralHeader.writeUInt32LE(offset, 42);
 
     centralParts.push(centralHeader, nameBuf);
